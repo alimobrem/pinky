@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
@@ -109,6 +112,7 @@ class LLMRouter:
                 breaker.record_success()
                 return response
             except Exception:
+                logger.exception("LLM provider %s failed", provider.config.name)
                 breaker.record_failure()
                 continue
 

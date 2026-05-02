@@ -19,6 +19,26 @@ def test_encrypt_decrypt_roundtrip() -> None:
     assert result == plaintext
 
 
+def test_encrypt_decrypt_with_aad() -> None:
+    plaintext = b"cluster-token"
+    aad = "cluster_identity_bindings:abc-123"
+    blob = encrypt(plaintext, aad=aad)
+    result = decrypt(blob, aad=aad)
+    assert result == plaintext
+
+
+def test_aad_mismatch_fails() -> None:
+    plaintext = b"secret"
+    blob = encrypt(plaintext, aad="table_a:row_1")
+    with pytest.raises(Exception):
+        decrypt(blob, aad="table_b:row_2")
+
+
+def test_key_version_prefix() -> None:
+    blob = encrypt(b"test")
+    assert blob[0:1] == b"\x01"
+
+
 def test_different_encryptions_produce_different_blobs() -> None:
     plaintext = b"same-input"
     blob1 = encrypt(plaintext)

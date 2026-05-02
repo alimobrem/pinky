@@ -1,9 +1,10 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from pinky_api.auth.middleware import get_current_principal
 from pinky_api.auth.routes import router as auth_router
 from pinky_api.config import get_settings
 from pinky_api.fleet.routes import router as fleet_router
@@ -32,6 +33,10 @@ app = FastAPI(
     title="Pinky API",
     version="0.1.0",
     lifespan=lifespan,
+    dependencies=[Depends(get_current_principal)],
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
 app.add_middleware(SecurityHeadersMiddleware)
@@ -39,8 +44,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
 )
 
 app.include_router(auth_router)
