@@ -36,8 +36,29 @@ htmlcov/
 .pytest_cache/
 coverage/
 
+# Playwright
+.playwright-mcp/
+
+# TypeScript build output
+packages/contracts/dist/
+packages/design-system/dist/
+*.tsbuildinfo
+
+# Next.js
+apps/web/.next/
+apps/web/out/
+
+# Python venvs and eggs
+apps/api/.venv/
+apps/worker/.venv/
+apps/cli/.venv/
+*.egg-info/
+
 # Docker
 infra/docker/data/
+
+# Claude
+.claude/
 
 # Misc
 *.log
