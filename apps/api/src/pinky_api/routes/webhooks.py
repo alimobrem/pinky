@@ -1,9 +1,14 @@
 """Webhook subscription routes — outbound notification management."""
 
-from fastapi import APIRouter, Depends
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.auth.deps import require_admin
+from pinky_api.db.deps import get_db
+from pinky_api.repositories.webhooks import WebhookRepository
 
 router = APIRouter(prefix="/api/v1", tags=["webhooks"])
 
@@ -16,25 +21,44 @@ class WebhookCreateRequest(BaseModel):
     channel_config: dict = {}
 
 
+def _serialize_sub(s: object) -> dict:
+    return {
+        "id": str(s.id),
+        "name": s.name,
+        "url": s.url,
+        "event_patterns": list(s.event_patterns) if s.event_patterns else [],
+        "formatter": s.formatter,
+        "enabled": s.enabled,
+        "created_at": s.created_at.isoformat() if s.created_at else "",
+    }
+
+
 @router.get("/webhook-subscriptions")
-async def list_webhook_subscriptions() -> dict:
-    return {"items": [], "next_cursor": None, "has_more": False}
+async def list_webhook_subscriptions(db: AsyncSession = Depends(get_db)) -> dict:
+    repo = WebhookRepository(db)
+    result = await repo.list_subscriptions()
+    return {"items": [_serialize_sub(s) for s in result["items"]], "next_cursor": result["next_cursor"], "has_more": result["has_more"]}
 
 
 @router.post("/webhook-subscriptions", status_code=201)
-async def create_webhook_subscription(req: WebhookCreateRequest, _admin: dict = Depends(require_admin)) -> dict:
-    return {"message": "Webhook creation not yet implemented"}
+async def create_webhook_subscription(req: WebhookCreateRequest, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> dict:
+    repo = WebhookRepository(db)
+    sub = await repo.create_subscription(name=req.name, url=req.url, event_patterns=req.event_patterns, formatter=req.formatter, channel_config=req.channel_config)
+    await db.commit()
+    return _serialize_sub(sub)
 
 
 @router.delete("/webhook-subscriptions/{subscription_id}", status_code=204)
-async def delete_webhook_subscription(subscription_id: str, _admin: dict = Depends(require_admin)) -> None:
-    pass
+async def delete_webhook_subscription(subscription_id: str, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> None:
+    repo = WebhookRepository(db)
+    deleted = await repo.delete_subscription(UUID(subscription_id))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    await db.commit()
 
 
 @router.get("/webhook-deliveries")
-async def list_webhook_deliveries(
-    subscription_id: str | None = None,
-    status: str | None = None,
-    limit: int = 50,
-) -> dict:
-    return {"items": [], "next_cursor": None, "has_more": False}
+async def list_webhook_deliveries(subscription_id: str | None = None, status: str | None = None, limit: int = 50, db: AsyncSession = Depends(get_db)) -> dict:
+    repo = WebhookRepository(db)
+    result = await repo.list_deliveries(subscription_id=subscription_id, status=status, limit=limit)
+    return {"items": [], "next_cursor": result["next_cursor"], "has_more": result["has_more"]}

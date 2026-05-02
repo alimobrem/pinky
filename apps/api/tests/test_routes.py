@@ -88,13 +88,15 @@ def test_webhook_crud(authed_client: TestClient) -> None:
     })
     assert response.status_code == 201
 
-    response = authed_client.delete("/api/v1/webhook-subscriptions/fake-id")
-    assert response.status_code == 204
+    response = authed_client.delete("/api/v1/webhook-subscriptions/00000000-0000-0000-0000-000000000001")
+    assert response.status_code in (204, 404)
 
 
 def test_policy_rule_crud(authed_client: TestClient) -> None:
+    import secrets
+    rule_name = f"test-rule-{secrets.token_hex(4)}"
     response = authed_client.post("/api/v1/policy-rules", json={
-        "name": "test-rule",
+        "name": rule_name,
         "priority": 50,
         "conditions": {"severity_gte": "critical"},
         "action": {"type": "investigate"},

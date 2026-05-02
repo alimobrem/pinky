@@ -26,9 +26,15 @@ spec:
             - containerPort: 8000
           env:
             - name: PINKY_DATABASE__URL
-              value: {{ .Values.database.url }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.secretKey }}
             - name: PINKY_REDIS__URL
-              value: {{ .Values.redis.url }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.existingSecret }}
+                  key: {{ .Values.redis.secretKey }}
             - name: PINKY_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
@@ -39,6 +45,10 @@ spec:
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
           livenessProbe:
             httpGet:
               path: /api/v1/healthz

@@ -38,10 +38,12 @@ worker:
       memory: 1Gi
 
 database:
-  url: postgresql+asyncpg://pinky:pinky@pinky-postgres:5432/pinky
+  existingSecret: pinky-database-url
+  secretKey: url
 
 redis:
-  url: redis://pinky-redis:6379/0
+  existingSecret: pinky-redis-url
+  secretKey: url
 
 temporal:
   address: pinky-temporal:7233

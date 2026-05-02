@@ -24,7 +24,10 @@ spec:
           image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
           env:
             - name: PINKY_DATABASE__URL
-              value: {{ .Values.database.url }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.secretKey }}
             - name: TEMPORAL_ADDRESS
               value: {{ .Values.temporal.address }}
             - name: TEMPORAL_NAMESPACE
@@ -39,3 +42,7 @@ spec:
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
