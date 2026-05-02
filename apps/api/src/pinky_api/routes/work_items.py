@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.db.deps import get_db
+from pinky_api.events import emit
 from pinky_api.repositories.work_items import WorkItemRepository
 from pinky_api.schemas.work_item import WorkItemListResponse, WorkItemResponse
 
@@ -72,6 +73,7 @@ async def accept_work_item(work_item_id: str, db: AsyncSession = Depends(get_db)
         raise HTTPException(status_code=409, detail=str(e))
     if item is None:
         raise HTTPException(status_code=404, detail="Work item not found")
+    await emit(db, "work_item.accepted", "work_item", UUID(work_item_id), {"status": "accepted"})
     await db.commit()
     return _serialize(item)
 
@@ -85,6 +87,7 @@ async def start_work_item(work_item_id: str, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=409, detail=str(e))
     if item is None:
         raise HTTPException(status_code=404, detail="Work item not found")
+    await emit(db, "work_item.started", "work_item", UUID(work_item_id), {"status": "in_progress"})
     await db.commit()
     return _serialize(item)
 
@@ -98,6 +101,7 @@ async def complete_work_item(work_item_id: str, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=409, detail=str(e))
     if item is None:
         raise HTTPException(status_code=404, detail="Work item not found")
+    await emit(db, "work_item.completed", "work_item", UUID(work_item_id), {"status": "done"})
     await db.commit()
     return _serialize(item)
 

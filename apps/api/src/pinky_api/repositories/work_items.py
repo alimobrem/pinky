@@ -65,6 +65,7 @@ class WorkItemRepository(BaseRepository):
         await self.session.execute(
             sa_update(WorkItem).where(WorkItem.id == work_item_id).values(**values)
         )
+        self.session.expire_all()
         return await self.get(work_item_id)
 
     async def reassign(self, work_item_id: UUID, new_owner_id: UUID) -> WorkItem | None:

@@ -14,6 +14,13 @@ class AuthConfig(BaseSettings, frozen=True):
     session_idle_timeout_minutes: int = 30
     session_absolute_timeout_hours: int = 8
     csrf_enabled: bool = True
+    callback_base_url: str = "http://localhost:8000"
+    openshift_issuer_url: str = ""
+    openshift_client_id: str = ""
+    openshift_client_secret: str = ""
+    oidc_issuer_url: str = ""
+    oidc_client_id: str = ""
+    oidc_client_secret: str = ""
 
 
 class PinkySettings(BaseSettings, frozen=True):
