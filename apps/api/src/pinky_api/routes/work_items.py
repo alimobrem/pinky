@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.db.deps import get_db
 from pinky_api.repositories.work_items import WorkItemRepository
+from pinky_api.schemas.work_item import WorkItemListResponse, WorkItemResponse
 
 router = APIRouter(prefix="/api/v1/work-items", tags=["work-items"])
 

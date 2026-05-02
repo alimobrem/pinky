@@ -46,18 +46,18 @@ async def list_nodes(api_client: ApiClient) -> list[dict]:
 
 
 def _pod_summary(pod: Any) -> dict:
-    containers = pod.status.container_statuses or [] if pod.status else []
+    containers = (pod.status.container_statuses or []) if pod.status else []
     return {
         "name": pod.metadata.name,
-        "namespace": pod.metadata.namespace,
+        "namespace": pod.metadata.namespace or "",
         "phase": pod.status.phase if pod.status else "Unknown",
         "restart_count": sum(c.restart_count or 0 for c in containers),
         "containers": [
             {
                 "name": c.name,
-                "ready": c.ready,
+                "ready": c.ready or False,
                 "restart_count": c.restart_count or 0,
-                "state": _container_state(c.state),
+                "state": _container_state(c.state) if c.state else None,
                 "last_state": _container_state(c.last_state) if c.last_state else None,
             }
             for c in containers

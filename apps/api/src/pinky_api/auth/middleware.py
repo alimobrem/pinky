@@ -22,6 +22,12 @@ UNPROTECTED_PATHS = {
 STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
+def _get_session_store() -> "SessionStore | None":
+    from pinky_api.auth.session_store import SessionStore
+    import pinky_api.auth._state as state
+    return state.session_store
+
+
 async def get_current_principal(
     request: Request,
     session_token: str | None = Depends(cookie_scheme),
@@ -45,22 +51,22 @@ async def get_current_principal(
     if not session_token:
         raise HTTPException(status_code=401, detail="Authentication required")
 
-    token_hash = hash_token(session_token)
-    # TODO: look up session in Redis by token_hash, validate not expired/revoked
-    # TODO: refresh idle timeout on valid session
-    # TODO: return principal dict with id, provider, email, groups
+    store = _get_session_store()
+    if store is None:
+        raise HTTPException(status_code=503, detail="Session store not initialized")
 
-    raise HTTPException(status_code=401, detail="Session validation not yet implemented")
+    principal = await store.validate(session_token)
+    if principal is None:
+        raise HTTPException(status_code=401, detail="Session expired or invalid")
 
+    # CSRF validation for state-changing requests
+    if request.method in STATE_CHANGING_METHODS:
+        csrf_header = request.headers.get(CSRF_HEADER_NAME)
+        if not csrf_header:
+            raise HTTPException(status_code=403, detail="CSRF token missing")
 
-def validate_csrf(request: Request) -> None:
-    if request.method not in STATE_CHANGING_METHODS:
-        return
-    if request.url.path in UNPROTECTED_PATHS:
-        return
+        expected_csrf = await store.get_csrf_token(session_token)
+        if expected_csrf is None or csrf_header != expected_csrf:
+            raise HTTPException(status_code=403, detail="CSRF token invalid")
 
-    csrf_header = request.headers.get(CSRF_HEADER_NAME)
-    if not csrf_header:
-        raise HTTPException(status_code=403, detail="CSRF token missing")
-
-    # TODO: compare csrf_header against session's csrf_token
+    return principal

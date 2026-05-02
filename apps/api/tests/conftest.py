@@ -36,10 +36,7 @@ _test_session_factory = async_sessionmaker(_test_engine, expire_on_commit=False)
 
 async def _get_test_db() -> AsyncIterator[AsyncSession]:
     async with _test_session_factory() as session:
-        try:
-            yield session
-        finally:
-            await session.rollback()
+        yield session
 
 
 @pytest.fixture(autouse=True)
@@ -51,6 +48,28 @@ def _set_encryption_key(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture
 def authed_client() -> TestClient:
     app.dependency_overrides[get_current_principal] = _mock_principal
+    app.dependency_overrides[get_db] = _get_test_db
+    client = TestClient(app)
+    yield client
+    app.dependency_overrides.clear()
+
+
+NON_ADMIN_PRINCIPAL = {
+    "id": "regular-user",
+    "provider": "test",
+    "email": "user@pinky.dev",
+    "groups": ["users"],
+    "is_admin": False,
+}
+
+
+async def _mock_non_admin() -> dict:
+    return NON_ADMIN_PRINCIPAL
+
+
+@pytest.fixture
+def non_admin_client() -> TestClient:
+    app.dependency_overrides[get_current_principal] = _mock_non_admin
     app.dependency_overrides[get_db] = _get_test_db
     client = TestClient(app)
     yield client

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pinky_api.auth.deps import require_admin, require_authenticated
 from pinky_api.db.deps import get_db
 from pinky_api.repositories.clusters import ClusterRepository
 
@@ -48,7 +49,7 @@ async def list_clusters(
 
 
 @router.post("/clusters", status_code=201)
-async def create_cluster(req: ClusterCreateRequest, db: AsyncSession = Depends(get_db)) -> dict:
+async def create_cluster(req: ClusterCreateRequest, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> dict:
     repo = ClusterRepository(db)
     count = await repo.count()
     cluster = await repo.create(
@@ -65,7 +66,7 @@ async def create_cluster(req: ClusterCreateRequest, db: AsyncSession = Depends(g
 
 
 @router.delete("/clusters/{cluster_id}", status_code=204)
-async def remove_cluster(cluster_id: str, db: AsyncSession = Depends(get_db)) -> None:
+async def remove_cluster(cluster_id: str, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> None:
     repo = ClusterRepository(db)
     deleted = await repo.delete(UUID(cluster_id))
     if not deleted:

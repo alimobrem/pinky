@@ -23,10 +23,24 @@ from pinky_api.security.headers import SecurityHeadersMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    settings = get_settings()
+    import redis.asyncio as aioredis
+    from pinky_api.auth.session_store import SessionStore
+    import pinky_api.auth._state as auth_state
     from pinky_api.db.engine import close_engine, init_engine
+
+    settings = get_settings()
     init_engine(settings.database.url)
+
+    redis_client = aioredis.from_url(settings.redis.url, decode_responses=True)
+    auth_state.session_store = SessionStore(
+        redis_client,
+        idle_timeout_minutes=settings.auth.session_idle_timeout_minutes,
+        absolute_timeout_hours=settings.auth.session_absolute_timeout_hours,
+    )
+
     yield
+
+    await redis_client.aclose()
     await close_engine()
 
 
