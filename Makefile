@@ -1,0 +1,60 @@
+.PHONY: dev dev-infra dev-api dev-worker dev-web lint typecheck test verify clean db-upgrade db-migrate temporal-init
+
+# Development
+CONTAINER_ENGINE ?= podman
+
+dev-infra:
+	$(CONTAINER_ENGINE) compose -f infra/docker/docker-compose.yml up -d
+
+dev-api:
+	cd apps/api && .venv/bin/uvicorn pinky_api.app:app --reload --port 8000
+
+dev-worker:
+	cd apps/worker && .venv/bin/python -m pinky_worker.main
+
+dev-web:
+	pnpm --filter @pinky/web dev
+
+dev: dev-infra
+	@echo "Starting all services..."
+	$(MAKE) -j3 dev-api dev-worker dev-web
+
+# Lint
+lint:
+	cd apps/api && .venv/bin/python -m ruff check src/
+	cd apps/worker && .venv/bin/python -m ruff check src/
+	cd apps/cli && .venv/bin/python -m ruff check src/
+	pnpm -r lint
+
+# Type check
+typecheck:
+	cd apps/api && .venv/bin/python -m pyright src/
+	cd apps/worker && .venv/bin/python -m pyright src/
+	pnpm -r typecheck
+
+# Test
+test:
+	cd apps/api && .venv/bin/python -m pytest tests/ -v
+	cd apps/worker && .venv/bin/python -m pytest tests/ -v
+	cd apps/cli && .venv/bin/python -m pytest tests/ -v
+	pnpm -r test
+
+# All checks
+verify: lint typecheck test
+
+# Database
+db-upgrade:
+	cd apps/api && .venv/bin/python -m alembic upgrade head
+
+db-migrate:
+	cd apps/api && .venv/bin/python -m alembic revision --autogenerate -m "$(MSG)"
+
+# Temporal
+temporal-init:
+	temporal operator namespace create pinky 2>/dev/null || true
+
+# Clean
+clean:
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
+	pnpm -r clean

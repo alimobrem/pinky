@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pinky
+      POSTGRES_PASSWORD: pinky
+      POSTGRES_DB: pinky
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pinky"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  temporal:
+    image: temporalio/auto-setup:1.25
+    environment:
+      DB: postgresql
+      DB_PORT: 5432
+      POSTGRES_USER: pinky
+      POSTGRES_PWD: pinky
+      POSTGRES_SEEDS: temporal-db
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    ports:
+      - "7233:7233"
+    depends_on:
+      temporal-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  temporal-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pinky
+      POSTGRES_PASSWORD: pinky
+      POSTGRES_DB: temporal
+    volumes:
+      - temporal_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pinky"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  temporal-ui:
+    image: temporalio/ui:2.31.2
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8233:8080"
+    depends_on:
+      temporal:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  temporal_pgdata:

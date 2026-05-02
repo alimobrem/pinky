@@ -1,0 +1,19 @@
+{
+  "name": "pinky",
+  "private": true,
+  "scripts": {
+    "dev:web": "pnpm --filter @pinky/web dev",
+    "build:web": "pnpm --filter @pinky/web build",
+    "build:contracts": "pnpm --filter @pinky/contracts build",
+    "build:design-system": "pnpm --filter @pinky/design-system build",
+    "build": "pnpm -r build",
+    "lint:ts": "pnpm -r lint",
+    "typecheck:ts": "pnpm -r typecheck",
+    "test:ts": "pnpm -r test",
+    "clean": "pnpm -r clean"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}

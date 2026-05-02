@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-worker
+  labels:
+    app.kubernetes.io/name: pinky-worker
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pinky-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pinky-worker
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+      containers:
+        - name: worker
+          image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
+          env:
+            - name: PINKY_DATABASE__URL
+              value: {{ .Values.database.url }}
+            - name: TEMPORAL_ADDRESS
+              value: {{ .Values.temporal.address }}
+            - name: TEMPORAL_NAMESPACE
+              value: {{ .Values.temporal.namespace }}
+            - name: PINKY_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.encryption.existingSecret }}
+                  key: key
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false

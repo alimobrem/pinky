@@ -1,0 +1,104 @@
+"""Auth provider abstraction — OpenShift OAuth and external OIDC."""
+
+from dataclasses import dataclass
+
+import httpx
+
+
+@dataclass(frozen=True)
+class ProviderUserInfo:
+    provider: str
+    subject: str
+    email: str | None
+    display_name: str | None
+    groups: list[str]
+    email_verified: bool = False
+
+
+class AuthProvider:
+    def __init__(self, provider_type: str, client_id: str, client_secret: str, issuer_url: str) -> None:
+        self.provider_type = provider_type
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.issuer_url = issuer_url.rstrip("/")
+        self._well_known: dict | None = None
+
+    async def get_well_known(self) -> dict:
+        if self._well_known is None:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(f"{self.issuer_url}/.well-known/openid-configuration")
+                resp.raise_for_status()
+                self._well_known = resp.json()
+        return self._well_known
+
+    def get_authorize_url(self, redirect_uri: str, state: str) -> str:
+        if self.provider_type == "openshift":
+            return (
+                f"{self.issuer_url}/oauth/authorize"
+                f"?client_id={self.client_id}"
+                f"&redirect_uri={redirect_uri}"
+                f"&response_type=code"
+                f"&state={state}"
+            )
+        return (
+            f"{self.issuer_url}/authorize"
+            f"?client_id={self.client_id}"
+            f"&redirect_uri={redirect_uri}"
+            f"&response_type=code"
+            f"&scope=openid+email+profile"
+            f"&state={state}"
+        )
+
+    async def exchange_code(self, code: str, redirect_uri: str) -> dict:
+        if self.provider_type == "openshift":
+            token_url = f"{self.issuer_url}/oauth/token"
+        else:
+            wk = await self.get_well_known()
+            token_url = wk["token_endpoint"]
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                token_url,
+                data={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": redirect_uri,
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                },
+            )
+            resp.raise_for_status()
+            return resp.json()
+
+    async def get_user_info(self, access_token: str) -> ProviderUserInfo:
+        if self.provider_type == "openshift":
+            userinfo_url = f"{self.issuer_url}/apis/user.openshift.io/v1/users/~"
+        else:
+            wk = await self.get_well_known()
+            userinfo_url = wk["userinfo_endpoint"]
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                userinfo_url,
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        if self.provider_type == "openshift":
+            return ProviderUserInfo(
+                provider="openshift",
+                subject=data.get("metadata", {}).get("uid", data.get("metadata", {}).get("name", "")),
+                email=None,
+                display_name=data.get("metadata", {}).get("name"),
+                groups=data.get("groups", []),
+            )
+
+        return ProviderUserInfo(
+            provider="oidc",
+            subject=data.get("sub", ""),
+            email=data.get("email"),
+            display_name=data.get("name"),
+            groups=data.get("groups", []),
+            email_verified=data.get("email_verified", False),
+        )

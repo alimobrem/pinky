@@ -1,0 +1,33 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-api-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: pinky-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pinky-web
+      ports:
+        - port: 8000
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pinky-postgres
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pinky-redis
+      ports:
+        - port: 6379
+{{- end }}

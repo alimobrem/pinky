@@ -1,0 +1,65 @@
+web:
+  replicas: 2
+  image:
+    repository: pinky-web
+    tag: latest
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+api:
+  replicas: 2
+  image:
+    repository: pinky-api
+    tag: latest
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+worker:
+  replicas: 2
+  image:
+    repository: pinky-worker
+    tag: latest
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+
+database:
+  url: postgresql+asyncpg://pinky:pinky@pinky-postgres:5432/pinky
+
+redis:
+  url: redis://pinky-redis:6379/0
+
+temporal:
+  address: pinky-temporal:7233
+  namespace: pinky
+
+encryption:
+  existingSecret: pinky-encryption-key
+
+ingress:
+  enabled: true
+  host: pinky.example.com
+  tls: true
+
+observer:
+  additionalRules: []
+  # - apiGroups: ["kafka.strimzi.io"]
+  #   resources: ["kafkatopics"]
+  #   verbs: ["get", "list", "watch"]
+
+networkPolicy:
+  enabled: true

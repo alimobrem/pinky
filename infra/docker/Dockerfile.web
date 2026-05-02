@@ -1,0 +1,16 @@
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
+COPY packages/ ./packages/
+COPY apps/web/ ./apps/web/
+RUN corepack enable && pnpm install --frozen-lockfile && pnpm --filter @pinky/contracts build && pnpm --filter @pinky/web build
+
+FROM node:20-alpine
+RUN addgroup -S pinky && adduser -S pinky -G pinky -u 1001
+WORKDIR /app
+COPY --from=builder /app/apps/web/.next/standalone ./
+COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder /app/apps/web/public ./apps/web/public
+USER 1001
+EXPOSE 3000
+CMD ["node", "apps/web/server.js"]
