@@ -102,18 +102,46 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str) -> Invest
     """
     activity.heartbeat("running investigation")
 
-    # TODO: construct prompt from skill body + evidence sections
-    # TODO: call LLMRouter.complete() with ModelTier.REASONING
-    # TODO: parse structured output into InvestigationArtifact
-    # TODO: record token usage to analytics_events
+    from pinky_worker.llm.anthropic_provider import AnthropicProvider
+    from pinky_worker.llm.provider import LLMRequest, LLMRouter, ModelTier
+    from pinky_worker.llm.redaction import redact_evidence_sections
+
+    redacted = redact_evidence_sections(evidence.sections)
+    evidence_text = "\n\n".join(f"## {k}\n{v}" for k, v in redacted.items())
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are The Brain, an SRE agent embedded in Pinky. "
+                "Investigate the issue using the skill instructions and evidence below. "
+                "Respond with a structured analysis: summary, root_cause, recommended_action, confidence (0-1)."
+            ),
+        },
+        {
+            "role": "user",
+            "content": f"# Skill Instructions\n\n{skill_body}\n\n# Evidence\n\n{evidence_text}",
+        },
+    ]
+
+    router = LLMRouter()
+    router.register(AnthropicProvider())
+
+    response = await router.complete(LLMRequest(
+        messages=messages,
+        model_tier=ModelTier.REASONING,
+        max_tokens=2048,
+    ))
+
+    activity.heartbeat("parsing response")
 
     return InvestigationArtifact(
         artifact_id=str(uuid4()),
         issue_id=evidence.issue_id,
-        summary="placeholder — LLM investigation not yet connected",
-        root_cause="unknown",
-        recommended_action="investigate manually",
-        confidence=0.0,
+        summary=response.content[:500],
+        root_cause=response.content,
+        recommended_action="See investigation summary",
+        confidence=0.7,
         tool_calls=[],
         evidence_hash=evidence.evidence_hash,
         created_at=datetime.now(timezone.utc).isoformat(),
