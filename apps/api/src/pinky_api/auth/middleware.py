@@ -1,5 +1,7 @@
 """Auth middleware — session validation, CSRF, principal injection."""
 
+import os
+
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import APIKeyCookie, APIKeyHeader
 
@@ -27,6 +29,10 @@ async def get_current_principal(
 ) -> dict:
     if request.url.path in UNPROTECTED_PATHS:
         return {}
+
+    # Dev mode bypass — never enable in production
+    if os.environ.get("PINKY_DEV_AUTH_BYPASS") == "true":
+        return {"id": "dev-user", "provider": "dev", "email": "dev@pinky.dev", "groups": ["pinky-admins"], "is_admin": True}
 
     # API token auth (CLI/CI)
     if auth_header and auth_header.startswith("Bearer "):
