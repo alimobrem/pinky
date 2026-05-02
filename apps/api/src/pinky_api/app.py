@@ -24,9 +24,10 @@ from pinky_api.security.headers import SecurityHeadersMiddleware
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
-    # TODO: initialize database pool, redis, definition loader
+    from pinky_api.db.engine import close_engine, init_engine
+    init_engine(settings.database.url)
     yield
-    # TODO: cleanup
+    await close_engine()
 
 
 app = FastAPI(

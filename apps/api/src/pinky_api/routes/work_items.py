@@ -1,36 +1,34 @@
 """Work item routes — the core task-first API."""
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from pinky_api.db.deps import get_db
+from pinky_api.repositories.work_items import WorkItemRepository
 
 router = APIRouter(prefix="/api/v1/work-items", tags=["work-items"])
 
 
-class WorkItemResponse(BaseModel):
-    id: str
-    issue_id: str | None = None
-    cluster_id: str
-    title: str
-    why_now: str | None = None
-    recommended_next_step: str | None = None
-    status: str
-    owner_id: str | None = None
-    confidence: float | None = None
-    priority: str = "medium"
-    labels: dict[str, str] = {}
-    annotations: dict[str, str] = {}
-    runbook_url: str | None = None
-    created_at: str = ""
-    updated_at: str = ""
-
-
-VALID_TRANSITIONS: dict[str, set[str]] = {
-    "ready": {"accepted"},
-    "accepted": {"in_progress", "done"},
-    "in_progress": {"blocked", "waiting_for_approval", "done"},
-    "blocked": {"in_progress", "done"},
-    "waiting_for_approval": {"in_progress"},
-}
+def _serialize(item: object) -> dict:
+    return {
+        "id": str(item.id),
+        "issue_id": str(item.issue_id) if item.issue_id else None,
+        "cluster_id": str(item.cluster_id),
+        "title": item.title,
+        "why_now": item.why_now,
+        "recommended_next_step": item.recommended_next_step,
+        "status": item.status,
+        "owner_id": str(item.owner_id) if item.owner_id else None,
+        "confidence": item.confidence,
+        "priority": item.priority,
+        "labels": item.labels or {},
+        "annotations": item.annotations or {},
+        "runbook_url": item.runbook_url,
+        "created_at": item.created_at.isoformat() if item.created_at else "",
+        "updated_at": item.updated_at.isoformat() if item.updated_at else "",
+    }
 
 
 @router.get("")
@@ -41,42 +39,77 @@ async def list_work_items(
     priority: str | None = None,
     cursor: str | None = None,
     limit: int = 50,
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
-    # TODO: query work_items table with filters, cursor pagination
-    return {"items": [], "next_cursor": None, "has_more": False}
+    repo = WorkItemRepository(db)
+    result = await repo.list(
+        cluster_id=cluster_id, status=status, owner_id=owner,
+        priority=priority, limit=limit, cursor=cursor,
+    )
+    return {
+        "items": [_serialize(i) for i in result["items"]],
+        "next_cursor": result["next_cursor"],
+        "has_more": result["has_more"],
+    }
 
 
 @router.get("/{work_item_id}")
-async def get_work_item(work_item_id: str) -> dict:
-    # TODO: fetch from DB with evidence, plan, execution refs
-    raise HTTPException(status_code=404, detail="Work item not found")
+async def get_work_item(work_item_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+    repo = WorkItemRepository(db)
+    item = await repo.get(UUID(work_item_id))
+    if item is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+    return _serialize(item)
 
 
 @router.post("/{work_item_id}/accept")
-async def accept_work_item(work_item_id: str) -> dict:
-    # TODO: validate transition ready->accepted, set owner to current principal
-    # TODO: emit domain event work_item.accepted
-    # TODO: log to analytics_events
-    return {"message": "Accept not yet implemented"}
+async def accept_work_item(work_item_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+    repo = WorkItemRepository(db)
+    try:
+        item = await repo.transition(UUID(work_item_id), "accepted")
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if item is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+    await db.commit()
+    return _serialize(item)
 
 
 @router.post("/{work_item_id}/start")
-async def start_work_item(work_item_id: str) -> dict:
-    # TODO: validate transition accepted->in_progress
-    # TODO: emit domain event work_item.started
-    return {"message": "Start not yet implemented"}
+async def start_work_item(work_item_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+    repo = WorkItemRepository(db)
+    try:
+        item = await repo.transition(UUID(work_item_id), "in_progress")
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if item is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+    await db.commit()
+    return _serialize(item)
 
 
 @router.post("/{work_item_id}/complete")
-async def complete_work_item(work_item_id: str) -> dict:
-    # TODO: validate transition to done
-    # TODO: move to history
-    # TODO: emit domain event work_item.completed
-    return {"message": "Complete not yet implemented"}
+async def complete_work_item(work_item_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+    repo = WorkItemRepository(db)
+    try:
+        item = await repo.transition(UUID(work_item_id), "done")
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if item is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+    await db.commit()
+    return _serialize(item)
 
 
 @router.post("/{work_item_id}/reassign")
-async def reassign_work_item(work_item_id: str, assignee_id: str) -> dict:
-    # TODO: change owner_id
-    # TODO: emit domain event work_item.reassigned
-    return {"message": "Reassign not yet implemented"}
+async def reassign_work_item(
+    work_item_id: str,
+    assignee_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    repo = WorkItemRepository(db)
+    item = await repo.reassign(UUID(work_item_id), UUID(assignee_id))
+    if item is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+    await db.commit()
+    return _serialize(item)

@@ -36,15 +36,18 @@ def test_all_list_endpoints_return_paginated_shape(authed_client: TestClient) ->
         assert "items" in data, f"{endpoint} missing 'items'"
 
 
-def test_work_item_lifecycle_endpoints_exist(authed_client: TestClient) -> None:
+def test_work_item_lifecycle_returns_404_for_missing(authed_client: TestClient) -> None:
+    fake_uuid = "00000000-0000-0000-0000-000000000001"
     for action in ["accept", "start", "complete"]:
-        response = authed_client.post(f"/api/v1/work-items/fake-id/{action}")
-        assert response.status_code == 200
+        response = authed_client.post(f"/api/v1/work-items/{fake_uuid}/{action}")
+        assert response.status_code == 404
 
 
-def test_work_item_reassign(authed_client: TestClient) -> None:
-    response = authed_client.post("/api/v1/work-items/fake-id/reassign?assignee_id=user-2")
-    assert response.status_code == 200
+def test_work_item_reassign_returns_404_for_missing(authed_client: TestClient) -> None:
+    fake_uuid = "00000000-0000-0000-0000-000000000001"
+    assignee = "00000000-0000-0000-0000-000000000002"
+    response = authed_client.post(f"/api/v1/work-items/{fake_uuid}/reassign?assignee_id={assignee}")
+    assert response.status_code == 404
 
 
 def test_execution_approve(authed_client: TestClient) -> None:
