@@ -52,11 +52,21 @@ export default function TasksPage() {
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const router = useRouter();
 
-  useEffect(() => {
+  const fetchItems = () => {
     fetch(`${API}/api/v1/work-items`)
       .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
       .then((data) => { setItems(data.items || []); setLoading(false); })
       .catch((e) => { setError(e.message); setLoading(false); });
+  };
+
+  useEffect(() => {
+    fetchItems();
+
+    const es = new EventSource(`${API}/api/v1/streams/work-items`);
+    es.addEventListener("update", () => fetchItems());
+    es.addEventListener("heartbeat", () => {});
+    es.onerror = () => {};
+    return () => es.close();
   }, []);
 
   const filtered = items.filter(i => {

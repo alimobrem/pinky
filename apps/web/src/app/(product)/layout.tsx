@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { NavRail } from "@/components/nav-rail";
 import { TopBar } from "@/components/top-bar";
 import { CommandPalette } from "@/components/command-palette";
+import { KeyboardHelp } from "@/components/keyboard-help";
 import { ToastProvider } from "@/components/toast";
 
 export default function ProductLayout({ children }: { children: ReactNode }) {
@@ -17,6 +18,7 @@ export default function ProductLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
       <CommandPalette />
+      <KeyboardHelp />
     </ToastProvider>
   );
 }

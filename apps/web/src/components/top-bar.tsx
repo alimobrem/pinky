@@ -31,6 +31,7 @@ export function TopBar() {
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
         <select
+          aria-label="Cluster selector"
           value={selectedCluster}
           onChange={e => setSelectedCluster(e.target.value)}
           style={{
