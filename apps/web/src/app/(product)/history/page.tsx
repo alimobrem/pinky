@@ -1,111 +1,125 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Clock, Filter } from "lucide-react";
-
-const API = "";
-
-interface HistoryEvent {
-  id: string;
-  aggregate_type: string;
-  aggregate_id: string;
-  event_type: string;
-  cluster_id: string | null;
-  payload: Record<string, unknown>;
-  occurred_at: string;
-}
+import { useQuery } from "@tanstack/react-query";
+import type { HistoryEvent, PaginatedResponse } from "@pinky/contracts";
+import { api } from "@/lib/api";
+import { useCluster } from "@/hooks/use-cluster";
+import { relativeTime } from "@/lib/format-date";
+import { cn } from "@/lib/utils";
 
 const TYPE_COLORS: Record<string, string> = {
-  "work_item": "var(--accent-brand)",
-  "execution": "var(--accent-brain)",
-  "approval": "var(--status-approval)",
-  "cluster": "var(--status-ready)",
-  "issue": "var(--status-in-progress)",
+  work_item: "bg-accent-brand", execution: "bg-accent-brain", approval: "bg-status-approval",
+  cluster: "bg-status-ready", issue: "bg-status-in-progress",
+};
+const TYPE_TEXT: Record<string, string> = {
+  work_item: "text-accent-brand", execution: "text-accent-brain", approval: "text-status-approval",
+  cluster: "text-status-ready", issue: "text-status-in-progress",
 };
 
+function getNavTarget(e: HistoryEvent): string | null {
+  switch (e.aggregate_type) {
+    case "work_item": return `/tasks/${e.aggregate_id}`;
+    case "execution": {
+      const workItemId = e.payload?.work_item_id as string | undefined;
+      if (workItemId) return `/tasks/${workItemId}/execution/${e.aggregate_id}`;
+      return null;
+    }
+    default: return null;
+  }
+}
+
 export default function HistoryPage() {
-  const [events, setEvents] = useState<HistoryEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const cluster = useCluster();
+  const router = useRouter();
 
-  useEffect(() => {
-    fetch(`${API}/api/v1/history`)
-      .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
-      .then(data => { setEvents(data.items || []); setLoading(false); })
-      .catch(e => { setError(`Failed to load history: ${e.message}`); setLoading(false); });
-  }, []);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["history", cluster],
+    queryFn: () => {
+      let url = "/api/v1/history";
+      if (cluster) url += `?cluster_id=${cluster}`;
+      return api.get<PaginatedResponse<HistoryEvent>>(url);
+    },
+  });
 
+  const events = data?.items ?? [];
   const filtered = typeFilter ? events.filter(e => e.aggregate_type === typeFilter) : events;
   const types = [...new Set(events.map(e => e.aggregate_type))];
 
+  const handleRowClick = (e: HistoryEvent) => {
+    const target = getNavTarget(e);
+    if (target) router.push(target);
+    else setExpandedId(expandedId === e.id ? null : e.id);
+  };
+
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-5)" }}>
-        <Clock size={20} style={{ color: "var(--text-tertiary)" }} />
-        <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em" }}>History</h1>
+      <div className="flex items-center gap-3 mb-5">
+        <Clock size={20} className="text-text-tertiary" />
+        <h1 className="text-xl font-semibold tracking-tight">History</h1>
       </div>
 
-      {/* Filter bar */}
-      <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-4)", alignItems: "center" }}>
-        <Filter size={14} style={{ color: "var(--text-tertiary)" }} />
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{
-          background: "var(--bg-elevated)", color: "var(--text-primary)", border: "1px solid var(--border-default)",
-          borderRadius: "var(--radius-md)", padding: "4px 8px", fontSize: 12,
-        }}>
+      <div className="flex gap-3 mb-4 items-center">
+        <Filter size={14} className="text-text-tertiary" />
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="bg-bg-elevated text-text-primary border border-border-default rounded-md px-2 py-1 text-xs">
           <option value="">All Types</option>
           {types.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-tertiary)" }}>{filtered.length} events</span>
+        <span className="ml-auto text-xs text-text-tertiary">{filtered.length} events</span>
       </div>
 
-      {error && (
-        <div style={{
-          padding: "var(--space-3) var(--space-4)", marginBottom: "var(--space-4)",
-          background: "rgba(248, 113, 113, 0.1)", border: "1px solid rgba(248, 113, 113, 0.3)",
-          borderRadius: "var(--radius-md)", color: "var(--status-blocked)", fontSize: 13,
-        }}>{error}</div>
-      )}
+      {error && <div className="p-3 px-4 mb-4 rounded-md bg-status-blocked/10 border border-status-blocked/30 text-status-blocked text-sm">{error.message}</div>}
 
-      {loading && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          {[1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 48, borderRadius: "var(--radius-lg)" }} />)}
+      {isLoading && (
+        <div className="flex flex-col gap-2">
+          {[1, 2, 3].map(i => <div key={i} className="skeleton h-12 rounded-lg" />)}
         </div>
       )}
 
-      {!loading && filtered.length === 0 && (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "var(--space-16) var(--space-6)", textAlign: "center" }}>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, color: "var(--text-tertiary)", marginBottom: "var(--space-6)" }}>(empty)</div>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: "var(--space-2)" }}>No operational history yet.</div>
-          <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>Completed tasks, remediations, and approvals will appear here over time.</div>
+      {!isLoading && filtered.length === 0 && (
+        <div className="flex flex-col items-center py-16 px-6 text-center">
+          <div className="font-mono text-xl text-text-tertiary mb-6">(empty)</div>
+          <div className="text-[15px] font-semibold mb-2">No operational history yet.</div>
+          <div className="text-sm text-text-secondary leading-relaxed">Completed tasks, remediations, and approvals will appear here over time.</div>
         </div>
       )}
 
       {filtered.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {filtered.map((e, i) => (
-            <div key={e.id} style={{
-              display: "grid", gridTemplateColumns: "10px 140px 120px 1fr",
-              gap: "var(--space-3)", padding: "var(--space-3) var(--space-4)",
-              borderBottom: i < filtered.length - 1 ? "1px solid var(--border-subtle)" : "none",
-              alignItems: "center",
-            }}>
-              <div style={{
-                width: 8, height: 8, borderRadius: "50%",
-                background: TYPE_COLORS[e.aggregate_type] || "var(--text-tertiary)",
-              }} />
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-tertiary)", fontVariantNumeric: "tabular-nums" }}>
-                {new Date(e.occurred_at).toLocaleString()}
-              </span>
-              <span style={{
-                fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em",
-                color: TYPE_COLORS[e.aggregate_type] || "var(--text-secondary)",
-              }}>{e.event_type}</span>
-              <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                {e.aggregate_type}/{e.aggregate_id.slice(0, 8)}
-              </span>
-            </div>
-          ))}
+        <div className="flex flex-col">
+          {filtered.map((e, i) => {
+            const navTarget = getNavTarget(e);
+            const isExpanded = expandedId === e.id;
+            return (
+              <div key={e.id}>
+                <div
+                  onClick={() => handleRowClick(e)}
+                  className={cn(
+                    "grid grid-cols-[10px_140px_120px_1fr] gap-3 p-3 px-4 items-center transition-colors",
+                    navTarget && "cursor-pointer hover:bg-bg-hover",
+                    i < filtered.length - 1 && !isExpanded && "border-b border-border-subtle"
+                  )}
+                >
+                  <div className={`w-2 h-2 rounded-full ${TYPE_COLORS[e.aggregate_type] || "bg-text-tertiary"}`} />
+                  <span className="font-mono text-xs text-text-tertiary tabular">{relativeTime(e.occurred_at)}</span>
+                  <span className={`text-[11px] font-semibold uppercase tracking-wider ${TYPE_TEXT[e.aggregate_type] || "text-text-secondary"}`}>{e.event_type}</span>
+                  <span className={navTarget ? "text-sm text-accent-brand" : "text-sm text-text-secondary"}>
+                    {e.aggregate_type}/{e.aggregate_id.slice(0, 8)}
+                  </span>
+                </div>
+                {isExpanded && !navTarget && e.payload && Object.keys(e.payload).length > 0 && (
+                  <div className={cn("px-4 pb-3 pl-10", i < filtered.length - 1 && "border-b border-border-subtle")}>
+                    <pre className="text-xs font-mono text-text-secondary bg-bg-elevated p-3 rounded-md overflow-auto max-h-[200px] whitespace-pre-wrap break-words">
+                      {JSON.stringify(e.payload, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

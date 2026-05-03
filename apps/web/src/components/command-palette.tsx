@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, CheckSquare, Eye, Clock, AlertTriangle, Settings, Brain, Zap } from "lucide-react";
+import { Search, CheckSquare, Eye, Clock, AlertTriangle, Settings, Brain } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface CommandItem {
   id: string;
@@ -12,8 +13,6 @@ interface CommandItem {
   action: () => void;
   category: string;
 }
-
-const API = "";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -34,10 +33,7 @@ export function CommandPalette() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setOpen(o => !o);
-      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setOpen(o => !o); }
       if (e.key === "Escape") setOpen(false);
     };
     window.addEventListener("keydown", handler);
@@ -49,11 +45,10 @@ export function CommandPalette() {
       inputRef.current?.focus();
       setQuery("");
       setSelected(0);
-
-      fetch(`${API}/api/v1/work-items?limit=10`)
+      fetch("/api/v1/work-items?limit=10")
         .then(r => r.json())
         .then(data => {
-          const taskItems: CommandItem[] = (data.items || []).map((wi: any) => ({
+          const taskItems: CommandItem[] = (data.items || []).map((wi: Record<string, string>) => ({
             id: `task-${wi.id}`,
             label: wi.title,
             description: `${wi.status} · ${wi.priority}`,
@@ -73,16 +68,9 @@ export function CommandPalette() {
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setSelected(s => Math.min(s + 1, filtered.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setSelected(s => Math.max(s - 1, 0));
-    } else if (e.key === "Enter" && filtered[selected]) {
-      filtered[selected].action();
-      setOpen(false);
-    }
+    if (e.key === "ArrowDown") { e.preventDefault(); setSelected(s => Math.min(s + 1, filtered.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setSelected(s => Math.max(s - 1, 0)); }
+    else if (e.key === "Enter" && filtered[selected]) { filtered[selected].action(); setOpen(false); }
   };
 
   if (!open) return null;
@@ -90,82 +78,64 @@ export function CommandPalette() {
   const categories = [...new Set(filtered.map(i => i.category))];
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Command palette" style={{
-      position: "fixed", inset: 0, zIndex: 100,
-      background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
-      display: "flex", alignItems: "flex-start", justifyContent: "center",
-      paddingTop: 120,
-    }} onClick={() => setOpen(false)}>
-      <div ref={dialogRef} onClick={e => e.stopPropagation()} onKeyDown={e => {
-        if (e.key !== "Tab" || !dialogRef.current) return;
-        const focusable = dialogRef.current.querySelectorAll<HTMLElement>("input, button, [tabindex]:not([tabindex='-1'])");
-        if (!focusable.length) return;
-        const first = focusable[0], last = focusable[focusable.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-      }} style={{
-        width: 560, maxHeight: 480,
-        background: "var(--bg-elevated)", border: "1px solid var(--border-default)",
-        borderRadius: "var(--radius-xl)", boxShadow: "var(--shadow-dropdown)",
-        overflow: "hidden", display: "flex", flexDirection: "column",
-      }}>
-        {/* Search input */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: "var(--space-3)",
-          padding: "var(--space-4)", borderBottom: "1px solid var(--border-subtle)",
-        }}>
-          <Search size={18} style={{ color: "var(--text-tertiary)", flexShrink: 0 }} />
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Command palette"
+      className="fixed inset-0 z-100 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-[120px]"
+      onClick={() => setOpen(false)}
+    >
+      <div
+        ref={dialogRef}
+        onClick={e => e.stopPropagation()}
+        onKeyDown={e => {
+          if (e.key !== "Tab" || !dialogRef.current) return;
+          const focusable = dialogRef.current.querySelectorAll<HTMLElement>("input, button, [tabindex]:not([tabindex='-1'])");
+          if (!focusable.length) return;
+          const first = focusable[0], last = focusable[focusable.length - 1];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }}
+        className="w-[560px] max-h-[480px] bg-bg-elevated border border-border-default rounded-xl shadow-dropdown overflow-hidden flex flex-col"
+      >
+        <div className="flex items-center gap-3 p-4 border-b border-border-subtle">
+          <Search size={18} className="text-text-tertiary shrink-0" />
           <input
             ref={inputRef}
             value={query}
             onChange={e => { setQuery(e.target.value); setSelected(0); }}
             onKeyDown={handleKeyDown}
             placeholder="Search tasks, navigate, run actions..."
-            style={{
-              flex: 1, background: "none", border: "none", outline: "none",
-              color: "var(--text-primary)", fontSize: 15,
-              fontFamily: "var(--font-sans)",
-            }}
+            className="flex-1 bg-transparent border-none outline-none text-text-primary text-[15px] font-sans"
           />
-          <kbd style={{
-            background: "var(--bg-active)", borderRadius: "var(--radius-sm)",
-            padding: "2px 6px", fontSize: 11, color: "var(--text-tertiary)",
-          }}>ESC</kbd>
+          <kbd className="bg-bg-active rounded-sm px-1.5 py-0.5 text-[11px] text-text-tertiary">ESC</kbd>
         </div>
 
-        {/* Results */}
-        <div style={{ overflowY: "auto", maxHeight: 380 }}>
+        <div className="overflow-y-auto max-h-[380px]">
           {filtered.length === 0 && (
-            <div style={{ padding: "var(--space-8)", textAlign: "center", color: "var(--text-tertiary)", fontSize: 13 }}>
-              No results for "{query}"
+            <div className="p-8 text-center text-text-tertiary text-sm">
+              No results for &quot;{query}&quot;
             </div>
           )}
 
           {categories.map(cat => (
             <div key={cat}>
-              <div style={{
-                padding: "var(--space-2) var(--space-4)",
-                fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)",
-                textTransform: "uppercase", letterSpacing: "0.06em",
-              }}>{cat}</div>
-              {filtered.filter(i => i.category === cat).map((item, i) => {
+              <div className="px-4 py-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{cat}</div>
+              {filtered.filter(i => i.category === cat).map(item => {
                 const globalIndex = filtered.indexOf(item);
                 return (
                   <div
                     key={item.id}
                     onClick={() => { item.action(); setOpen(false); }}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "var(--space-3)",
-                      padding: "var(--space-2) var(--space-4)",
-                      cursor: "pointer",
-                      background: globalIndex === selected ? "var(--bg-hover)" : "transparent",
-                      transition: "background var(--transition-fast)",
-                    }}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-2 cursor-pointer transition-colors",
+                      globalIndex === selected ? "bg-bg-hover" : "bg-transparent"
+                    )}
                   >
-                    <span style={{ color: globalIndex === selected ? "var(--accent-brand)" : "var(--text-tertiary)" }}>{item.icon}</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500 }}>{item.label}</div>
-                      {item.description && <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>{item.description}</div>}
+                    <span className={globalIndex === selected ? "text-accent-brand" : "text-text-tertiary"}>{item.icon}</span>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{item.label}</div>
+                      {item.description && <div className="text-xs text-text-tertiary">{item.description}</div>}
                     </div>
                   </div>
                 );

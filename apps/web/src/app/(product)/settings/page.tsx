@@ -1,223 +1,369 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Settings as SettingsIcon, Plus, Trash2, Brain } from "lucide-react";
-import { useToast } from "@/components/toast";
-
-const API = "";
-
-interface Cluster { id: string; display_name: string; api_endpoint: string; onboarding_state: string; }
-interface Definition { id: string; kind: string; name: string; version: string; enabled: boolean; }
-interface Webhook { id: string; name: string; url: string; formatter: string; enabled: boolean; }
-interface PolicyRule { id: string; name: string; priority: number; enabled: boolean; }
+import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { ClusterRegistryEntry, Definition, WebhookSubscription, PolicyRule, PaginatedResponse } from "@pinky/contracts";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { api } from "@/lib/api";
 
 export default function SettingsPage() {
-  const [clusters, setClusters] = useState<Cluster[]>([]);
-  const [definitions, setDefinitions] = useState<Definition[]>([]);
-  const [webhooks, setWebhooks] = useState<Webhook[]>([]);
-  const [rules, setRules] = useState<PolicyRule[]>([]);
-  const [roi, setRoi] = useState<Record<string, unknown>>({});
-  const [activeTab, setActiveTab] = useState("clusters");
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    let failed = 0;
-    const onFail = (label: string) => () => { failed++; if (failed >= 3) setLoadError("Failed to load settings data — is the API running?"); };
-    fetch(`${API}/api/v1/clusters`).then(r => r.json()).then(d => setClusters(d.items || [])).catch(onFail("clusters"));
-    fetch(`${API}/api/v1/definitions`).then(r => r.json()).then(d => setDefinitions(d.items || [])).catch(onFail("definitions"));
-    fetch(`${API}/api/v1/webhook-subscriptions`).then(r => r.json()).then(d => setWebhooks(d.items || [])).catch(onFail("webhooks"));
-    fetch(`${API}/api/v1/policy-rules`).then(r => r.json()).then(d => setRules(d.items || [])).catch(onFail("rules"));
-    fetch(`${API}/api/v1/analytics/roi`).then(r => r.json()).then(d => setRoi(d.metrics || {})).catch(onFail("analytics"));
-  }, []);
+  const { data: clustersData } = useQuery({ queryKey: ["clusters"], queryFn: () => api.get<PaginatedResponse<ClusterRegistryEntry>>("/api/v1/clusters") });
+  const { data: defsData } = useQuery({ queryKey: ["definitions"], queryFn: () => api.get<PaginatedResponse<Definition>>("/api/v1/definitions") });
+  const { data: webhooksData } = useQuery({ queryKey: ["webhooks"], queryFn: () => api.get<PaginatedResponse<WebhookSubscription>>("/api/v1/webhook-subscriptions") });
+  const { data: rulesData } = useQuery({ queryKey: ["rules"], queryFn: () => api.get<PaginatedResponse<PolicyRule>>("/api/v1/policy-rules") });
+  const { data: roiData } = useQuery({ queryKey: ["analytics-roi"], queryFn: () => api.get<{ metrics: Record<string, unknown> }>("/api/v1/analytics/roi") });
 
-  const TABS = [
-    { id: "clusters", label: "Clusters", count: clusters.length },
-    { id: "definitions", label: "Definitions", count: definitions.length },
-    { id: "webhooks", label: "Webhooks", count: webhooks.length },
-    { id: "rules", label: "Policy Rules", count: rules.length },
-    { id: "analytics", label: "Analytics / ROI", count: null },
-  ];
+  const clusters = clustersData?.items ?? [];
+  const definitions = defsData?.items ?? [];
+  const webhooks = webhooksData?.items ?? [];
+  const rules = rulesData?.items ?? [];
+  const roi = roiData?.metrics ?? {};
 
-  const deleteCluster = async (id: string) => {
-    const r = await fetch(`${API}/api/v1/clusters/${id}`, { method: "DELETE" });
-    if (r.ok) { setClusters(c => c.filter(x => x.id !== id)); toast("Cluster removed", "success"); }
-    else toast("Failed to remove cluster", "error");
+  const [clusterOpen, setClusterOpen] = useState(false);
+  const [clusterForm, setClusterForm] = useState({ display_name: "", api_endpoint: "", fleet_identifier: "" });
+  const [defOpen, setDefOpen] = useState(false);
+  const [defForm, setDefForm] = useState({ kind: "scanner", name: "", version: "1", frontmatter: "{}", body: "" });
+  const [webhookOpen, setWebhookOpen] = useState(false);
+  const [webhookForm, setWebhookForm] = useState({ name: "", url: "", event_patterns: "", formatter: "generic" });
+  const [ruleOpen, setRuleOpen] = useState(false);
+  const [ruleForm, setRuleForm] = useState({ name: "", description: "", priority: "50", conditions: "{}", action: "{}" });
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: string; label: string } | null>(null);
+
+  const refresh = () => queryClient.invalidateQueries();
+
+  const createCluster = async () => {
+    try {
+      await api.post("/api/v1/clusters", { display_name: clusterForm.display_name, api_endpoint: clusterForm.api_endpoint, fleet_identifier: clusterForm.fleet_identifier || null });
+      toast.success("Cluster added");
+      setClusterOpen(false);
+      setClusterForm({ display_name: "", api_endpoint: "", fleet_identifier: "" });
+      refresh();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+  };
+
+  const createDefinition = async () => {
+    try {
+      let frontmatter = {};
+      try { frontmatter = JSON.parse(defForm.frontmatter); } catch { toast.error("Invalid frontmatter JSON"); return; }
+      await api.post("/api/v1/definitions", { kind: defForm.kind, name: defForm.name, version: defForm.version, frontmatter, body: defForm.body, enabled: true });
+      toast.success("Definition created");
+      setDefOpen(false);
+      setDefForm({ kind: "scanner", name: "", version: "1", frontmatter: "{}", body: "" });
+      refresh();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+  };
+
+  const createWebhook = async () => {
+    try {
+      await api.post("/api/v1/webhook-subscriptions", { name: webhookForm.name, url: webhookForm.url, event_patterns: webhookForm.event_patterns.split(",").map(s => s.trim()).filter(Boolean), formatter: webhookForm.formatter });
+      toast.success("Webhook created");
+      setWebhookOpen(false);
+      setWebhookForm({ name: "", url: "", event_patterns: "", formatter: "generic" });
+      refresh();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+  };
+
+  const createRule = async () => {
+    try {
+      let conditions = {}, action = {};
+      try { conditions = JSON.parse(ruleForm.conditions); } catch { toast.error("Invalid conditions JSON"); return; }
+      try { action = JSON.parse(ruleForm.action); } catch { toast.error("Invalid action JSON"); return; }
+      await api.post("/api/v1/policy-rules", { name: ruleForm.name, description: ruleForm.description || null, priority: parseInt(ruleForm.priority, 10), conditions, action });
+      toast.success("Rule created");
+      setRuleOpen(false);
+      setRuleForm({ name: "", description: "", priority: "50", conditions: "{}", action: "{}" });
+      refresh();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      if (deleteTarget.type === "cluster") await api.del(`/api/v1/clusters/${deleteTarget.id}`);
+      else if (deleteTarget.type === "definition") await api.del(`/api/v1/definitions/${deleteTarget.id}`);
+      else if (deleteTarget.type === "webhook") await api.del(`/api/v1/webhook-subscriptions/${deleteTarget.id}`);
+      else if (deleteTarget.type === "rule") await api.del(`/api/v1/policy-rules/${deleteTarget.id}`);
+      toast.success(`${deleteTarget.type} deleted`);
+      refresh();
+    } catch { toast.error("Failed to delete"); }
+    setDeleteTarget(null);
   };
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-5)" }}>
-        <SettingsIcon size={20} style={{ color: "var(--text-tertiary)" }} />
-        <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em" }}>Settings</h1>
+      <div className="flex items-center gap-3 mb-5">
+        <SettingsIcon size={20} className="text-text-tertiary" />
+        <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
       </div>
 
-      {loadError && (
-        <div style={{
-          padding: "var(--space-3) var(--space-4)", marginBottom: "var(--space-4)",
-          background: "rgba(248, 113, 113, 0.1)", border: "1px solid rgba(248, 113, 113, 0.3)",
-          borderRadius: "var(--radius-md)", color: "var(--status-blocked)", fontSize: 13,
-        }}>{loadError}</div>
-      )}
+      <Tabs defaultValue="clusters">
+        <TabsList className="mb-5">
+          <TabsTrigger value="clusters">Clusters ({clusters.length})</TabsTrigger>
+          <TabsTrigger value="definitions">Definitions ({definitions.length})</TabsTrigger>
+          <TabsTrigger value="webhooks">Webhooks ({webhooks.length})</TabsTrigger>
+          <TabsTrigger value="rules">Policy Rules ({rules.length})</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics / ROI</TabsTrigger>
+        </TabsList>
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: "var(--space-1)", marginBottom: "var(--space-5)", borderBottom: "1px solid var(--border-subtle)", paddingBottom: "var(--space-1)" }}>
-        {TABS.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-            padding: "var(--space-2) var(--space-4)", fontSize: 13, fontWeight: activeTab === tab.id ? 600 : 400,
-            color: activeTab === tab.id ? "var(--text-primary)" : "var(--text-secondary)",
-            background: activeTab === tab.id ? "var(--bg-elevated)" : "transparent",
-            border: "none", borderRadius: "var(--radius-md) var(--radius-md) 0 0", cursor: "pointer",
-            transition: "color var(--transition-fast), background var(--transition-fast)",
-          }}>
-            {tab.label}
-            {tab.count != null && (
-              <span style={{ marginLeft: "var(--space-2)", fontSize: 11, color: "var(--text-tertiary)" }}>({tab.count})</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Clusters Tab */}
-      {activeTab === "clusters" && (
-        <div>
+        {/* Clusters */}
+        <TabsContent value="clusters">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-sm font-semibold text-text-secondary">Registered Clusters</span>
+            <Dialog open={clusterOpen} onOpenChange={setClusterOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm"><Plus size={14} /> Add</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Add Cluster</DialogTitle></DialogHeader>
+                <div className="flex flex-col gap-4">
+                  <div className="space-y-2">
+                    <Label>Display Name *</Label>
+                    <Input value={clusterForm.display_name} onChange={e => setClusterForm(f => ({ ...f, display_name: e.target.value }))} placeholder="my-cluster" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>API Endpoint *</Label>
+                    <Input value={clusterForm.api_endpoint} onChange={e => setClusterForm(f => ({ ...f, api_endpoint: e.target.value }))} placeholder="https://api.cluster.example.com:6443" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fleet Identifier</Label>
+                    <Input value={clusterForm.fleet_identifier} onChange={e => setClusterForm(f => ({ ...f, fleet_identifier: e.target.value }))} placeholder="Optional — ACM/OCM identifier" />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setClusterOpen(false)}>Cancel</Button>
+                  <Button onClick={createCluster} disabled={!clusterForm.display_name || !clusterForm.api_endpoint}>Add Cluster</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
           {clusters.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "var(--space-10)", color: "var(--text-secondary)" }}>
-              No clusters registered. <button style={{ color: "var(--accent-brand)", background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>+ Add first cluster</button>
+            <div className="text-center py-10 text-text-secondary">
+              No clusters registered.{" "}
+              <button onClick={() => setClusterOpen(true)} className="text-accent-brand font-semibold hover:underline">+ Add first cluster</button>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            <div className="flex flex-col gap-2">
               {clusters.map(c => (
-                <div key={c.id} style={{
-                  background: "var(--bg-surface)", border: "1px solid var(--border-default)",
-                  borderRadius: "var(--radius-lg)", padding: "var(--space-3) var(--space-5)",
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                }}>
+                <Card key={c.id} className="flex justify-between items-center p-3 px-5">
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{c.display_name}</div>
-                    <div style={{ fontSize: 12, color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>{c.api_endpoint}</div>
+                    <div className="font-semibold text-sm">{c.display_name}</div>
+                    <div className="text-xs text-text-tertiary font-mono">{c.api_endpoint}</div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: "var(--radius-sm)", background: c.onboarding_state === "ready" ? "var(--status-done)" : "var(--status-in-progress)", color: "#fff", fontWeight: 600 }}>
-                      {c.onboarding_state}
-                    </span>
-                    <button onClick={() => deleteCluster(c.id)} style={{
-                      background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer",
-                    }}><Trash2 size={14} /></button>
+                  <div className="flex items-center gap-3">
+                    <Badge variant={c.onboarding_state === "ready" ? "default" : "secondary"}>{c.onboarding_state}</Badge>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteTarget({ id: c.id, type: "cluster", label: c.display_name })}>
+                      <Trash2 size={14} className="text-text-tertiary" />
+                    </Button>
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           )}
-        </div>
-      )}
+        </TabsContent>
 
-      {/* Definitions Tab */}
-      {activeTab === "definitions" && (
-        <div>
+        {/* Definitions */}
+        <TabsContent value="definitions">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-sm font-semibold text-text-secondary">Definitions</span>
+            <Dialog open={defOpen} onOpenChange={setDefOpen}>
+              <DialogTrigger asChild><Button size="sm"><Plus size={14} /> Add</Button></DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader><DialogTitle>Create Definition</DialogTitle></DialogHeader>
+                <div className="flex flex-col gap-4">
+                  <div className="space-y-2">
+                    <Label>Kind</Label>
+                    <Select value={defForm.kind} onValueChange={v => setDefForm(f => ({ ...f, kind: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="scanner">Scanner</SelectItem>
+                        <SelectItem value="tool">Tool</SelectItem>
+                        <SelectItem value="skill">Skill</SelectItem>
+                        <SelectItem value="pipeline">Pipeline</SelectItem>
+                        <SelectItem value="policy">Policy</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2"><Label>Name *</Label><Input value={defForm.name} onChange={e => setDefForm(f => ({ ...f, name: e.target.value }))} placeholder="my-scanner" /></div>
+                  <div className="space-y-2"><Label>Version</Label><Input value={defForm.version} onChange={e => setDefForm(f => ({ ...f, version: e.target.value }))} placeholder="1" /></div>
+                  <div className="space-y-2"><Label>Frontmatter (JSON)</Label><Textarea value={defForm.frontmatter} onChange={e => setDefForm(f => ({ ...f, frontmatter: e.target.value }))} className="font-mono text-xs" rows={4} /></div>
+                  <div className="space-y-2"><Label>Body (Markdown)</Label><Textarea value={defForm.body} onChange={e => setDefForm(f => ({ ...f, body: e.target.value }))} rows={6} placeholder="# Content" /></div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDefOpen(false)}>Cancel</Button>
+                  <Button onClick={createDefinition} disabled={!defForm.name}>Create</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
           {definitions.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "var(--space-10)", color: "var(--text-secondary)" }}>No definitions in DB. Built-in definitions are loaded from the filesystem.</div>
+            <div className="text-center py-10 text-text-secondary">No definitions in DB. Built-in definitions are loaded from the filesystem.</div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            <div className="flex flex-col gap-2">
               {definitions.map(d => (
-                <div key={d.id} style={{
-                  background: "var(--bg-surface)", border: "1px solid var(--border-default)",
-                  borderRadius: "var(--radius-lg)", padding: "var(--space-3) var(--space-5)",
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                    <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", textTransform: "uppercase", fontWeight: 600, color: "var(--text-tertiary)" }}>{d.kind}</span>
-                    <span style={{ fontWeight: 600 }}>{d.name}</span>
-                    <span style={{ fontSize: 12, color: "var(--text-tertiary)" }}>v{d.version}</span>
+                <Card key={d.id} className="flex justify-between items-center p-3 px-5">
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline" className="uppercase text-[11px]">{d.kind}</Badge>
+                    <span className="font-semibold">{d.name}</span>
+                    <span className="text-xs text-text-tertiary">v{d.version}</span>
                   </div>
-                  <span style={{ fontSize: 12, color: d.enabled ? "var(--status-done)" : "var(--text-tertiary)" }}>
-                    {d.enabled ? "Enabled" : "Disabled"}
-                  </span>
-                </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs ${d.enabled ? "text-status-done" : "text-text-tertiary"}`}>{d.enabled ? "Enabled" : "Disabled"}</span>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteTarget({ id: `${d.kind}/${d.name}`, type: "definition", label: d.name })}>
+                      <Trash2 size={14} className="text-text-tertiary" />
+                    </Button>
+                  </div>
+                </Card>
               ))}
             </div>
           )}
-        </div>
-      )}
+        </TabsContent>
 
-      {/* Webhooks Tab */}
-      {activeTab === "webhooks" && (
-        <div>
+        {/* Webhooks */}
+        <TabsContent value="webhooks">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-sm font-semibold text-text-secondary">Webhook Subscriptions</span>
+            <Dialog open={webhookOpen} onOpenChange={setWebhookOpen}>
+              <DialogTrigger asChild><Button size="sm"><Plus size={14} /> Add</Button></DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Create Webhook</DialogTitle></DialogHeader>
+                <div className="flex flex-col gap-4">
+                  <div className="space-y-2"><Label>Name *</Label><Input value={webhookForm.name} onChange={e => setWebhookForm(f => ({ ...f, name: e.target.value }))} placeholder="slack-alerts" /></div>
+                  <div className="space-y-2"><Label>URL *</Label><Input value={webhookForm.url} onChange={e => setWebhookForm(f => ({ ...f, url: e.target.value }))} placeholder="https://hooks.slack.com/..." /></div>
+                  <div className="space-y-2"><Label>Event Patterns</Label><Input value={webhookForm.event_patterns} onChange={e => setWebhookForm(f => ({ ...f, event_patterns: e.target.value }))} placeholder="work_item.*, issue.*" /><p className="text-[11px] text-text-tertiary">Comma-separated patterns</p></div>
+                  <div className="space-y-2">
+                    <Label>Formatter</Label>
+                    <Select value={webhookForm.formatter} onValueChange={v => setWebhookForm(f => ({ ...f, formatter: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="generic">Generic</SelectItem>
+                        <SelectItem value="slack">Slack</SelectItem>
+                        <SelectItem value="pagerduty">PagerDuty</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setWebhookOpen(false)}>Cancel</Button>
+                  <Button onClick={createWebhook} disabled={!webhookForm.name || !webhookForm.url}>Create</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
           {webhooks.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "var(--space-10)", color: "var(--text-secondary)" }}>No webhook subscriptions. Create one to receive notifications.</div>
+            <div className="text-center py-10 text-text-secondary">No webhook subscriptions. Create one to receive notifications.</div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            <div className="flex flex-col gap-2">
               {webhooks.map(w => (
-                <div key={w.id} style={{
-                  background: "var(--bg-surface)", border: "1px solid var(--border-default)",
-                  borderRadius: "var(--radius-lg)", padding: "var(--space-3) var(--space-5)",
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                }}>
+                <Card key={w.id} className="flex justify-between items-center p-3 px-5">
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{w.name}</div>
-                    <div style={{ fontSize: 12, color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>{w.url}</div>
+                    <div className="font-semibold text-sm">{w.name}</div>
+                    <div className="text-xs text-text-tertiary font-mono">{w.url}</div>
                   </div>
-                  <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", textTransform: "uppercase", fontWeight: 600, color: "var(--text-tertiary)" }}>{w.formatter}</span>
-                </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline" className="uppercase text-[11px]">{w.formatter}</Badge>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteTarget({ id: w.id, type: "webhook", label: w.name })}>
+                      <Trash2 size={14} className="text-text-tertiary" />
+                    </Button>
+                  </div>
+                </Card>
               ))}
             </div>
           )}
-        </div>
-      )}
+        </TabsContent>
 
-      {/* Policy Rules Tab */}
-      {activeTab === "rules" && (
-        <div>
+        {/* Policy Rules */}
+        <TabsContent value="rules">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-sm font-semibold text-text-secondary">Policy Rules</span>
+            <Dialog open={ruleOpen} onOpenChange={setRuleOpen}>
+              <DialogTrigger asChild><Button size="sm"><Plus size={14} /> Add</Button></DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader><DialogTitle>Create Policy Rule</DialogTitle></DialogHeader>
+                <div className="flex flex-col gap-4">
+                  <div className="space-y-2"><Label>Name *</Label><Input value={ruleForm.name} onChange={e => setRuleForm(f => ({ ...f, name: e.target.value }))} placeholder="auto-investigate-critical" /></div>
+                  <div className="space-y-2"><Label>Description</Label><Input value={ruleForm.description} onChange={e => setRuleForm(f => ({ ...f, description: e.target.value }))} placeholder="Optional" /></div>
+                  <div className="space-y-2"><Label>Priority</Label><Input type="number" value={ruleForm.priority} onChange={e => setRuleForm(f => ({ ...f, priority: e.target.value }))} /><p className="text-[11px] text-text-tertiary">Lower = higher priority</p></div>
+                  <div className="space-y-2"><Label>Conditions (JSON)</Label><Textarea value={ruleForm.conditions} onChange={e => setRuleForm(f => ({ ...f, conditions: e.target.value }))} className="font-mono text-xs" rows={4} /></div>
+                  <div className="space-y-2"><Label>Action (JSON)</Label><Textarea value={ruleForm.action} onChange={e => setRuleForm(f => ({ ...f, action: e.target.value }))} className="font-mono text-xs" rows={4} /></div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setRuleOpen(false)}>Cancel</Button>
+                  <Button onClick={createRule} disabled={!ruleForm.name}>Create</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
           {rules.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "var(--space-10)", color: "var(--text-secondary)" }}>No policy rules configured. Rules are loaded from definitions/policies/ directory.</div>
+            <div className="text-center py-10 text-text-secondary">No policy rules configured.</div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+            <div className="flex flex-col gap-2">
               {rules.map(r => (
-                <div key={r.id} style={{
-                  background: "var(--bg-surface)", border: "1px solid var(--border-default)",
-                  borderRadius: "var(--radius-lg)", padding: "var(--space-3) var(--space-5)",
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                    <span className="tabular" style={{ fontSize: 12, color: "var(--text-tertiary)", fontWeight: 600, minWidth: 30 }}>#{r.priority}</span>
-                    <span style={{ fontWeight: 600 }}>{r.name}</span>
+                <Card key={r.id} className="flex justify-between items-center p-3 px-5">
+                  <div className="flex items-center gap-3">
+                    <span className="tabular text-xs text-text-tertiary font-semibold min-w-[30px]">#{r.priority}</span>
+                    <span className="font-semibold">{r.name}</span>
                   </div>
-                  <span style={{ fontSize: 12, color: r.enabled ? "var(--status-done)" : "var(--text-tertiary)" }}>
-                    {r.enabled ? "Active" : "Inactive"}
-                  </span>
-                </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs ${r.enabled ? "text-status-done" : "text-text-tertiary"}`}>{r.enabled ? "Active" : "Inactive"}</span>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteTarget({ id: r.id, type: "rule", label: r.name })}>
+                      <Trash2 size={14} className="text-text-tertiary" />
+                    </Button>
+                  </div>
+                </Card>
               ))}
             </div>
           )}
-        </div>
-      )}
+        </TabsContent>
 
-      {/* Analytics Tab */}
-      {activeTab === "analytics" && (
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
-            <Brain size={16} style={{ color: "var(--accent-brain)" }} />
-            <span style={{ fontSize: 14, fontWeight: 600 }}>ROI Metrics</span>
+        {/* Analytics */}
+        <TabsContent value="analytics">
+          <div className="flex items-center gap-2 mb-4">
+            <Brain size={16} className="text-accent-brain" />
+            <span className="text-sm font-semibold">ROI Metrics</span>
           </div>
           {Object.keys(roi).length === 0 ? (
-            <div style={{ textAlign: "center", padding: "var(--space-10)", color: "var(--text-secondary)" }}>No analytics data yet. Metrics will populate as Pinky processes issues.</div>
+            <div className="text-center py-10 text-text-secondary">No analytics data yet.</div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--space-4)" }}>
+            <div className="grid grid-cols-3 gap-4">
               {Object.entries(roi).map(([k, v]) => (
-                <div key={k} style={{
-                  background: "var(--bg-surface)", border: "1px solid var(--border-default)",
-                  borderRadius: "var(--radius-lg)", padding: "var(--space-4)",
-                }}>
-                  <div className="tabular" style={{ fontSize: 28, fontWeight: 700, lineHeight: 1 }}>{String(v ?? "—")}</div>
-                  <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: "var(--space-1)", textTransform: "capitalize" }}>
-                    {k.replace(/_/g, " ")}
-                  </div>
-                </div>
+                <Card key={k} className="p-4">
+                  <div className="tabular text-3xl font-bold leading-none">{String(v ?? "—")}</div>
+                  <div className="text-xs text-text-tertiary mt-1 capitalize">{k.replace(/_/g, " ")}</div>
+                </Card>
               ))}
             </div>
           )}
-        </div>
-      )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteTarget !== null} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.type}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove &quot;{deleteTarget?.label}&quot;. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-status-blocked hover:bg-status-blocked/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

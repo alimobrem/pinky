@@ -43,6 +43,15 @@ def test_work_item_lifecycle_returns_404_for_missing(authed_client: TestClient) 
         assert response.status_code == 404
 
 
+def test_work_item_block_returns_404_for_missing(authed_client: TestClient) -> None:
+    fake_uuid = "00000000-0000-0000-0000-000000000001"
+    response = authed_client.post(
+        f"/api/v1/work-items/{fake_uuid}/block",
+        json={"reason": "waiting on vendor fix"},
+    )
+    assert response.status_code == 404
+
+
 def test_work_item_reassign_returns_404_for_missing(authed_client: TestClient) -> None:
     fake_uuid = "00000000-0000-0000-0000-000000000001"
     assignee = "00000000-0000-0000-0000-000000000002"

@@ -29,3 +29,4 @@ class WorkItem(Base, TimestampMixin):
     annotations: Mapped[dict] = mapped_column(JSONB, server_default="{}")
     runbook_url: Mapped[str | None] = mapped_column(String)
     artifact_refs: Mapped[dict] = mapped_column(JSONB, server_default="{}")
+    blocked_reason: Mapped[str | None] = mapped_column(String)

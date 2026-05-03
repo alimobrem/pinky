@@ -1,100 +1,111 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Brain, Eye } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { Brain, Eye, EyeOff, CheckCircle } from "lucide-react";
+import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { Issue, PaginatedResponse } from "@pinky/contracts";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useSSE } from "@/hooks/use-sse";
+import { api } from "@/lib/api";
+import { relativeTime } from "@/lib/format-date";
 
-const API = "";
-
-interface Issue {
-  id: string;
-  title: string;
-  severity: string;
-  status: string;
-  cluster_id: string;
-  correlation_key: string;
-  last_seen_at: string;
-}
-
-const SEVERITY_COLORS: Record<string, string> = {
-  critical: "var(--priority-critical)", high: "var(--priority-high)",
-  medium: "var(--priority-medium)", low: "var(--priority-low)", info: "var(--status-ready)",
+const SEVERITY_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  critical: "destructive", high: "destructive", medium: "secondary", low: "outline", info: "outline",
+};
+const SEVERITY_BORDER: Record<string, string> = {
+  critical: "border-l-priority-critical", high: "border-l-priority-high",
+  medium: "border-l-priority-medium", low: "border-l-priority-low", info: "border-l-status-ready",
 };
 
 export default function WatchPage() {
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<string>("");
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const cluster = searchParams.get("cluster");
+  const queryClient = useQueryClient();
+  const [actingId, setActingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch(`${API}/api/v1/issues?status=open`)
-      .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
-      .then(data => setIssues(data.items || []))
-      .catch(e => setFetchError(`Failed to load issues: ${e.message}`));
+  const queryKey = ["issues", cluster] as const;
+  const { data, error: fetchError } = useQuery({
+    queryKey,
+    queryFn: () => {
+      let url = "/api/v1/issues?status=open";
+      if (cluster && cluster !== "all") url += `&cluster_id=${cluster}`;
+      return api.get<PaginatedResponse<Issue>>(url);
+    },
+  });
 
-    const es = new EventSource(`${API}/api/v1/streams/watch`);
-    es.onopen = () => { setConnected(true); setLastUpdate(new Date().toLocaleTimeString()); };
-    es.addEventListener("heartbeat", () => { setConnected(true); setLastUpdate(new Date().toLocaleTimeString()); });
-    es.addEventListener("update", () => {
-      setLastUpdate(new Date().toLocaleTimeString());
-      fetch(`${API}/api/v1/issues?status=open`).then(r => r.json()).then(data => setIssues(data.items || []));
-    });
-    es.onerror = () => setConnected(false);
-    return () => es.close();
-  }, []);
+  const issues = data?.items ?? [];
+
+  const sseHandlers = useMemo(() => ({
+    update: () => queryClient.invalidateQueries({ queryKey: ["issues"] }),
+  }), [queryClient]);
+
+  const { state: sseState, lastUpdated } = useSSE("/api/v1/streams/watch", { onEvent: sseHandlers });
+  const connected = sseState === "connected";
+
+  const suppressMutation = useMutation({
+    mutationFn: (id: string) => { setActingId(id); return api.post(`/api/v1/issues/${id}/suppress`, {}); },
+    onSuccess: () => { toast.success("Issue suppressed"); queryClient.invalidateQueries({ queryKey: ["issues"] }); },
+    onError: (e: Error) => toast.error(e.message),
+    onSettled: () => setActingId(null),
+  });
+
+  const resolveMutation = useMutation({
+    mutationFn: (id: string) => { setActingId(id); return api.post(`/api/v1/issues/${id}/resolve`); },
+    onSuccess: () => { toast.success("Issue resolved"); queryClient.invalidateQueries({ queryKey: ["issues"] }); },
+    onError: (e: Error) => toast.error(e.message),
+    onSettled: () => setActingId(null),
+  });
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-5)" }}>
-        <Eye size={20} style={{ color: "var(--text-tertiary)" }} />
-        <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em" }}>Watch</h1>
+      <div className="flex items-center gap-3 mb-5">
+        <Eye size={20} className="text-text-tertiary" />
+        <h1 className="text-xl font-semibold tracking-tight">Watch</h1>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-6)", fontSize: 12, color: "var(--text-tertiary)" }}>
-        <span style={{
-          width: 8, height: 8, borderRadius: "50%",
-          background: connected ? "var(--status-done)" : "var(--status-blocked)",
-          display: "inline-block",
-          animation: connected ? "brain-pulse 2s ease-in-out infinite" : "none",
-        }} />
-        {connected ? `Live — updated ${lastUpdate}` : "Connecting..."}
+      <div className="flex items-center gap-2 mb-6 text-xs text-text-tertiary">
+        <span className={`w-2 h-2 rounded-full inline-block ${connected ? "bg-status-done animate-brain-pulse" : "bg-status-blocked"}`} />
+        {connected ? `Live — updated ${lastUpdated ? relativeTime(lastUpdated.toISOString()) : ""}` : sseState === "reconnecting" ? "Reconnecting..." : "Connecting..."}
       </div>
 
       {fetchError && (
-        <div style={{
-          padding: "var(--space-3) var(--space-4)", marginBottom: "var(--space-4)",
-          background: "rgba(248, 113, 113, 0.1)", border: "1px solid rgba(248, 113, 113, 0.3)",
-          borderRadius: "var(--radius-md)", color: "var(--status-blocked)", fontSize: 13,
-        }}>{fetchError}</div>
+        <div className="p-3 px-4 mb-4 rounded-md bg-status-blocked/10 border border-status-blocked/30 text-status-blocked text-sm">{fetchError.message}</div>
       )}
 
       {issues.length === 0 && !fetchError ? (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "var(--space-16) var(--space-6)", textAlign: "center" }}>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, color: "var(--text-tertiary)", marginBottom: "var(--space-6)" }}>~ ~ ~</div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginBottom: "var(--space-2)" }}>All quiet on the western cluster.</div>
-          <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>The Brain is monitoring but has nothing to escalate right now.</div>
+        <div className="flex flex-col items-center py-16 px-6 text-center">
+          <div className="font-mono text-xl text-text-tertiary mb-6">~ ~ ~</div>
+          <div className="text-[15px] font-semibold text-text-primary mb-2">All quiet on the western cluster.</div>
+          <div className="text-sm text-text-secondary leading-relaxed">The Brain is monitoring but has nothing to escalate right now.</div>
         </div>
       ) : issues.length > 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+        <div className="flex flex-col gap-2">
           {issues.map(issue => (
-            <div key={issue.id} style={{
-              background: "var(--bg-surface)", border: "1px solid var(--border-default)",
-              borderRadius: "var(--radius-lg)", padding: "var(--space-4) var(--space-5)",
-              borderLeft: `3px solid ${SEVERITY_COLORS[issue.severity] || "var(--border-default)"}`,
-              transition: "background var(--transition-fast)",
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                  <Brain size={14} style={{ color: "var(--accent-brain)" }} />
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{issue.title}</span>
+            <div key={issue.id} className={`bg-bg-surface border border-border-default rounded-lg p-4 px-5 border-l-3 ${SEVERITY_BORDER[issue.severity] || "border-l-border-default"} transition-colors`}>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2 flex-1">
+                  <Brain size={14} className="text-accent-brain" />
+                  <span className="font-semibold text-sm">{issue.title}</span>
                 </div>
-                <span style={{
-                  fontSize: 11, padding: "2px 8px", borderRadius: "var(--radius-sm)",
-                  background: SEVERITY_COLORS[issue.severity], color: "#fff", fontWeight: 600, textTransform: "uppercase",
-                }}>{issue.severity}</span>
+                <Badge variant={SEVERITY_VARIANTS[issue.severity] || "outline"} className="uppercase text-[11px]">{issue.severity}</Badge>
               </div>
-              <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: "var(--space-2)", paddingLeft: "var(--space-6)" }}>
-                {issue.status} — last seen {issue.last_seen_at ? new Date(issue.last_seen_at).toLocaleString() : "unknown"}
+              <div className="text-xs text-text-tertiary mt-2 pl-6">
+                {issue.status} — last seen {issue.last_seen_at ? relativeTime(issue.last_seen_at) : "unknown"}
+              </div>
+              <div className="flex gap-2 mt-3 pl-6">
+                <Button variant="outline" size="sm" onClick={() => suppressMutation.mutate(issue.id)} disabled={actingId === issue.id} className="h-7 text-xs">
+                  <EyeOff size={12} /> Suppress
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => resolveMutation.mutate(issue.id)} disabled={actingId === issue.id} className="h-7 text-xs text-status-done">
+                  <CheckCircle size={12} /> Resolve
+                </Button>
+                <Button variant="outline" size="sm" asChild className="h-7 text-xs">
+                  <Link href={`/tasks?cluster=${issue.cluster_id}`}>View tasks</Link>
+                </Button>
               </div>
             </div>
           ))}

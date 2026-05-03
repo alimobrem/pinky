@@ -42,6 +42,25 @@ export interface ExecutionEvent {
   payload: Record<string, unknown>;
 }
 
+export interface TimelineEvent {
+  id: string;
+  execution_id: string;
+  event_type: string;
+  sequence: number;
+  payload: Record<string, unknown>;
+  occurred_at: string;
+}
+
+export interface Investigation {
+  has_investigation: boolean;
+  summary?: string;
+  root_cause?: string;
+  recommended_action?: string;
+  confidence?: number;
+  tool_calls?: string[];
+  created_at?: string;
+}
+
 export type ApprovalStatus =
   | "pending"
   | "approved"

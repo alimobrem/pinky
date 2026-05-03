@@ -7,12 +7,18 @@ Pinky — greenfield multi-cluster Kubernetes operations platform with embedded 
 ## Stack
 
 - **Web:** Next.js 15 + React 19 + TypeScript (apps/web)
+  - **Styling:** Tailwind CSS v4 + shadcn/ui — no inline styles, no CSS modules
+  - **Data fetching:** TanStack Query (React Query) — no raw fetch/useState boilerplate
+  - **Forms:** react-hook-form + Zod schemas
+  - **Dates:** date-fns (relative timestamps for < 24h)
+  - **Types:** Import from `@pinky/contracts` — never redeclare types locally
+  - **Icons:** lucide-react
 - **API:** FastAPI + Pydantic v2 + SQLAlchemy 2 async + asyncpg (apps/api)
 - **Worker:** Temporal SDK + Python 3.12 (apps/worker)
 - **CLI:** typer (apps/cli)
 - **Contracts:** Shared TypeScript types (packages/contracts)
 - **Design System:** React components (packages/design-system)
-- **Database:** PostgreSQL 16 (23 tables, Alembic migrations)
+- **Database:** PostgreSQL 16 (24 tables, Alembic migrations)
 - **Session Store:** Redis 7
 - **Workflow Runtime:** Temporal
 - **Real-time:** SSE (not WebSocket)
@@ -125,6 +131,7 @@ All in `docs/superpowers/specs/`:
 
 ## Hard Rules
 
+### Backend
 - Never `# type: ignore` — fix the actual type issue
 - Never `except Exception: pass` — always `logger.exception("context")`
 - Never store raw credentials in browser, logs, or LLM prompts
@@ -132,3 +139,12 @@ All in `docs/superpowers/specs/`:
 - Observer identity never used for writes or sensitive reads
 - Policy engine is deterministic — no LLM calls
 - Definitions are the extensibility mechanism — not hardcoded Python
+
+### Frontend
+- **Zero inline styles** — use Tailwind utility classes only, never `style={{}}`
+- **Zero CSS modules** — use Tailwind, not `.module.css` files
+- **Use shadcn/ui components** — Button, Dialog, AlertDialog, Input, Select, Badge, Card, etc. Don't build custom primitives
+- **Import types from `@pinky/contracts`** — never redeclare `interface WorkItem {}` locally
+- **Use TanStack Query** for data fetching — never raw `useState` + `useEffect` + `fetch` patterns
+- **Use react-hook-form + Zod** for forms — never manual `useState` per field
+- **Use date-fns** for formatting — never raw `toLocaleString()`

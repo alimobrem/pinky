@@ -1,115 +1,106 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AlertTriangle, Filter } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, ChevronDown, ChevronRight, Filter } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import type { Observation, PaginatedResponse } from "@pinky/contracts";
+import { Badge } from "@/components/ui/badge";
+import { api } from "@/lib/api";
+import { useCluster } from "@/hooks/use-cluster";
+import { relativeTime } from "@/lib/format-date";
 
-const API = "";
-
-interface Alert {
-  id: string;
-  scanner: string;
-  check_id: string | null;
-  severity: string;
-  resource_kind: string | null;
-  resource_namespace: string | null;
-  resource_name: string | null;
-  observed_at: string;
-}
-
-const SEVERITY_COLORS: Record<string, string> = {
-  critical: "var(--priority-critical)", high: "var(--priority-high)",
-  medium: "var(--priority-medium)", low: "var(--priority-low)", info: "var(--status-ready)",
+const SEVERITY_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  critical: "destructive", high: "destructive", medium: "secondary", low: "outline", info: "outline",
+};
+const SEVERITY_BORDER: Record<string, string> = {
+  critical: "border-l-priority-critical", high: "border-l-priority-high",
+  medium: "border-l-priority-medium", low: "border-l-priority-low", info: "border-l-status-ready",
 };
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [severityFilter, setSeverityFilter] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const cluster = useCluster();
 
-  useEffect(() => {
-    fetch(`${API}/api/v1/alerts`)
-      .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
-      .then(data => { setAlerts(data.items || []); setLoading(false); })
-      .catch(e => { setError(`Failed to load alerts: ${e.message}`); setLoading(false); });
-  }, []);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["alerts", cluster],
+    queryFn: () => {
+      let url = "/api/v1/alerts";
+      if (cluster) url += `?cluster_id=${cluster}`;
+      return api.get<PaginatedResponse<Observation>>(url);
+    },
+  });
 
+  const alerts = data?.items ?? [];
   const filtered = severityFilter ? alerts.filter(a => a.severity === severityFilter) : alerts;
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-5)" }}>
-        <AlertTriangle size={20} style={{ color: "var(--text-tertiary)" }} />
-        <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em" }}>Alerts</h1>
+      <div className="flex items-center gap-3 mb-5">
+        <AlertTriangle size={20} className="text-text-tertiary" />
+        <h1 className="text-xl font-semibold tracking-tight">Alerts</h1>
       </div>
 
-      <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-4)", alignItems: "center" }}>
-        <Filter size={14} style={{ color: "var(--text-tertiary)" }} />
-        <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} style={{
-          background: "var(--bg-elevated)", color: "var(--text-primary)", border: "1px solid var(--border-default)",
-          borderRadius: "var(--radius-md)", padding: "4px 8px", fontSize: 12,
-        }}>
+      <div className="flex gap-3 mb-4 items-center">
+        <Filter size={14} className="text-text-tertiary" />
+        <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} className="bg-bg-elevated text-text-primary border border-border-default rounded-md px-2 py-1 text-xs">
           <option value="">All Severities</option>
           <option value="critical">Critical</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low</option>
         </select>
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-tertiary)" }}>{filtered.length} alerts</span>
+        <span className="ml-auto text-xs text-text-tertiary">{filtered.length} alerts</span>
       </div>
 
-      {error && (
-        <div style={{
-          padding: "var(--space-3) var(--space-4)", marginBottom: "var(--space-4)",
-          background: "rgba(248, 113, 113, 0.1)", border: "1px solid rgba(248, 113, 113, 0.3)",
-          borderRadius: "var(--radius-md)", color: "var(--status-blocked)", fontSize: 13,
-        }}>{error}</div>
-      )}
+      {error && <div className="p-3 px-4 mb-4 rounded-md bg-status-blocked/10 border border-status-blocked/30 text-status-blocked text-sm">{error.message}</div>}
 
-      {loading && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          {[1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 64, borderRadius: "var(--radius-lg)" }} />)}
+      {isLoading && (
+        <div className="flex flex-col gap-2">
+          {[1, 2, 3].map(i => <div key={i} className="skeleton h-16 rounded-lg" />)}
         </div>
       )}
 
-      {!loading && filtered.length === 0 && (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "var(--space-16) var(--space-6)", textAlign: "center" }}>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, color: "var(--text-tertiary)", marginBottom: "var(--space-6)" }}>(clear)</div>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: "var(--space-2)" }}>No active alerts.</div>
-          <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>Raw signals from your observability stack will appear here when detected.</div>
+      {!isLoading && filtered.length === 0 && (
+        <div className="flex flex-col items-center py-16 px-6 text-center">
+          <div className="font-mono text-xl text-text-tertiary mb-6">(clear)</div>
+          <div className="text-[15px] font-semibold mb-2">No active alerts.</div>
+          <div className="text-sm text-text-secondary leading-relaxed">Raw signals from your observability stack will appear here when detected.</div>
         </div>
       )}
 
       {filtered.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          {filtered.map(a => (
-            <div key={a.id} style={{
-              background: "var(--bg-surface)", border: "1px solid var(--border-default)",
-              borderRadius: "var(--radius-lg)", padding: "var(--space-3) var(--space-5)",
-              borderLeft: `3px solid ${SEVERITY_COLORS[a.severity] || "var(--border-default)"}`,
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{a.scanner}</span>
-                  {a.check_id && <span style={{ color: "var(--text-tertiary)", fontSize: 13 }}>/ {a.check_id}</span>}
+        <div className="flex flex-col gap-2">
+          {filtered.map(a => {
+            const isExpanded = expandedId === a.id;
+            return (
+              <div key={a.id} onClick={() => setExpandedId(isExpanded ? null : a.id)}
+                className={`bg-bg-surface border border-border-default rounded-lg p-3 px-5 border-l-3 ${SEVERITY_BORDER[a.severity] || "border-l-border-default"} cursor-pointer transition-colors hover:bg-bg-hover`}>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    {isExpanded ? <ChevronDown size={14} className="text-text-tertiary" /> : <ChevronRight size={14} className="text-text-tertiary" />}
+                    <span className="font-semibold text-sm">{a.scanner}</span>
+                    {a.check_id && <span className="text-text-tertiary text-sm">/ {a.check_id}</span>}
+                  </div>
+                  <Badge variant={SEVERITY_VARIANTS[a.severity] || "outline"} className="uppercase text-[11px]">{a.severity}</Badge>
                 </div>
-                <span style={{
-                  fontSize: 11, padding: "2px 8px", borderRadius: "var(--radius-sm)",
-                  background: SEVERITY_COLORS[a.severity], color: "#fff", fontWeight: 600, textTransform: "uppercase",
-                }}>{a.severity}</span>
+                {a.resource_name && (
+                  <div className="text-sm text-text-secondary mt-1 pl-6">
+                    <span className="font-mono text-xs">{a.resource_kind}/{a.resource_namespace}/{a.resource_name}</span>
+                  </div>
+                )}
+                <div className="text-[11px] text-text-tertiary mt-1 tabular pl-6">{relativeTime(a.observed_at)}</div>
+                {isExpanded && a.payload && Object.keys(a.payload).length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-border-subtle pl-6">
+                    <div className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">Payload</div>
+                    <pre className="text-xs font-mono text-text-secondary bg-bg-elevated p-3 rounded-md overflow-auto max-h-[200px] whitespace-pre-wrap break-words">
+                      {JSON.stringify(a.payload, null, 2)}
+                    </pre>
+                  </div>
+                )}
               </div>
-              {a.resource_name && (
-                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: "var(--space-1)" }}>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>
-                    {a.resource_kind}/{a.resource_namespace}/{a.resource_name}
-                  </span>
-                </div>
-              )}
-              <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: "var(--space-1)", fontVariantNumeric: "tabular-nums" }}>
-                {new Date(a.observed_at).toLocaleString()}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

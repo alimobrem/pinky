@@ -1,12 +1,20 @@
 """Issue routes — correlated operational problems."""
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pinky_api.auth.deps import require_authenticated
 from pinky_api.db.deps import get_db
+from pinky_api.events import emit
 from pinky_api.repositories.issues import IssueRepository
+
+
+class SuppressRequest(BaseModel):
+    until: datetime | None = None
 
 router = APIRouter(prefix="/api/v1/issues", tags=["issues"])
 
@@ -55,4 +63,35 @@ async def get_issue(issue_id: str, db: AsyncSession = Depends(get_db)) -> dict:
     issue = await repo.get(UUID(issue_id))
     if issue is None:
         raise HTTPException(status_code=404, detail="Issue not found")
+    return _serialize(issue)
+
+
+@router.post("/{issue_id}/suppress")
+async def suppress_issue(
+    issue_id: str,
+    req: SuppressRequest,
+    db: AsyncSession = Depends(get_db),
+    _principal: dict = Depends(require_authenticated),
+) -> dict:
+    repo = IssueRepository(db)
+    issue = await repo.suppress(UUID(issue_id), until=req.until)
+    if issue is None:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    await emit(db, "issue.suppressed", "issue", UUID(issue_id), {"status": "suppressed"})
+    await db.commit()
+    return _serialize(issue)
+
+
+@router.post("/{issue_id}/resolve")
+async def resolve_issue(
+    issue_id: str,
+    db: AsyncSession = Depends(get_db),
+    _principal: dict = Depends(require_authenticated),
+) -> dict:
+    repo = IssueRepository(db)
+    issue = await repo.resolve(UUID(issue_id))
+    if issue is None:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    await emit(db, "issue.resolved", "issue", UUID(issue_id), {"status": "resolved"})
+    await db.commit()
     return _serialize(issue)
