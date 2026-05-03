@@ -16,7 +16,7 @@ interface WorkItem {
   runbook_url: string | null;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API = "";
 
 const STATUS_COLORS: Record<string, string> = {
   ready: "var(--status-ready)",

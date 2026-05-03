@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API = "";
 
 interface Issue {
   id: string;
@@ -26,6 +26,10 @@ export default function WatchPage() {
       .catch(() => {});
 
     const es = new EventSource(`${API}/api/v1/streams/watch`);
+    es.onopen = () => {
+      setConnected(true);
+      setLastUpdate(new Date().toLocaleTimeString());
+    };
     es.addEventListener("heartbeat", () => {
       setConnected(true);
       setLastUpdate(new Date().toLocaleTimeString());
