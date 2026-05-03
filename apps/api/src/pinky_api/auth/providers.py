@@ -2,7 +2,11 @@
 
 from dataclasses import dataclass
 
+import os
+
 import httpx
+
+_verify_ssl = os.environ.get("PINKY_DEBUG", "").lower() != "true"
 
 
 @dataclass(frozen=True)
@@ -25,7 +29,7 @@ class AuthProvider:
 
     async def get_well_known(self) -> dict:
         if self._well_known is None:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(verify=_verify_ssl) as client:
                 resp = await client.get(f"{self.issuer_url}/.well-known/openid-configuration")
                 resp.raise_for_status()
                 self._well_known = resp.json()
@@ -62,7 +66,7 @@ class AuthProvider:
             wk = await self.get_well_known()
             token_url = wk["token_endpoint"]
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=_verify_ssl) as client:
             resp = await client.post(
                 token_url,
                 data={
@@ -83,7 +87,7 @@ class AuthProvider:
             wk = await self.get_well_known()
             userinfo_url = wk["userinfo_endpoint"]
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=_verify_ssl) as client:
             resp = await client.get(
                 userinfo_url,
                 headers={"Authorization": f"Bearer {access_token}"},

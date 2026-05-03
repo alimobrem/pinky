@@ -141,18 +141,19 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
         principal_data=principal_data,
     )
 
-    response.set_cookie(
+    logger.info("login successful for principal %s via %s", principal_data["id"], stored_provider)
+    from fastapi.responses import RedirectResponse
+    redirect = RedirectResponse(url="/tasks", status_code=302)
+    redirect.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=raw_token,
         httponly=True,
-        secure=True,
-        samesite="strict",
+        secure=False,
+        samesite="lax",
         path="/",
         max_age=int(store.absolute_timeout.total_seconds()),
     )
-
-    logger.info("login successful", principal_id=principal_data["id"], provider=stored_provider)
-    return {"csrf_token": csrf_token, "principal": principal_data}
+    return redirect
 
 
 @router.post("/logout")
