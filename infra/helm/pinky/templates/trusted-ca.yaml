@@ -1,0 +1,10 @@
+{{- if .Values.route.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pinky.fullname" . }}-trusted-ca
+  labels:
+    {{- include "pinky.labels" . | nindent 4 }}
+    config.openshift.io/inject-trusted-cabundle: "true"
+data: {}
+{{- end }}

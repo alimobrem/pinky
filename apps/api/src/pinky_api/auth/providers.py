@@ -6,12 +6,15 @@ from pathlib import Path
 
 import httpx
 
+_TRUSTED_CA = "/etc/pki/tls/custom/ca-bundle.crt"
 _K8S_CA = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
 
 def _get_ssl_context() -> bool | str:
     if os.environ.get("PINKY_DEBUG", "").lower() == "true":
         return False
+    if Path(_TRUSTED_CA).exists():
+        return _TRUSTED_CA
     if Path(_K8S_CA).exists():
         return _K8S_CA
     return True
