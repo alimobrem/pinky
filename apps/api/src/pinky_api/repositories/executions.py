@@ -4,7 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 
-from pinky_api.models.execution import Approval, Execution
+from pinky_api.models.execution import Approval, Execution, ExecutionEvent
 from pinky_api.repositories.base import BaseRepository
 
 
@@ -28,3 +28,72 @@ class ExecutionRepository(BaseRepository):
         self.session.add(ex)
         await self.session.flush()
         return ex
+
+    async def get_events_for_work_item(self, work_item_id: UUID) -> list:
+        executions = await self.session.execute(
+            select(Execution.id).where(Execution.work_item_id == work_item_id)
+        )
+        exec_ids = [r[0] for r in executions.all()]
+        if not exec_ids:
+            return []
+
+        events = await self.session.execute(
+            select(ExecutionEvent)
+            .where(ExecutionEvent.execution_id.in_(exec_ids))
+            .order_by(ExecutionEvent.occurred_at)
+        )
+        return list(events.scalars().all())
+
+    async def get_investigation_for_work_item(self, work_item_id: UUID) -> dict | None:
+        executions = await self.session.execute(
+            select(Execution.id).where(Execution.work_item_id == work_item_id)
+        )
+        exec_ids = [r[0] for r in executions.all()]
+        if not exec_ids:
+            return None
+
+        event = None
+
+        # Try 1: investigation_completed events directly linked
+        result = await self.session.execute(
+            select(ExecutionEvent)
+            .where(ExecutionEvent.execution_id.in_(exec_ids), ExecutionEvent.event_type == "investigation_completed")
+            .order_by(ExecutionEvent.occurred_at.desc()).limit(1)
+        )
+        event = result.scalar_one_or_none()
+
+        # Try 2: completed event has artifact_id — look up artifact
+        if event is None:
+            result = await self.session.execute(
+                select(ExecutionEvent)
+                .where(ExecutionEvent.execution_id.in_(exec_ids), ExecutionEvent.event_type == "completed")
+                .order_by(ExecutionEvent.occurred_at.desc()).limit(1)
+            )
+            completed = result.scalar_one_or_none()
+            if completed and isinstance(completed.payload, dict):
+                artifact_id = completed.payload.get("artifact_id")
+                if artifact_id:
+                    try:
+                        art_result = await self.session.execute(
+                            select(ExecutionEvent)
+                            .where(ExecutionEvent.execution_id == UUID(artifact_id), ExecutionEvent.event_type == "investigation_completed")
+                            .limit(1)
+                        )
+                        event = art_result.scalar_one_or_none()
+                    except (ValueError, Exception):
+                        pass
+
+        if event is None:
+            return None
+
+        payload = event.payload if isinstance(event.payload, dict) else {}
+        return {
+            "artifact_id": payload.get("artifact_id", ""),
+            "summary": payload.get("summary", ""),
+            "root_cause": payload.get("root_cause", ""),
+            "recommended_action": payload.get("recommended_action", ""),
+            "confidence": payload.get("confidence", 0.0),
+            "tool_calls": payload.get("tool_calls", []),
+            "evidence_hash": payload.get("evidence_hash", ""),
+            "created_at": payload.get("created_at", event.occurred_at.isoformat() if event.occurred_at else ""),
+        }

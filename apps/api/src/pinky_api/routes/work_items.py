@@ -118,3 +118,33 @@ async def reassign_work_item(
         raise HTTPException(status_code=404, detail="Work item not found")
     await db.commit()
     return _serialize(item)
+
+
+@router.get("/{work_item_id}/events")
+async def get_work_item_events(work_item_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+    from pinky_api.repositories.executions import ExecutionRepository
+    repo = ExecutionRepository(db)
+    events = await repo.get_events_for_work_item(UUID(work_item_id))
+    return {
+        "items": [
+            {
+                "id": str(e.id),
+                "execution_id": str(e.execution_id),
+                "event_type": e.event_type,
+                "sequence": e.sequence,
+                "payload": e.payload or {},
+                "occurred_at": e.occurred_at.isoformat() if e.occurred_at else "",
+            }
+            for e in events
+        ],
+    }
+
+
+@router.get("/{work_item_id}/investigation")
+async def get_work_item_investigation(work_item_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+    from pinky_api.repositories.executions import ExecutionRepository
+    repo = ExecutionRepository(db)
+    investigation = await repo.get_investigation_for_work_item(UUID(work_item_id))
+    if investigation is None:
+        return {"has_investigation": False}
+    return {"has_investigation": True, **investigation}
