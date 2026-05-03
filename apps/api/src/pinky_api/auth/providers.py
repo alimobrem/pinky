@@ -2,10 +2,19 @@
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 import httpx
 
-_verify_ssl = os.environ.get("PINKY_DEBUG", "").lower() != "true"
+_K8S_CA = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+
+
+def _get_ssl_context() -> bool | str:
+    if os.environ.get("PINKY_DEBUG", "").lower() == "true":
+        return False
+    if Path(_K8S_CA).exists():
+        return _K8S_CA
+    return True
 
 
 @dataclass(frozen=True)
@@ -29,7 +38,7 @@ class AuthProvider:
 
     async def get_well_known(self) -> dict:
         if self._well_known is None:
-            async with httpx.AsyncClient(verify=_verify_ssl) as client:
+            async with httpx.AsyncClient(verify=_get_ssl_context()) as client:
                 resp = await client.get(f"{self.issuer_url}/.well-known/openid-configuration")
                 resp.raise_for_status()
                 self._well_known = resp.json()
@@ -66,7 +75,7 @@ class AuthProvider:
             wk = await self.get_well_known()
             token_url = wk["token_endpoint"]
 
-        async with httpx.AsyncClient(verify=_verify_ssl) as client:
+        async with httpx.AsyncClient(verify=_get_ssl_context()) as client:
             resp = await client.post(
                 token_url,
                 data={
@@ -90,7 +99,7 @@ class AuthProvider:
             wk = await self.get_well_known()
             userinfo_url = wk["userinfo_endpoint"]
 
-        async with httpx.AsyncClient(verify=_verify_ssl) as client:
+        async with httpx.AsyncClient(verify=_get_ssl_context()) as client:
             resp = await client.get(
                 userinfo_url,
                 headers={"Authorization": f"Bearer {access_token}"},

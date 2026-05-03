@@ -24,7 +24,7 @@ spec:
             cidr: {{ .Values.networkPolicy.serviceNetwork | default "172.30.0.0/16" }}
         - ipBlock:
             cidr: {{ .Values.networkPolicy.clusterNetwork | default "10.128.0.0/14" }}
-    # External HTTPS (OAuth, LLM APIs)
+    # External HTTPS (OAuth, K8s API for user info, LLM APIs)
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -33,6 +33,8 @@ spec:
               - {{ .Values.networkPolicy.clusterNetwork | default "10.128.0.0/14" }}
       ports:
         - port: 443
+          protocol: TCP
+        - port: 6443
           protocol: TCP
 ---
 apiVersion: networking.k8s.io/v1

@@ -1,0 +1,18 @@
+{{- if and .Values.route.enabled .Values.auth.openshift.clientId }}
+apiVersion: oauth.openshift.io/v1
+kind: OAuthClient
+metadata:
+  name: {{ .Values.auth.openshift.clientId }}
+  labels:
+    {{- include "pinky.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+grantMethod: auto
+secret: {{ .Values.auth.openshift.clientSecret | quote }}
+redirectURIs:
+  - https://{{ .Values.route.host }}/api/v1/auth/callback
+  {{- if .Values.debug }}
+  - http://localhost:8000/api/v1/auth/callback
+  - http://localhost:3000/api/v1/auth/callback
+  {{- end }}
+{{- end }}

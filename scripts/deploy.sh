@@ -4,10 +4,12 @@ set -euo pipefail
 NAMESPACE="${PINKY_NAMESPACE:-pinky}"
 RELEASE="${PINKY_RELEASE:-pinky}"
 VALUES_FILE="${1:-infra/helm/values-dev.yaml}"
+KUBE="${PINKY_KUBE_CLI:-$(command -v oc 2>/dev/null || command -v kubectl 2>/dev/null || echo kubectl)}"
 
 echo "==> Deploying Pinky to namespace ${NAMESPACE}"
 echo "    Release: ${RELEASE}"
 echo "    Values:  ${VALUES_FILE}"
+echo "    CLI:     ${KUBE}"
 echo ""
 
 # Pre-flight
@@ -15,7 +17,7 @@ echo ""
 echo ""
 
 # Create namespace
-kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+${KUBE} create namespace "${NAMESPACE}" --dry-run=client -o yaml | ${KUBE} apply -f -
 
 # Build + push (if requested)
 if [[ "${PINKY_BUILD:-false}" == "true" ]]; then
