@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pinky_api.auth.deps import require_authenticated
 from pinky_api.db.deps import get_db
 from pinky_api.events import emit
 from pinky_api.repositories.executions import ExecutionRepository
@@ -61,7 +62,7 @@ async def get_execution(execution_id: str, db: AsyncSession = Depends(get_db)) -
 
 
 @router.post("")
-async def start_execution(work_item_id: str, execution_type: str = "investigation", db: AsyncSession = Depends(get_db)) -> dict:
+async def start_execution(work_item_id: str, execution_type: str = "investigation", db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated)) -> dict:
     import pinky_api.temporal_state as temporal_state
 
     repo = ExecutionRepository(db)
@@ -96,12 +97,19 @@ async def start_execution(work_item_id: str, execution_type: str = "investigatio
             logger.info("temporal workflow started for execution %s", str(ex.id))
         except Exception:
             logger.exception("failed to start temporal workflow for execution %s", str(ex.id))
+            await repo.update_status(ex.id, "failed")
+            await db.commit()
+            raise HTTPException(status_code=502, detail="Failed to start investigation workflow")
+    else:
+        response = _serialize(ex)
+        response["warning"] = "Temporal not available — workflow will not execute"
+        return response
 
     return _serialize(ex)
 
 
 @router.post("/{execution_id}/approve")
-async def approve_execution(execution_id: str, req: ApproveRequest, db: AsyncSession = Depends(get_db)) -> dict:
+async def approve_execution(execution_id: str, req: ApproveRequest, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated)) -> dict:
     import pinky_api.temporal_state as temporal_state
 
     if temporal_state.client is None:
@@ -119,7 +127,7 @@ async def approve_execution(execution_id: str, req: ApproveRequest, db: AsyncSes
 
 
 @router.post("/{execution_id}/reject")
-async def reject_execution(execution_id: str, req: RejectRequest, db: AsyncSession = Depends(get_db)) -> dict:
+async def reject_execution(execution_id: str, req: RejectRequest, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated)) -> dict:
     import pinky_api.temporal_state as temporal_state
 
     if temporal_state.client is None:

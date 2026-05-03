@@ -30,7 +30,7 @@ export function KeyboardHelp() {
   if (!open) return null;
 
   return (
-    <div style={{
+    <div role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" style={{
       position: "fixed", inset: 0, zIndex: 150,
       background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
       display: "flex", alignItems: "center", justifyContent: "center",
@@ -42,7 +42,7 @@ export function KeyboardHelp() {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-5)" }}>
           <h2 style={{ fontSize: 16, fontWeight: 600 }}>Keyboard Shortcuts</h2>
-          <button onClick={() => setOpen(false)} style={{
+          <button onClick={() => setOpen(false)} aria-label="Close" style={{
             background: "none", border: "none", color: "var(--text-tertiary)", cursor: "pointer",
           }}><X size={18} /></button>
         </div>

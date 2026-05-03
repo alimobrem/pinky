@@ -30,6 +30,7 @@ def _serialize_cluster(c: object) -> dict:
         "onboarding_state": c.onboarding_state,
         "offboarding_state": c.offboarding_state,
         "created_at": c.created_at.isoformat() if c.created_at else "",
+        "updated_at": c.updated_at.isoformat() if c.updated_at else "",
     }
 
 

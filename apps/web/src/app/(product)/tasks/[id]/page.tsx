@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Brain, CheckCircle, Play, ChevronDown, ChevronRight, Zap } from "lucide-react";
 import { useToast } from "@/components/toast";
@@ -50,6 +50,7 @@ export default function TaskDetailPage() {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -57,6 +58,7 @@ export default function TaskDetailPage() {
       fetch(`${API}/api/v1/work-items/${taskId}/investigation`).then(r => r.json()).catch(() => ({ has_investigation: false })),
       fetch(`${API}/api/v1/work-items/${taskId}/events`).then(r => r.json()).catch(() => ({ items: [] })),
     ]).then(([wi, inv, evts]) => { setItem(wi); setInvestigation(inv); setEvents(evts.items || []); setLoading(false); });
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [taskId]);
 
   const doAction = async (action: string) => {
@@ -68,15 +70,52 @@ export default function TaskDetailPage() {
   };
 
   const triggerInvestigation = async () => {
-    setActing(true); toast("Brain investigation started...", "info");
-    await fetch(`${API}/api/v1/executions?work_item_id=${taskId}&execution_type=investigation`, { method: "POST" });
-    setTimeout(async () => {
-      const [inv, evts] = await Promise.all([
-        fetch(`${API}/api/v1/work-items/${taskId}/investigation`).then(r => r.json()),
-        fetch(`${API}/api/v1/work-items/${taskId}/events`).then(r => r.json()),
-      ]);
-      setInvestigation(inv); setEvents(evts.items || []); setActing(false);
-    }, 2000);
+    setActing(true);
+    try {
+      const existing = await fetch(`${API}/api/v1/executions?work_item_id=${taskId}&status=pending`);
+      if (existing.ok) {
+        const data = await existing.json();
+        if ((data.items || []).length > 0) {
+          toast("Investigation already in progress", "warning");
+          setActing(false);
+          return;
+        }
+      }
+      const r = await fetch(`${API}/api/v1/executions?work_item_id=${taskId}&execution_type=investigation`, { method: "POST" });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        toast(err.detail || "Failed to start investigation", "error");
+        setActing(false);
+        return;
+      }
+      toast("Brain investigation started...", "info");
+      let attempts = 0;
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = setInterval(async () => {
+        attempts++;
+        try {
+          const [inv, evts] = await Promise.all([
+            fetch(`${API}/api/v1/work-items/${taskId}/investigation`).then(r => r.json()),
+            fetch(`${API}/api/v1/work-items/${taskId}/events`).then(r => r.json()),
+          ]);
+          if (inv.has_investigation || attempts >= 10) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            setInvestigation(inv);
+            setEvents(evts.items || []);
+            setActing(false);
+            if (inv.has_investigation) toast("Investigation complete", "success");
+          }
+        } catch {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          setActing(false);
+        }
+      }, 3000);
+    } catch {
+      toast("Network error", "error");
+      setActing(false);
+    }
   };
 
   if (loading) return (

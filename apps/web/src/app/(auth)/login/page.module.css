@@ -87,6 +87,22 @@
   border-color: #342f48;
 }
 
+.btnPrimary:disabled,
+.btnSecondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error {
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--status-blocked);
+  font-size: 13px;
+}
+
 .brainStatus {
   display: flex;
   align-items: center;

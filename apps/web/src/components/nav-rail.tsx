@@ -27,14 +27,29 @@ const NAV_ITEMS: NavItem[] = [
 
 export function NavRail() {
   const pathname = usePathname();
-  const [badges, setBadges] = useState<Record<string, number>>({});
+  const [badges, setBadges] = useState<Record<string, string>>({});
   const [brainActive, setBrainActive] = useState(false);
 
   useEffect(() => {
     const fetchBadges = () => {
-      fetch(`${API}/api/v1/work-items?status=ready`).then(r => r.json()).then(d => setBadges(prev => ({ ...prev, tasks: (d.items || []).length }))).catch(() => {});
-      fetch(`${API}/api/v1/alerts`).then(r => r.json()).then(d => setBadges(prev => ({ ...prev, alerts: (d.items || []).length }))).catch(() => {});
-      fetch(`${API}/api/v1/issues?status=open`).then(r => r.json()).then(d => setBrainActive((d.items || []).length > 0)).catch(() => {});
+      fetch(`${API}/api/v1/work-items?status=ready`)
+        .then(r => r.json())
+        .then(d => {
+          const count = (d.items || []).length;
+          setBadges(prev => ({ ...prev, tasks: d.has_more ? `${count}+` : `${count}` }));
+        })
+        .catch(() => {});
+      fetch(`${API}/api/v1/alerts`)
+        .then(r => r.json())
+        .then(d => {
+          const count = (d.items || []).length;
+          setBadges(prev => ({ ...prev, alerts: d.has_more ? `${count}+` : `${count}` }));
+        })
+        .catch(() => {});
+      fetch(`${API}/api/v1/issues?status=open`)
+        .then(r => r.json())
+        .then(d => setBrainActive((d.items || []).length > 0))
+        .catch(() => {});
     };
     fetchBadges();
     const interval = setInterval(fetchBadges, 30000);
@@ -63,13 +78,13 @@ export function NavRail() {
   );
 }
 
-function NavLink({ item, active, badge, brainDot }: { item: NavItem; active: boolean; badge?: number; brainDot?: boolean }) {
+function NavLink({ item, active, badge, brainDot }: { item: NavItem; active: boolean; badge?: string; brainDot?: boolean }) {
   const Icon = item.icon;
   return (
-    <Link href={item.path} className={active ? css.linkActive : css.link}>
+    <Link href={item.path} className={active ? css.linkActive : css.link} aria-label={item.label} aria-current={active ? "page" : undefined}>
       <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />
       <span className={css.linkLabel}>{item.label}</span>
-      {badge != null && badge > 0 && <span className={css.badge}>{badge}</span>}
+      {badge != null && badge !== "0" && <span className={css.badge}>{badge}</span>}
       {brainDot && <span className={css.brainDot} />}
     </Link>
   );

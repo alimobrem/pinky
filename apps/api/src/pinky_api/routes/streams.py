@@ -35,6 +35,12 @@ def _raw_pg_url() -> str:
 async def _sse_with_notify(request: Request, channel: str) -> AsyncGenerator[str, None]:
     """SSE generator that listens to Postgres NOTIFY on a channel."""
     sequence = 0
+    last_event_id = request.headers.get("last-event-id")
+    if last_event_id:
+        try:
+            sequence = int(last_event_id)
+        except ValueError:
+            pass
     conn: asyncpg.Connection | None = None
 
     try:
@@ -59,7 +65,17 @@ async def _sse_with_notify(request: Request, channel: str) -> AsyncGenerator[str
             try:
                 payload = await asyncio.wait_for(queue.get(), timeout=HEARTBEAT_INTERVAL)
                 sequence += 1
-                yield f"id: {sequence}\nevent: update\ndata: {payload}\n\n"
+                payload_data = json.loads(payload)
+                envelope = {
+                    "event_id": payload_data.get("event_id", ""),
+                    "stream": channel,
+                    "aggregate_id": payload_data.get("aggregate_id", ""),
+                    "type": payload_data.get("event_type", "update"),
+                    "occurred_at": datetime.now(timezone.utc).isoformat(),
+                    "sequence": sequence,
+                    "payload": payload_data,
+                }
+                yield f"id: {sequence}\nevent: update\ndata: {json.dumps(envelope)}\n\n"
             except asyncio.TimeoutError:
                 heartbeat = json.dumps({"ts": datetime.now(timezone.utc).isoformat()})
                 yield f"event: heartbeat\ndata: {heartbeat}\n\n"

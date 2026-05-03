@@ -7,8 +7,9 @@ One observer task per registered cluster. Uses observer identity
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime, timezone
+
+import structlog
 
 from pinky_worker.definitions.loader import Definition, DefinitionRegistry
 from pinky_worker.issues.correlator import IssueCorrelator, RawObservation
@@ -16,7 +17,7 @@ from pinky_worker.observation.k8s_client import create_client, list_pods
 from pinky_worker.observation.scanner_runner import run_pod_health_checks
 from pinky_worker.policy.engine import PolicyInput, evaluate, rules_from_definitions
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 async def observe_cluster(

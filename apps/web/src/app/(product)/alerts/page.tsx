@@ -24,13 +24,14 @@ const SEVERITY_COLORS: Record<string, string> = {
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [severityFilter, setSeverityFilter] = useState("");
 
   useEffect(() => {
     fetch(`${API}/api/v1/alerts`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
       .then(data => { setAlerts(data.items || []); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch(e => { setError(`Failed to load alerts: ${e.message}`); setLoading(false); });
   }, []);
 
   const filtered = severityFilter ? alerts.filter(a => a.severity === severityFilter) : alerts;
@@ -56,6 +57,14 @@ export default function AlertsPage() {
         </select>
         <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-tertiary)" }}>{filtered.length} alerts</span>
       </div>
+
+      {error && (
+        <div style={{
+          padding: "var(--space-3) var(--space-4)", marginBottom: "var(--space-4)",
+          background: "rgba(248, 113, 113, 0.1)", border: "1px solid rgba(248, 113, 113, 0.3)",
+          borderRadius: "var(--radius-md)", color: "var(--status-blocked)", fontSize: 13,
+        }}>{error}</div>
+      )}
 
       {loading && (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
