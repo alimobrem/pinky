@@ -3,6 +3,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.auth.deps import require_authenticated
@@ -10,6 +11,10 @@ from pinky_api.db.deps import get_db
 from pinky_api.events import emit
 from pinky_api.repositories.work_items import WorkItemRepository
 from pinky_api.schemas.work_item import WorkItemListResponse, WorkItemResponse
+
+
+class BlockRequest(BaseModel):
+    reason: str
 
 router = APIRouter(prefix="/api/v1/work-items", tags=["work-items"])
 
@@ -30,6 +35,7 @@ def _serialize(item: object) -> dict:
         "annotations": item.annotations or {},
         "runbook_url": item.runbook_url,
         "artifact_refs": item.artifact_refs or {},
+        "blocked_reason": item.blocked_reason,
         "created_at": item.created_at.isoformat() if item.created_at else "",
         "updated_at": item.updated_at.isoformat() if item.updated_at else "",
     }
@@ -104,6 +110,25 @@ async def complete_work_item(work_item_id: str, db: AsyncSession = Depends(get_d
     if item is None:
         raise HTTPException(status_code=404, detail="Work item not found")
     await emit(db, "work_item.completed", "work_item", UUID(work_item_id), {"status": "done"})
+    await db.commit()
+    return _serialize(item)
+
+
+@router.post("/{work_item_id}/block")
+async def block_work_item(
+    work_item_id: str,
+    req: BlockRequest,
+    db: AsyncSession = Depends(get_db),
+    _principal: dict = Depends(require_authenticated),
+) -> dict:
+    repo = WorkItemRepository(db)
+    try:
+        item = await repo.transition(UUID(work_item_id), "blocked", blocked_reason=req.reason)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if item is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+    await emit(db, "work_item.blocked", "work_item", UUID(work_item_id), {"status": "blocked", "reason": req.reason})
     await db.commit()
     return _serialize(item)
 

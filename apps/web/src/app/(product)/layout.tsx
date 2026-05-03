@@ -5,22 +5,19 @@ import { NavRail } from "@/components/nav-rail";
 import { TopBar } from "@/components/top-bar";
 import { CommandPalette } from "@/components/command-palette";
 import { KeyboardHelp } from "@/components/keyboard-help";
-import { ToastProvider } from "@/components/toast";
 
 export default function ProductLayout({ children }: { children: ReactNode }) {
   return (
-    <ToastProvider>
-      <div style={{ display: "flex", minHeight: "100vh" }}>
-        <NavRail />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          <TopBar />
-          <main style={{ flex: 1, padding: "var(--space-6)", overflowY: "auto" }}>
-            {children}
-          </main>
-        </div>
+    <div className="flex min-h-screen">
+      <NavRail />
+      <div className="flex flex-1 flex-col">
+        <TopBar />
+        <main className="flex-1 overflow-y-auto p-6">
+          {children}
+        </main>
       </div>
       <CommandPalette />
       <KeyboardHelp />
-    </ToastProvider>
+    </div>
   );
 }

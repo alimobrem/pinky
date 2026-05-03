@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update as sa_update
 
 from pinky_api.models.issue import Issue
 from pinky_api.repositories.base import BaseRepository
@@ -35,6 +36,32 @@ class IssueRepository(BaseRepository):
             select(Issue).where(Issue.id == issue_id)
         )
         return result.scalar_one_or_none()
+
+    async def suppress(self, issue_id: UUID, until: datetime | None = None) -> Issue | None:
+        issue = await self.get(issue_id)
+        if issue is None:
+            return None
+        values: dict = {"status": "suppressed"}
+        if until:
+            values["suppressed_until"] = until
+        await self.session.execute(
+            sa_update(Issue).where(Issue.id == issue_id).values(**values)
+        )
+        self.session.expire_all()
+        return await self.get(issue_id)
+
+    async def resolve(self, issue_id: UUID) -> Issue | None:
+        issue = await self.get(issue_id)
+        if issue is None:
+            return None
+        await self.session.execute(
+            sa_update(Issue).where(Issue.id == issue_id).values(
+                status="resolved",
+                resolved_at=datetime.utcnow(),
+            )
+        )
+        self.session.expire_all()
+        return await self.get(issue_id)
 
     async def find_by_correlation_key(self, correlation_key: str) -> Issue | None:
         result = await self.session.execute(

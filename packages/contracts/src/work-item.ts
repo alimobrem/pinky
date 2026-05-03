@@ -21,6 +21,7 @@ export interface WorkItem {
   annotations: Record<string, string>;
   runbook_url: string | null;
   artifact_refs: Record<string, unknown>;
+  blocked_reason: string | null;
   created_at: string;
   updated_at: string;
 }

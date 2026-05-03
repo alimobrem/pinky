@@ -49,7 +49,13 @@ class WorkItemRepository(BaseRepository):
         )
         return result.scalar_one_or_none()
 
-    async def transition(self, work_item_id: UUID, new_status: str, owner_id: UUID | None = None) -> WorkItem | None:
+    async def transition(
+        self,
+        work_item_id: UUID,
+        new_status: str,
+        owner_id: UUID | None = None,
+        blocked_reason: str | None = None,
+    ) -> WorkItem | None:
         item = await self.get(work_item_id)
         if item is None:
             return None
@@ -61,6 +67,10 @@ class WorkItemRepository(BaseRepository):
         values: dict = {"status": new_status}
         if owner_id is not None:
             values["owner_id"] = owner_id
+        if new_status == "blocked":
+            values["blocked_reason"] = blocked_reason
+        elif item.status == "blocked":
+            values["blocked_reason"] = None
 
         await self.session.execute(
             sa_update(WorkItem).where(WorkItem.id == work_item_id).values(**values)

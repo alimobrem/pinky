@@ -5,9 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CheckSquare, Eye, Clock, AlertTriangle, Settings, Brain } from "lucide-react";
 import type { ComponentType } from "react";
-import css from "./nav-rail.module.css";
-
-const API = "";
+import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 interface NavItem {
   id: string;
@@ -32,22 +31,13 @@ export function NavRail() {
 
   useEffect(() => {
     const fetchBadges = () => {
-      fetch(`${API}/api/v1/work-items?status=ready`)
-        .then(r => r.json())
-        .then(d => {
-          const count = (d.items || []).length;
-          setBadges(prev => ({ ...prev, tasks: d.has_more ? `${count}+` : `${count}` }));
-        })
+      api.get<{ items: unknown[]; has_more: boolean }>("/api/v1/work-items?status=ready")
+        .then(d => { const count = (d.items || []).length; setBadges(prev => ({ ...prev, tasks: d.has_more ? `${count}+` : `${count}` })); })
         .catch(() => {});
-      fetch(`${API}/api/v1/alerts`)
-        .then(r => r.json())
-        .then(d => {
-          const count = (d.items || []).length;
-          setBadges(prev => ({ ...prev, alerts: d.has_more ? `${count}+` : `${count}` }));
-        })
+      api.get<{ items: unknown[]; has_more: boolean }>("/api/v1/alerts")
+        .then(d => { const count = (d.items || []).length; setBadges(prev => ({ ...prev, alerts: d.has_more ? `${count}+` : `${count}` })); })
         .catch(() => {});
-      fetch(`${API}/api/v1/issues?status=open`)
-        .then(r => r.json())
+      api.get<{ items: unknown[] }>("/api/v1/issues?status=open")
         .then(d => setBrainActive((d.items || []).length > 0))
         .catch(() => {});
     };
@@ -57,19 +47,19 @@ export function NavRail() {
   }, []);
 
   return (
-    <nav className={css.rail}>
-      <div className={css.brand}>
-        <Brain size={22} style={{ color: "var(--accent-brain)" }} />
-        <span className={css.brandText}>PINKY</span>
+    <nav className="w-[220px] min-h-screen bg-bg-surface border-r border-border-default py-5 flex flex-col max-xl:w-14 max-md:hidden">
+      <div className="px-5 pb-8 flex items-center gap-2">
+        <Brain size={22} className="text-accent-brain" />
+        <span className="text-xl font-extrabold tracking-wider bg-[var(--gradient-brand)] bg-clip-text text-transparent max-xl:hidden">PINKY</span>
       </div>
-      <div className={css.divider} />
+      <div className="border-b border-border-subtle mx-4 mb-3" />
 
       {NAV_ITEMS.filter(i => i.section === "primary").map(item => (
         <NavLink key={item.id} item={item} active={pathname.startsWith(item.path)} badge={badges[item.id]} brainDot={item.id === "watch" && brainActive} />
       ))}
 
-      <div className={css.spacer} />
-      <div className={css.dividerBottom} />
+      <div className="flex-1" />
+      <div className="border-b border-border-subtle mx-4 my-3" />
 
       {NAV_ITEMS.filter(i => i.section === "secondary").map(item => (
         <NavLink key={item.id} item={item} active={pathname.startsWith(item.path)} />
@@ -81,11 +71,23 @@ export function NavRail() {
 function NavLink({ item, active, badge, brainDot }: { item: NavItem; active: boolean; badge?: string; brainDot?: boolean }) {
   const Icon = item.icon;
   return (
-    <Link href={item.path} className={active ? css.linkActive : css.link} aria-label={item.label} aria-current={active ? "page" : undefined}>
+    <Link
+      href={item.path}
+      aria-label={item.label}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex items-center gap-3 px-5 py-2 text-sm no-underline border-l-3 border-transparent transition-colors",
+        active
+          ? "text-text-primary font-semibold bg-bg-elevated border-l-accent-brand"
+          : "text-text-secondary hover:text-text-primary hover:bg-bg-hover"
+      )}
+    >
       <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />
-      <span className={css.linkLabel}>{item.label}</span>
-      {badge != null && badge !== "0" && <span className={css.badge}>{badge}</span>}
-      {brainDot && <span className={css.brainDot} />}
+      <span className="flex-1 max-xl:hidden">{item.label}</span>
+      {badge != null && badge !== "0" && (
+        <span className="text-[11px] font-semibold tabular bg-accent-brand text-white px-1.5 py-0.5 rounded-full min-w-5 text-center max-xl:hidden">{badge}</span>
+      )}
+      {brainDot && <span className="w-2 h-2 rounded-full bg-accent-brain animate-brain-pulse" />}
     </Link>
   );
 }
