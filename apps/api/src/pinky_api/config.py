@@ -18,9 +18,12 @@ class AuthConfig(BaseSettings, frozen=True):
     openshift_issuer_url: str = ""
     openshift_client_id: str = ""
     openshift_client_secret: str = ""
+    openshift_api_url: str = ""
     oidc_issuer_url: str = ""
     oidc_client_id: str = ""
     oidc_client_secret: str = ""
+    cookie_domain: str = ""
+    app_url: str = "http://localhost:3000"
 
 
 class PinkySettings(BaseSettings, frozen=True):

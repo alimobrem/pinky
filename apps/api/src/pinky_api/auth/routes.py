@@ -8,7 +8,6 @@ creates a session in Redis, and sets the HTTP-only cookie.
 
 import logging
 import secrets
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import RedirectResponse
@@ -35,22 +34,22 @@ def _get_provider(provider_type: str) -> AuthProvider:
         issuer = settings.auth.openshift_issuer_url
         client_id = settings.auth.openshift_client_id
         client_secret = settings.auth.openshift_client_secret
+        api_url = settings.auth.openshift_api_url
     elif provider_type == "oidc":
         issuer = settings.auth.oidc_issuer_url
         client_id = settings.auth.oidc_client_id
         client_secret = settings.auth.oidc_client_secret
+        api_url = ""
     else:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider_type}")
 
     if not issuer or not client_id:
         raise HTTPException(status_code=501, detail=f"Provider {provider_type} not configured")
 
-    return AuthProvider(provider_type, client_id, client_secret, issuer)
+    return AuthProvider(provider_type, client_id, client_secret, issuer, api_url=api_url)
 
 
 async def _resolve_principal(user_info: ProviderUserInfo, db: AsyncSession) -> dict:
-    """Find or create principal. Auto-links when verified email matches."""
-    # Try exact provider+subject match
     result = await db.execute(
         select(Principal).where(Principal.provider == user_info.provider, Principal.subject == user_info.subject)
     )
@@ -70,7 +69,7 @@ async def _resolve_principal(user_info: ProviderUserInfo, db: AsyncSession) -> d
         )
         db.add(principal)
         await db.flush()
-        logger.info("principal created", principal_id=str(principal.id), provider=user_info.provider)
+        logger.info("principal created: %s via %s", str(principal.id), user_info.provider)
     else:
         principal.display_name = user_info.display_name or principal.display_name
         principal.groups = user_info.groups or principal.groups
@@ -108,12 +107,12 @@ async def login(provider: str = "openshift") -> dict:
         return {"provider": provider, "state": state, "authorize_url": authorize_url}
     except HTTPException as e:
         if e.status_code == 501:
-            return {"provider": provider, "state": state, "authorize_url": None, "note": f"Provider {provider} not configured"}
+            return {"provider": provider, "state": state, "authorize_url": None, "note": str(e.detail)}
         raise
 
 
 @router.get("/callback")
-async def callback(code: str, state: str, response: Response, db: AsyncSession = Depends(get_db)) -> dict:
+async def callback(code: str, state: str, response: Response, db: AsyncSession = Depends(get_db)):
     store = auth_state.session_store
     if store is None:
         raise HTTPException(status_code=503, detail="Session store not initialized")
@@ -127,12 +126,22 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
     settings = get_settings()
     redirect_uri = f"{settings.auth.callback_base_url}/api/v1/auth/callback"
 
-    token_data = await auth_provider.exchange_code(code, redirect_uri)
+    try:
+        token_data = await auth_provider.exchange_code(code, redirect_uri)
+    except Exception as e:
+        logger.exception("OAuth code exchange failed")
+        raise HTTPException(status_code=502, detail=f"Code exchange failed: {e}")
+
     access_token = token_data.get("access_token")
     if not access_token:
-        raise HTTPException(status_code=502, detail="Provider did not return access_token")
+        raise HTTPException(status_code=502, detail=f"Provider did not return access_token. Response: {token_data}")
 
-    user_info = await auth_provider.get_user_info(access_token)
+    try:
+        user_info = await auth_provider.get_user_info(access_token)
+    except Exception as e:
+        logger.exception("Failed to fetch user info")
+        raise HTTPException(status_code=502, detail=f"User info fetch failed: {e}")
+
     principal_data = await _resolve_principal(user_info, db)
     await db.commit()
 
@@ -141,18 +150,21 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
         principal_data=principal_data,
     )
 
-    logger.info("login successful for principal %s via %s", principal_data["id"], stored_provider)
-    from fastapi.responses import RedirectResponse
-    redirect = RedirectResponse(url="/tasks", status_code=302)
-    redirect.set_cookie(
-        key=SESSION_COOKIE_NAME,
-        value=raw_token,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-        path="/",
-        max_age=int(store.absolute_timeout.total_seconds()),
-    )
+    logger.info("login successful: %s via %s", principal_data["id"], stored_provider)
+
+    redirect = RedirectResponse(url=f"{settings.auth.app_url}/tasks", status_code=302)
+    cookie_kwargs = {
+        "key": SESSION_COOKIE_NAME,
+        "value": raw_token,
+        "httponly": True,
+        "secure": False,
+        "samesite": "lax",
+        "path": "/",
+        "max_age": int(store.absolute_timeout.total_seconds()),
+    }
+    if settings.auth.cookie_domain:
+        cookie_kwargs["domain"] = settings.auth.cookie_domain
+    redirect.set_cookie(**cookie_kwargs)
     return redirect
 
 

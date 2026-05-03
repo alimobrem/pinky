@@ -1,8 +1,7 @@
 """Auth provider abstraction — OpenShift OAuth and external OIDC."""
 
-from dataclasses import dataclass
-
 import os
+from dataclasses import dataclass
 
 import httpx
 
@@ -20,11 +19,12 @@ class ProviderUserInfo:
 
 
 class AuthProvider:
-    def __init__(self, provider_type: str, client_id: str, client_secret: str, issuer_url: str) -> None:
+    def __init__(self, provider_type: str, client_id: str, client_secret: str, issuer_url: str, api_url: str = "") -> None:
         self.provider_type = provider_type
         self.client_id = client_id
         self.client_secret = client_secret
         self.issuer_url = issuer_url.rstrip("/")
+        self.api_url = api_url.rstrip("/") if api_url else ""
         self._well_known: dict | None = None
 
     async def get_well_known(self) -> dict:
@@ -77,12 +77,15 @@ class AuthProvider:
                     "client_secret": self.client_secret,
                 },
             )
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                raise RuntimeError(f"Token exchange failed ({resp.status_code}): {resp.text[:300]}")
             return resp.json()
 
     async def get_user_info(self, access_token: str) -> ProviderUserInfo:
         if self.provider_type == "openshift":
-            userinfo_url = f"{self.issuer_url}/apis/user.openshift.io/v1/users/~"
+            if not self.api_url:
+                raise ValueError("openshift_api_url is required — set PINKY_AUTH__OPENSHIFT_API_URL to the K8s API server URL")
+            userinfo_url = f"{self.api_url}/apis/user.openshift.io/v1/users/~"
         else:
             wk = await self.get_well_known()
             userinfo_url = wk["userinfo_endpoint"]
@@ -92,7 +95,8 @@ class AuthProvider:
                 userinfo_url,
                 headers={"Authorization": f"Bearer {access_token}"},
             )
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                raise RuntimeError(f"User info fetch failed ({resp.status_code}): {resp.text[:300]}")
             data = resp.json()
 
         if self.provider_type == "openshift":

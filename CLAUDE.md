@@ -89,7 +89,30 @@ cd apps/worker && .venv/bin/pytest tests/ -v
 pnpm --filter @pinky/web typecheck
 ```
 
-Tests use `conftest.py` fixtures: `authed_client` (auth bypassed with test principal), `unauthed_client` (no auth). Encryption key set via `monkeypatch` in all test files.
+Tests use `conftest.py` fixtures: `authed_client` (auth bypassed with test principal), `unauthed_client` (no auth), `non_admin_client`. Encryption key set via `monkeypatch`. Tests run against real Postgres and Redis.
+
+## OAuth (OpenShift)
+
+Dev cluster: `your-cluster.example.com`
+
+```bash
+# Required env vars for OAuth login
+PINKY_AUTH__OPENSHIFT_ISSUER_URL=https://oauth-openshift.apps.your-cluster.example.com
+PINKY_AUTH__OPENSHIFT_CLIENT_ID=pinky
+PINKY_AUTH__OPENSHIFT_CLIENT_SECRET=REDACTED_ROTATE_THIS_SECRET
+PINKY_AUTH__OPENSHIFT_API_URL=https://api.your-cluster.example.com:6443
+PINKY_AUTH__CALLBACK_BASE_URL=http://localhost:8000
+PINKY_AUTH__COOKIE_DOMAIN=localhost
+PINKY_AUTH__APP_URL=http://localhost:3000
+```
+
+Key architecture:
+- **Issuer URL** = OAuth route (for authorize + token exchange)
+- **API URL** = K8s API server (for user info `/apis/user.openshift.io/v1/users/~`)
+- Callback hits API on `:8000` directly (not proxied through Next.js)
+- Cookie set with `domain=localhost` so it's sent to both `:8000` and `:3000`
+- After login, API redirects to `APP_URL/tasks`
+- SSL verify disabled when `PINKY_DEBUG=true` (dev clusters with self-signed certs)
 
 ## Specs
 
