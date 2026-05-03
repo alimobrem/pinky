@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, CheckSquare, Eye, Clock, AlertTriangle, Settings, Brain, Zap } from "lucide-react";
 
@@ -21,6 +21,7 @@ export function CommandPalette() {
   const [items, setItems] = useState<CommandItem[]>([]);
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   const baseItems: CommandItem[] = [
@@ -89,13 +90,20 @@ export function CommandPalette() {
   const categories = [...new Set(filtered.map(i => i.category))];
 
   return (
-    <div style={{
+    <div role="dialog" aria-modal="true" aria-label="Command palette" style={{
       position: "fixed", inset: 0, zIndex: 100,
       background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
       display: "flex", alignItems: "flex-start", justifyContent: "center",
       paddingTop: 120,
     }} onClick={() => setOpen(false)}>
-      <div onClick={e => e.stopPropagation()} style={{
+      <div ref={dialogRef} onClick={e => e.stopPropagation()} onKeyDown={e => {
+        if (e.key !== "Tab" || !dialogRef.current) return;
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>("input, button, [tabindex]:not([tabindex='-1'])");
+        if (!focusable.length) return;
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }} style={{
         width: 560, maxHeight: 480,
         background: "var(--bg-elevated)", border: "1px solid var(--border-default)",
         borderRadius: "var(--radius-xl)", boxShadow: "var(--shadow-dropdown)",

@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pinky_api.auth.deps import require_authenticated
 from pinky_api.db.deps import get_db
 from pinky_api.events import emit
 from pinky_api.repositories.work_items import WorkItemRepository
@@ -28,6 +29,7 @@ def _serialize(item: object) -> dict:
         "labels": item.labels or {},
         "annotations": item.annotations or {},
         "runbook_url": item.runbook_url,
+        "artifact_refs": item.artifact_refs or {},
         "created_at": item.created_at.isoformat() if item.created_at else "",
         "updated_at": item.updated_at.isoformat() if item.updated_at else "",
     }
@@ -65,7 +67,7 @@ async def get_work_item(work_item_id: str, db: AsyncSession = Depends(get_db)) -
 
 
 @router.post("/{work_item_id}/accept")
-async def accept_work_item(work_item_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+async def accept_work_item(work_item_id: str, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated)) -> dict:
     repo = WorkItemRepository(db)
     try:
         item = await repo.transition(UUID(work_item_id), "accepted")
@@ -79,7 +81,7 @@ async def accept_work_item(work_item_id: str, db: AsyncSession = Depends(get_db)
 
 
 @router.post("/{work_item_id}/start")
-async def start_work_item(work_item_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+async def start_work_item(work_item_id: str, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated)) -> dict:
     repo = WorkItemRepository(db)
     try:
         item = await repo.transition(UUID(work_item_id), "in_progress")
@@ -93,7 +95,7 @@ async def start_work_item(work_item_id: str, db: AsyncSession = Depends(get_db))
 
 
 @router.post("/{work_item_id}/complete")
-async def complete_work_item(work_item_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+async def complete_work_item(work_item_id: str, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated)) -> dict:
     repo = WorkItemRepository(db)
     try:
         item = await repo.transition(UUID(work_item_id), "done")
@@ -111,6 +113,7 @@ async def reassign_work_item(
     work_item_id: str,
     assignee_id: str,
     db: AsyncSession = Depends(get_db),
+    _principal: dict = Depends(require_authenticated),
 ) -> dict:
     repo = WorkItemRepository(db)
     item = await repo.reassign(UUID(work_item_id), UUID(assignee_id))

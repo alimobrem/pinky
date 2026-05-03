@@ -78,3 +78,22 @@
   background: var(--status-done);
   display: inline-block;
 }
+
+.sessionExpired {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  color: var(--status-blocked);
+  text-decoration: none;
+}
+
+.sessionExpired:hover { text-decoration: underline; }
+
+.sessionDotExpired {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-blocked);
+  display: inline-block;
+}

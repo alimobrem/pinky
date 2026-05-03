@@ -26,13 +26,14 @@ const TYPE_COLORS: Record<string, string> = {
 export default function HistoryPage() {
   const [events, setEvents] = useState<HistoryEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState("");
 
   useEffect(() => {
     fetch(`${API}/api/v1/history`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
       .then(data => { setEvents(data.items || []); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch(e => { setError(`Failed to load history: ${e.message}`); setLoading(false); });
   }, []);
 
   const filtered = typeFilter ? events.filter(e => e.aggregate_type === typeFilter) : events;
@@ -57,6 +58,14 @@ export default function HistoryPage() {
         </select>
         <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-tertiary)" }}>{filtered.length} events</span>
       </div>
+
+      {error && (
+        <div style={{
+          padding: "var(--space-3) var(--space-4)", marginBottom: "var(--space-4)",
+          background: "rgba(248, 113, 113, 0.1)", border: "1px solid rgba(248, 113, 113, 0.3)",
+          borderRadius: "var(--radius-md)", color: "var(--status-blocked)", fontSize: 13,
+        }}>{error}</div>
+      )}
 
       {loading && (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>

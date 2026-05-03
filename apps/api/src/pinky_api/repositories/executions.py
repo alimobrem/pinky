@@ -29,6 +29,13 @@ class ExecutionRepository(BaseRepository):
         await self.session.flush()
         return ex
 
+    async def update_status(self, execution_id: UUID, status: str) -> None:
+        from sqlalchemy import update
+        await self.session.execute(
+            update(Execution).where(Execution.id == execution_id).values(status=status)
+        )
+        await self.session.flush()
+
     async def get_events_for_work_item(self, work_item_id: UUID) -> list:
         executions = await self.session.execute(
             select(Execution.id).where(Execution.work_item_id == work_item_id)

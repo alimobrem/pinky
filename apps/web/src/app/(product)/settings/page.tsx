@@ -18,14 +18,17 @@ export default function SettingsPage() {
   const [rules, setRules] = useState<PolicyRule[]>([]);
   const [roi, setRoi] = useState<Record<string, unknown>>({});
   const [activeTab, setActiveTab] = useState("clusters");
+  const [loadError, setLoadError] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetch(`${API}/api/v1/clusters`).then(r => r.json()).then(d => setClusters(d.items || [])).catch(() => {});
-    fetch(`${API}/api/v1/definitions`).then(r => r.json()).then(d => setDefinitions(d.items || [])).catch(() => {});
-    fetch(`${API}/api/v1/webhook-subscriptions`).then(r => r.json()).then(d => setWebhooks(d.items || [])).catch(() => {});
-    fetch(`${API}/api/v1/policy-rules`).then(r => r.json()).then(d => setRules(d.items || [])).catch(() => {});
-    fetch(`${API}/api/v1/analytics/roi`).then(r => r.json()).then(d => setRoi(d.metrics || {})).catch(() => {});
+    let failed = 0;
+    const onFail = (label: string) => () => { failed++; if (failed >= 3) setLoadError("Failed to load settings data — is the API running?"); };
+    fetch(`${API}/api/v1/clusters`).then(r => r.json()).then(d => setClusters(d.items || [])).catch(onFail("clusters"));
+    fetch(`${API}/api/v1/definitions`).then(r => r.json()).then(d => setDefinitions(d.items || [])).catch(onFail("definitions"));
+    fetch(`${API}/api/v1/webhook-subscriptions`).then(r => r.json()).then(d => setWebhooks(d.items || [])).catch(onFail("webhooks"));
+    fetch(`${API}/api/v1/policy-rules`).then(r => r.json()).then(d => setRules(d.items || [])).catch(onFail("rules"));
+    fetch(`${API}/api/v1/analytics/roi`).then(r => r.json()).then(d => setRoi(d.metrics || {})).catch(onFail("analytics"));
   }, []);
 
   const TABS = [
@@ -48,6 +51,14 @@ export default function SettingsPage() {
         <SettingsIcon size={20} style={{ color: "var(--text-tertiary)" }} />
         <h1 style={{ fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em" }}>Settings</h1>
       </div>
+
+      {loadError && (
+        <div style={{
+          padding: "var(--space-3) var(--space-4)", marginBottom: "var(--space-4)",
+          background: "rgba(248, 113, 113, 0.1)", border: "1px solid rgba(248, 113, 113, 0.3)",
+          borderRadius: "var(--radius-md)", color: "var(--status-blocked)", fontSize: 13,
+        }}>{loadError}</div>
+      )}
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: "var(--space-1)", marginBottom: "var(--space-5)", borderBottom: "1px solid var(--border-subtle)", paddingBottom: "var(--space-1)" }}>

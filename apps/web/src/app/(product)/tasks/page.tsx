@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Brain, ChevronRight, Filter } from "lucide-react";
 import css from "./page.module.css";
 
@@ -32,9 +32,13 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState("");
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const cluster = searchParams.get("cluster");
 
   const fetchItems = () => {
-    fetch(`${API}/api/v1/work-items`)
+    let url = `${API}/api/v1/work-items`;
+    if (cluster && cluster !== "all") url += `?cluster_id=${cluster}`;
+    fetch(url)
       .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
       .then(data => { setItems(data.items || []); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
@@ -47,7 +51,7 @@ export default function TasksPage() {
     es.addEventListener("heartbeat", () => {});
     es.onerror = () => {};
     return () => es.close();
-  }, []);
+  }, [cluster]);
 
   const filtered = items.filter(i => {
     if (statusFilter && i.status !== statusFilter) return false;

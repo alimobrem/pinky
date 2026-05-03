@@ -24,12 +24,13 @@ export default function WatchPage() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [connected, setConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<string>("");
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`${API}/api/v1/issues?status=open`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
       .then(data => setIssues(data.items || []))
-      .catch(() => {});
+      .catch(e => setFetchError(`Failed to load issues: ${e.message}`));
 
     const es = new EventSource(`${API}/api/v1/streams/watch`);
     es.onopen = () => { setConnected(true); setLastUpdate(new Date().toLocaleTimeString()); };
@@ -59,13 +60,21 @@ export default function WatchPage() {
         {connected ? `Live — updated ${lastUpdate}` : "Connecting..."}
       </div>
 
-      {issues.length === 0 ? (
+      {fetchError && (
+        <div style={{
+          padding: "var(--space-3) var(--space-4)", marginBottom: "var(--space-4)",
+          background: "rgba(248, 113, 113, 0.1)", border: "1px solid rgba(248, 113, 113, 0.3)",
+          borderRadius: "var(--radius-md)", color: "var(--status-blocked)", fontSize: 13,
+        }}>{fetchError}</div>
+      )}
+
+      {issues.length === 0 && !fetchError ? (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "var(--space-16) var(--space-6)", textAlign: "center" }}>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, color: "var(--text-tertiary)", marginBottom: "var(--space-6)" }}>~ ~ ~</div>
           <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginBottom: "var(--space-2)" }}>All quiet on the western cluster.</div>
           <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>The Brain is monitoring but has nothing to escalate right now.</div>
         </div>
-      ) : (
+      ) : issues.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           {issues.map(issue => (
             <div key={issue.id} style={{
@@ -90,7 +99,7 @@ export default function WatchPage() {
             </div>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
