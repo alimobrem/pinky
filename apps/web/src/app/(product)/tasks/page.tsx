@@ -13,20 +13,7 @@ import { Button } from "@/components/ui/button";
 import { useSSE } from "@/hooks/use-sse";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-
-const STATUS_BG: Record<string, string> = {
-  ready: "bg-status-ready", accepted: "bg-status-accepted", in_progress: "bg-status-in-progress",
-  blocked: "bg-status-blocked", waiting_for_approval: "bg-status-approval", done: "bg-status-done",
-};
-const STATUS_BORDER: Record<string, string> = {
-  ready: "border-l-status-ready", accepted: "border-l-status-accepted", in_progress: "border-l-status-in-progress",
-  blocked: "border-l-status-blocked", waiting_for_approval: "border-l-status-approval", done: "border-l-status-done",
-};
-const PRIORITY_BG: Record<string, string> = {
-  critical: "bg-priority-critical", high: "bg-priority-high", medium: "bg-priority-medium", low: "bg-priority-low",
-};
-
-function confColor(c: number) { return c >= 0.8 ? "text-status-done" : c >= 0.5 ? "text-status-in-progress" : "text-status-blocked"; }
+import { STATUS_BG, STATUS_BORDER, PRIORITY_BG, confColor } from "@/lib/status-colors";
 
 export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState("");

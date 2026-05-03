@@ -40,19 +40,13 @@ class BindingRepository(BaseRepository):
         return binding
 
     async def refresh(self, binding_id: UUID) -> ClusterIdentityBinding | None:
-        binding = await self.get(binding_id)
-        if binding is None:
-            return None
-        await self.session.execute(
+        result = await self.session.execute(
             sa_update(ClusterIdentityBinding)
             .where(ClusterIdentityBinding.id == binding_id)
-            .values(
-                status="valid",
-                expires_at=datetime.utcnow() + timedelta(hours=8),
-            )
+            .values(status="valid", expires_at=datetime.utcnow() + timedelta(hours=8))
+            .returning(ClusterIdentityBinding)
         )
-        self.session.expire_all()
-        return await self.get(binding_id)
+        return result.scalar_one_or_none()
 
     async def revoke(self, binding_id: UUID) -> bool:
         binding = await self.get(binding_id)

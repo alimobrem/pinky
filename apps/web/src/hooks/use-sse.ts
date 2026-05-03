@@ -104,17 +104,11 @@ export function useSSE(url: string, options: UseSSEOptions = {}): UseSSEReturn {
       }
     });
 
-    const knownEvents = ["heartbeat", "auth-expired", "binding-expired"];
-    if (onEventRef.current) {
-      for (const eventType of Object.keys(onEventRef.current)) {
-        if (knownEvents.includes(eventType)) continue;
-        es.addEventListener(eventType, (e) => {
-          setLastUpdated(new Date());
-          resetHeartbeat();
-          onEventRef.current?.[eventType]?.(e.data);
-        });
-      }
-    }
+    es.addEventListener("update", (e) => {
+      setLastUpdated(new Date());
+      resetHeartbeat();
+      onEventRef.current?.update?.(e.data);
+    });
 
     es.onerror = () => {
       es.close();
