@@ -17,17 +17,7 @@ import { ExecutionMonitor } from "@/components/execution-monitor";
 import { api } from "@/lib/api";
 import { relativeTime, shortTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
-
-const STATUS_BG: Record<string, string> = {
-  ready: "bg-status-ready", accepted: "bg-status-accepted", in_progress: "bg-status-in-progress",
-  blocked: "bg-status-blocked", waiting_for_approval: "bg-status-approval", done: "bg-status-done",
-};
-const PRIORITY_BG: Record<string, string> = {
-  critical: "bg-priority-critical", high: "bg-priority-high", medium: "bg-priority-medium", low: "bg-priority-low",
-};
-
-function confColor(c: number) { return c >= 0.8 ? "text-status-done" : c >= 0.5 ? "text-status-in-progress" : "text-status-blocked"; }
-function confLabel(c: number) { return c >= 0.8 ? "High confidence" : c >= 0.5 ? "Moderate confidence" : "Low confidence"; }
+import { STATUS_BG, PRIORITY_BG, confColor, confLabel } from "@/lib/status-colors";
 
 const EVENT_ICONS: Record<string, string> = { started: "\u{1F680}", completed: "✅", failed: "❌", investigation_completed: "\u{1F50D}", verified: "✓" };
 

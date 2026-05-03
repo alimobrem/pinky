@@ -12,14 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useSSE } from "@/hooks/use-sse";
 import { api } from "@/lib/api";
 import { relativeTime } from "@/lib/format-date";
-
-const SEVERITY_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  critical: "destructive", high: "destructive", medium: "secondary", low: "outline", info: "outline",
-};
-const SEVERITY_BORDER: Record<string, string> = {
-  critical: "border-l-priority-critical", high: "border-l-priority-high",
-  medium: "border-l-priority-medium", low: "border-l-priority-low", info: "border-l-status-ready",
-};
+import { SEVERITY_VARIANT, SEVERITY_BORDER } from "@/lib/status-colors";
 
 export default function WatchPage() {
   const searchParams = useSearchParams();
@@ -91,7 +84,7 @@ export default function WatchPage() {
                   <Brain size={14} className="text-accent-brain" />
                   <span className="font-semibold text-sm">{issue.title}</span>
                 </div>
-                <Badge variant={SEVERITY_VARIANTS[issue.severity] || "outline"} className="uppercase text-[11px]">{issue.severity}</Badge>
+                <Badge variant={SEVERITY_VARIANT[issue.severity] || "outline"} className="uppercase text-[11px]">{issue.severity}</Badge>
               </div>
               <div className="text-xs text-text-tertiary mt-2 pl-6">
                 {issue.status} — last seen {issue.last_seen_at ? relativeTime(issue.last_seen_at) : "unknown"}

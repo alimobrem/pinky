@@ -45,7 +45,14 @@ export default function SettingsPage() {
   const [ruleForm, setRuleForm] = useState({ name: "", description: "", priority: "50", conditions: "{}", action: "{}" });
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: string; label: string } | null>(null);
 
-  const refresh = () => queryClient.invalidateQueries();
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["clusters"] });
+    queryClient.invalidateQueries({ queryKey: ["definitions"] });
+    queryClient.invalidateQueries({ queryKey: ["webhooks"] });
+    queryClient.invalidateQueries({ queryKey: ["rules"] });
+    queryClient.invalidateQueries({ queryKey: ["bindings"] });
+    queryClient.invalidateQueries({ queryKey: ["analytics-roi"] });
+  };
 
   const createCluster = async () => {
     try {

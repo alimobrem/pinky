@@ -13,12 +13,14 @@ import { api } from "@/lib/api";
 import { shortTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 
-interface ExecutionEvent {
+interface MonitorEvent {
   event_type: string;
   payload: Record<string, unknown>;
   occurred_at: string;
   sequence: number;
 }
+
+const MAX_EVENTS = 100;
 
 interface ExecutionMonitorProps {
   executionId: string;
@@ -56,7 +58,7 @@ const CONNECTION_LABELS: Record<SSEConnectionState, string> = {
 };
 
 export function ExecutionMonitor({ executionId, onComplete }: ExecutionMonitorProps) {
-  const [events, setEvents] = useState<ExecutionEvent[]>([]);
+  const [events, setEvents] = useState<MonitorEvent[]>([]);
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -72,13 +74,13 @@ export function ExecutionMonitor({ executionId, onComplete }: ExecutionMonitorPr
       try {
         const envelope = JSON.parse(data);
         const payload = envelope.payload ?? {};
-        const evt: ExecutionEvent = {
+        const evt: MonitorEvent = {
           event_type: payload.event_type ?? envelope.type ?? "update",
           payload,
           occurred_at: envelope.occurred_at ?? new Date().toISOString(),
           sequence: envelope.sequence ?? 0,
         };
-        setEvents(prev => [...prev, evt]);
+        setEvents(prev => [...prev, evt].slice(-MAX_EVENTS));
         if (evt.event_type === "completed" || evt.event_type === "failed" || evt.event_type === "verified") {
           onComplete?.();
         }

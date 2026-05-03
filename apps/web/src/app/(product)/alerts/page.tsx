@@ -8,14 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import { useCluster } from "@/hooks/use-cluster";
 import { relativeTime } from "@/lib/format-date";
-
-const SEVERITY_VARIANTS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  critical: "destructive", high: "destructive", medium: "secondary", low: "outline", info: "outline",
-};
-const SEVERITY_BORDER: Record<string, string> = {
-  critical: "border-l-priority-critical", high: "border-l-priority-high",
-  medium: "border-l-priority-medium", low: "border-l-priority-low", info: "border-l-status-ready",
-};
+import { SEVERITY_VARIANT, SEVERITY_BORDER } from "@/lib/status-colors";
 
 export default function AlertsPage() {
   const [severityFilter, setSeverityFilter] = useState("");
@@ -82,7 +75,7 @@ export default function AlertsPage() {
                     <span className="font-semibold text-sm">{a.scanner}</span>
                     {a.check_id && <span className="text-text-tertiary text-sm">/ {a.check_id}</span>}
                   </div>
-                  <Badge variant={SEVERITY_VARIANTS[a.severity] || "outline"} className="uppercase text-[11px]">{a.severity}</Badge>
+                  <Badge variant={SEVERITY_VARIANT[a.severity] || "outline"} className="uppercase text-[11px]">{a.severity}</Badge>
                 </div>
                 {a.resource_name && (
                   <div className="text-sm text-text-secondary mt-1 pl-6">

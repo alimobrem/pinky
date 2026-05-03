@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, CheckSquare, Eye, Clock, AlertTriangle, Settings, Brain } from "lucide-react";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface CommandItem {
@@ -45,8 +46,7 @@ export function CommandPalette() {
       inputRef.current?.focus();
       setQuery("");
       setSelected(0);
-      fetch("/api/v1/work-items?limit=10")
-        .then(r => r.json())
+      api.get<{ items: Record<string, string>[] }>("/api/v1/work-items?limit=10")
         .then(data => {
           const taskItems: CommandItem[] = (data.items || []).map((wi: Record<string, string>) => ({
             id: `task-${wi.id}`,
