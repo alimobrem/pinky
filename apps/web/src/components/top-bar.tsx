@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Search, Brain } from "lucide-react";
+import { Search, Brain, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface Cluster { id: string; display_name: string; onboarding_state: string; }
 interface SessionInfo { authenticated: boolean; principal?: { display_name?: string }; }
@@ -43,39 +44,42 @@ export function TopBar() {
   };
 
   return (
-    <header className="flex items-center justify-between h-12 px-5 border-b border-border-default bg-bg-surface">
-      <div className="flex items-center gap-3">
-        <select
-          aria-label="Cluster selector"
-          value={selectedCluster}
-          onChange={e => handleClusterChange(e.target.value)}
-          className="bg-bg-elevated text-text-primary border border-border-default rounded-md px-2 py-1 text-xs"
-        >
-          <option value="all">All Clusters ({clusters.length})</option>
-          {clusters.map(c => <option key={c.id} value={c.id}>{c.display_name} ({c.onboarding_state})</option>)}
-        </select>
+    <header className="flex items-center justify-between h-12 px-5 border-b border-border-subtle bg-bg-primary/80 backdrop-blur-sm">
+      <div className="flex items-center gap-4">
+        <div className="relative">
+          <select
+            aria-label="Cluster selector"
+            value={selectedCluster}
+            onChange={e => handleClusterChange(e.target.value)}
+            className="appearance-none bg-bg-surface text-text-primary border border-border-default rounded-lg pl-3 pr-8 py-1.5 text-xs font-medium cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="all">All Clusters ({clusters.length})</option>
+            {clusters.map(c => <option key={c.id} value={c.id}>{c.display_name}</option>)}
+          </select>
+          <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
+        </div>
         <button
           onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-          className="flex items-center gap-2 px-3 py-1.5 bg-bg-elevated border border-border-default rounded-md text-text-tertiary text-xs cursor-pointer hover:border-border-focus transition-colors"
+          className="flex items-center gap-2 px-3 py-1.5 bg-bg-surface border border-border-default rounded-lg text-text-tertiary text-xs cursor-pointer hover:border-accent-brain/30 transition-colors"
         >
-          <Search size={14} />
-          <span>Search...</span>
-          <kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-bg-active text-text-tertiary ml-2">⌘K</kbd>
+          <Search size={13} />
+          <span className="text-text-tertiary">Search...</span>
+          <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-bg-active text-text-tertiary ml-4 border border-border-default">⌘K</kbd>
         </button>
       </div>
-      <div className="flex items-center gap-4 text-xs">
-        <div className="flex items-center gap-1.5 text-text-tertiary">
-          <Brain size={14} className="text-accent-brain" />
-          <span className="w-1.5 h-1.5 rounded-full bg-status-done" />
-          <span>Brain active</span>
+      <div className="flex items-center gap-5 text-xs">
+        <div className="flex items-center gap-2 text-text-tertiary">
+          <Brain size={13} className="text-accent-brain" />
+          <span className="w-1.5 h-1.5 rounded-full bg-status-done animate-brain-pulse" />
+          <span className="font-medium">Brain active</span>
         </div>
         {session?.authenticated ? (
-          <div className="flex items-center gap-1.5 text-text-secondary">
+          <div className="flex items-center gap-2 text-text-secondary font-medium">
             <span className="w-1.5 h-1.5 rounded-full bg-status-done" />
-            <span>{session.principal?.display_name || "Session active"}</span>
+            <span>{session.principal?.display_name || "Connected"}</span>
           </div>
         ) : session !== null ? (
-          <Link href="/login" className="flex items-center gap-1.5 text-status-blocked no-underline">
+          <Link href="/login" className={cn("flex items-center gap-2 no-underline font-medium", "text-status-blocked")}>
             <span className="w-1.5 h-1.5 rounded-full bg-status-blocked" />
             <span>Session expired</span>
           </Link>

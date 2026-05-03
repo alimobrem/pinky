@@ -12,7 +12,7 @@ interface NavItem {
   id: string;
   label: string;
   path: string;
-  icon: ComponentType<{ size?: number; strokeWidth?: number }>;
+  icon: ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
   section: "primary" | "secondary";
 }
 
@@ -47,28 +47,44 @@ export function NavRail() {
   }, []);
 
   return (
-    <nav className="w-[220px] min-h-screen bg-bg-surface border-r border-border-default py-5 flex flex-col max-xl:w-14 max-md:hidden">
-      <div className="px-5 pb-8 flex items-center gap-2">
-        <Brain size={22} className="text-accent-brain" />
-        <span className="text-xl font-extrabold tracking-wider bg-gradient-to-br from-accent-brand to-accent-brain bg-clip-text text-transparent max-xl:hidden">PINKY</span>
-      </div>
-      <div className="border-b border-border-subtle mx-4 mb-3" />
+    <nav className="w-[200px] min-h-screen bg-sidebar border-r border-sidebar-border flex flex-col max-xl:w-14 max-md:hidden relative overflow-hidden">
+      {/* Subtle gradient glow at top */}
+      <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-accent-brain/[0.04] to-transparent pointer-events-none" />
 
-      {NAV_ITEMS.filter(i => i.section === "primary").map(item => (
-        <NavLink key={item.id} item={item} active={pathname.startsWith(item.path)} badge={badges[item.id]} brainDot={item.id === "watch" && brainActive} />
-      ))}
+      <div className="px-4 pt-5 pb-6 flex items-center gap-2.5 relative">
+        <div className="relative">
+          <Brain size={24} className="text-accent-brain" />
+          {brainActive && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-status-done animate-brain-pulse" />}
+        </div>
+        <span className="text-lg font-bold tracking-[0.08em] bg-gradient-to-br from-accent-brand to-accent-brain bg-clip-text text-transparent max-xl:hidden">PINKY</span>
+      </div>
+
+      <div className="px-3 mb-2 max-xl:px-2">
+        <div className="h-px bg-gradient-to-r from-transparent via-border-default to-transparent" />
+      </div>
+
+      <div className="flex flex-col gap-0.5 px-2 max-xl:px-1">
+        {NAV_ITEMS.filter(i => i.section === "primary").map(item => (
+          <NavLink key={item.id} item={item} active={pathname.startsWith(item.path)} badge={badges[item.id]} />
+        ))}
+      </div>
 
       <div className="flex-1" />
-      <div className="border-b border-border-subtle mx-4 my-3" />
 
-      {NAV_ITEMS.filter(i => i.section === "secondary").map(item => (
-        <NavLink key={item.id} item={item} active={pathname.startsWith(item.path)} />
-      ))}
+      <div className="px-3 my-2 max-xl:px-2">
+        <div className="h-px bg-gradient-to-r from-transparent via-border-default to-transparent" />
+      </div>
+
+      <div className="flex flex-col gap-0.5 px-2 pb-4 max-xl:px-1">
+        {NAV_ITEMS.filter(i => i.section === "secondary").map(item => (
+          <NavLink key={item.id} item={item} active={pathname.startsWith(item.path)} />
+        ))}
+      </div>
     </nav>
   );
 }
 
-function NavLink({ item, active, badge, brainDot }: { item: NavItem; active: boolean; badge?: string; brainDot?: boolean }) {
+function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badge?: string }) {
   const Icon = item.icon;
   return (
     <Link
@@ -76,18 +92,20 @@ function NavLink({ item, active, badge, brainDot }: { item: NavItem; active: boo
       aria-label={item.label}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-3 px-5 py-2 text-sm no-underline border-l-3 border-transparent transition-colors",
+        "group relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] no-underline transition-all duration-200",
         active
-          ? "text-text-primary font-semibold bg-bg-elevated border-l-accent-brand"
-          : "text-text-secondary hover:text-text-primary hover:bg-bg-hover"
+          ? "text-text-primary font-medium bg-accent/80"
+          : "text-text-secondary hover:text-text-primary hover:bg-bg-hover/60"
       )}
     >
-      <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />
+      {active && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full bg-accent-brand" />
+      )}
+      <Icon size={17} strokeWidth={active ? 2.2 : 1.7} className={cn("shrink-0 transition-colors", active ? "text-accent-brand" : "text-text-tertiary group-hover:text-text-secondary")} />
       <span className="flex-1 max-xl:hidden">{item.label}</span>
       {badge != null && badge !== "0" && (
-        <span className="text-[11px] font-semibold tabular bg-accent-brand text-white px-1.5 py-0.5 rounded-full min-w-5 text-center max-xl:hidden">{badge}</span>
+        <span className="text-[10px] font-mono font-semibold tabular bg-accent-brand/15 text-accent-brand px-1.5 py-0.5 rounded-full min-w-5 text-center max-xl:hidden">{badge}</span>
       )}
-      {brainDot && <span className="w-2 h-2 rounded-full bg-accent-brain animate-brain-pulse" />}
     </Link>
   );
 }
