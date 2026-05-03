@@ -21,7 +21,7 @@ api:
   image:
     repository: pinky-api
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   resources:
     requests:
       cpu: 250m
