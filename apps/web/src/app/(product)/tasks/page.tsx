@@ -88,27 +88,29 @@ export default function TasksPage() {
   }, [filtered, focusedIndex, router]);
 
   return (
-    <div>
-      <h1 className="text-xl font-semibold tracking-tight mb-5">Tasks</h1>
+    <div className="animate-fade-in">
+      <h1 className="text-lg font-semibold tracking-tight mb-5 text-text-primary">Tasks</h1>
 
-      <div className="grid grid-cols-4 gap-3 mb-5">
+      {/* Stat strip */}
+      <div className="grid grid-cols-4 gap-3 mb-6">
         {[
-          { label: "READY", count: counts.ready, color: "bg-status-ready" },
-          { label: "IN PROGRESS", count: counts.in_progress, color: "bg-status-in-progress" },
-          { label: "BLOCKED", count: counts.blocked, color: "bg-status-blocked" },
-          { label: "NEEDS APPROVAL", count: counts.approval, color: "bg-status-approval" },
+          { label: "READY", count: counts.ready, color: "bg-status-ready", glow: "shadow-[0_0_12px_rgba(124,172,248,0.08)]" },
+          { label: "IN PROGRESS", count: counts.in_progress, color: "bg-status-in-progress", glow: "shadow-[0_0_12px_rgba(240,199,75,0.08)]" },
+          { label: "BLOCKED", count: counts.blocked, color: "bg-status-blocked", glow: "shadow-[0_0_12px_rgba(240,112,112,0.08)]" },
+          { label: "NEEDS APPROVAL", count: counts.approval, color: "bg-status-approval", glow: "shadow-[0_0_12px_rgba(240,152,80,0.08)]" },
         ].map(s => (
-          <div key={s.label} className="bg-bg-surface border border-border-default rounded-lg p-3 px-4">
-            <div className={`h-0.5 rounded-full mb-2 ${s.color}`} />
-            <div className="tabular text-2xl font-bold">{s.count}</div>
-            <div className="text-[11px] text-text-tertiary font-semibold uppercase tracking-wider">{s.label}</div>
+          <div key={s.label} className={cn("bg-bg-surface border border-border-default rounded-xl p-4 transition-shadow hover:shadow-card", s.count > 0 && s.glow)}>
+            <div className={cn("h-0.5 rounded-full mb-3 w-8", s.color)} />
+            <div className="tabular text-2xl font-bold font-mono">{s.count}</div>
+            <div className="text-[10px] text-text-tertiary font-semibold uppercase tracking-[0.1em] mt-1">{s.label}</div>
           </div>
         ))}
       </div>
 
+      {/* Filters */}
       <div className="flex gap-3 mb-4 items-center">
-        <Filter size={14} className="text-text-tertiary" />
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-bg-elevated text-text-primary border border-border-default rounded-md px-2 py-1 text-xs">
+        <Filter size={13} className="text-text-tertiary" />
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
           <option value="">All Statuses</option>
           <option value="ready">Ready</option>
           <option value="accepted">Accepted</option>
@@ -116,16 +118,16 @@ export default function TasksPage() {
           <option value="blocked">Blocked</option>
           <option value="waiting_for_approval">Needs Approval</option>
         </select>
-        <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="bg-bg-elevated text-text-primary border border-border-default rounded-md px-2 py-1 text-xs">
+        <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
           <option value="">All Priorities</option>
           <option value="critical">Critical</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low</option>
         </select>
-        {(statusFilter || priorityFilter) && <Button variant="ghost" size="sm" onClick={() => { setStatusFilter(""); setPriorityFilter(""); }} className="text-xs">Clear filters</Button>}
-        <span className="ml-auto text-xs text-text-tertiary">
-          {filtered.length} of {items.length} tasks · <kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-bg-elevated">j</kbd>/<kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-bg-elevated">k</kbd> to navigate
+        {(statusFilter || priorityFilter) && <Button variant="ghost" size="sm" onClick={() => { setStatusFilter(""); setPriorityFilter(""); }} className="text-xs h-7">Clear</Button>}
+        <span className="ml-auto text-xs text-text-tertiary font-mono">
+          {filtered.length}/{items.length} · <kbd className="text-[10px] px-1 py-0.5 rounded border border-border-default bg-bg-surface">j</kbd>/<kbd className="text-[10px] px-1 py-0.5 rounded border border-border-default bg-bg-surface">k</kbd>
         </span>
       </div>
 
@@ -158,39 +160,39 @@ export default function TasksPage() {
       {!isLoading && filtered.length > 0 && (
         <div className="flex flex-col gap-2">
           {filtered.map((item, idx) => (
-            <div key={item.id} className="flex items-start gap-2">
+            <div key={item.id} className="group flex items-start gap-2">
               <input
                 type="checkbox"
                 checked={selectedIds.has(item.id)}
                 onChange={() => toggleSelect(item.id)}
-                className="mt-4 ml-1 accent-accent-brand shrink-0"
+                className="mt-5 ml-0.5 accent-accent-brand shrink-0 cursor-pointer opacity-40 group-hover:opacity-100 transition-opacity"
               />
             <Link href={`/tasks/${item.id}`}
               className={cn(
-                "block bg-bg-surface border border-border-default rounded-lg p-4 px-5 border-l-3 transition-colors no-underline",
+                "flex-1 block bg-bg-surface border border-border-default rounded-xl p-4 px-5 border-l-[3px] no-underline transition-all duration-200",
                 STATUS_BORDER[item.status] || "border-l-border-default",
-                idx === focusedIndex && "ring-2 ring-border-focus",
-                "hover:bg-bg-hover"
+                idx === focusedIndex && "ring-1 ring-accent-brain/40 shadow-card-hover",
+                "hover:shadow-card-hover hover:border-border-default/80"
               )}
             >
-              <div className="flex justify-between items-center">
-                <div className="font-semibold text-sm text-text-primary">{item.title}</div>
-                <div className="flex items-center gap-2">
-                  <span className={cn("text-[11px] px-2 py-0.5 rounded-sm font-semibold text-white uppercase", PRIORITY_BG[item.priority])}>{item.priority}</span>
-                  <span className={cn("text-[11px] px-2 py-0.5 rounded-sm font-semibold text-white uppercase", STATUS_BG[item.status])}>{item.status.replace(/_/g, " ")}</span>
-                  <ChevronRight size={16} className="text-text-tertiary" />
+              <div className="flex justify-between items-start">
+                <div className="font-medium text-[13px] text-text-primary leading-snug pr-4">{item.title}</div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider", PRIORITY_BG[item.priority], "text-white/90")}>{item.priority}</span>
+                  <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider", STATUS_BG[item.status], "text-white/90")}>{item.status.replace(/_/g, " ")}</span>
+                  <ChevronRight size={14} className="text-text-tertiary ml-1 group-hover:text-text-secondary transition-colors" />
                 </div>
               </div>
-              {item.why_now && <div className="text-sm text-text-secondary mt-1">{item.why_now}</div>}
+              {item.why_now && <div className="text-xs text-text-secondary mt-1.5 leading-relaxed">{item.why_now}</div>}
               {item.recommended_next_step && (
-                <div className="flex items-start gap-2 mt-2 text-sm text-accent-brain">
-                  <Brain size={14} className="mt-0.5 shrink-0" />
-                  <span>{item.recommended_next_step}</span>
+                <div className="flex items-start gap-2 mt-2.5 text-xs text-accent-brain/90 bg-[var(--accent-brain-bg)] rounded-lg px-3 py-2">
+                  <Brain size={13} className="mt-0.5 shrink-0 text-accent-brain" />
+                  <span className="leading-relaxed">{item.recommended_next_step}</span>
                 </div>
               )}
-              <div className="flex items-center gap-3 mt-2">
-                {item.confidence != null && <span className={cn("tabular text-sm font-semibold", confColor(item.confidence))}>{Math.round(item.confidence * 100)}%</span>}
-                {Object.entries(item.labels).map(([k, v]) => <span key={k} className="text-[11px] px-1.5 py-0.5 bg-bg-elevated rounded-sm text-text-secondary">{k}={v}</span>)}
+              <div className="flex items-center gap-3 mt-2.5">
+                {item.confidence != null && <span className={cn("tabular text-xs font-mono font-semibold", confColor(item.confidence))}>{Math.round(item.confidence * 100)}%</span>}
+                {Object.entries(item.labels).map(([k, v]) => <span key={k} className="text-[10px] font-mono px-1.5 py-0.5 bg-bg-elevated/80 rounded text-text-tertiary border border-border-subtle">{k}={v}</span>)}
               </div>
             </Link>
             </div>
