@@ -50,7 +50,7 @@ export function NavRail() {
     <nav className="w-[220px] min-h-screen bg-bg-surface border-r border-border-default py-5 flex flex-col max-xl:w-14 max-md:hidden">
       <div className="px-5 pb-8 flex items-center gap-2">
         <Brain size={22} className="text-accent-brain" />
-        <span className="text-xl font-extrabold tracking-wider bg-[var(--gradient-brand)] bg-clip-text text-transparent max-xl:hidden">PINKY</span>
+        <span className="text-xl font-extrabold tracking-wider bg-gradient-to-br from-accent-brand to-accent-brain bg-clip-text text-transparent max-xl:hidden">PINKY</span>
       </div>
       <div className="border-b border-border-subtle mx-4 mb-3" />
 

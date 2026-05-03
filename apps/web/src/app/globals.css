@@ -1,28 +1,23 @@
 @import "tailwindcss";
 
 @theme {
-  /* ── Backgrounds (warm dark, purple undertone) ── */
+  /* ── Pinky custom colors ── */
   --color-bg-primary:    #0c0b10;
-  --color-bg-surface:    #16141e;
-  --color-bg-elevated:   #1f1c2b;
+  --color-bg-surface:    #1a1726;
+  --color-bg-elevated:   #231f30;
   --color-bg-hover:      #252233;
   --color-bg-active:     #2a2640;
 
-  /* ── Text ── */
   --color-text-primary:  #ededf0;
   --color-text-secondary:#8b8798;
   --color-text-tertiary: #5e5a6e;
   --color-text-inverse:  #0c0b10;
 
-  /* ── Brand: Pinky ── */
   --color-accent-brand:      #f472b6;
   --color-accent-brand-dim:  #db2777;
-
-  /* ── Brand: The Brain ── */
   --color-accent-brain:      #a78bfa;
   --color-accent-brain-dim:  #8b5cf6;
 
-  /* ── Status ── */
   --color-status-ready:      #60a5fa;
   --color-status-accepted:   #818cf8;
   --color-status-in-progress:#fbbf24;
@@ -30,17 +25,41 @@
   --color-status-approval:   #fb923c;
   --color-status-done:       #34d399;
 
-  /* ── Priority ── */
   --color-priority-critical: #ef4444;
   --color-priority-high:     #f97316;
   --color-priority-medium:   #eab308;
   --color-priority-low:      #6b7280;
 
-  /* ── Borders ── */
-  --color-border-default:    #2a2738;
-  --color-border-subtle:     #211f2e;
+  --color-border-default:    #332f45;
+  --color-border-subtle:     #2a2738;
   --color-border-focus:      #60a5fa;
   --color-border-brain:      rgba(167, 139, 250, 0.3);
+
+  /* ── shadcn/ui semantic colors (mapped to Pinky tokens) ── */
+  --color-background:        #0c0b10;
+  --color-foreground:        #ededf0;
+  --color-card:              #1a1726;
+  --color-card-foreground:   #ededf0;
+  --color-popover:           #231f30;
+  --color-popover-foreground:#ededf0;
+  --color-primary:           #f472b6;
+  --color-primary-foreground:#0c0b10;
+  --color-secondary:         #231f30;
+  --color-secondary-foreground:#ededf0;
+  --color-muted:             #1a1726;
+  --color-muted-foreground:  #8b8798;
+  --color-accent:            #2a2640;
+  --color-accent-foreground: #ededf0;
+  --color-destructive:       #f87171;
+  --color-border:            #332f45;
+  --color-input:             #332f45;
+  --color-ring:              #f472b6;
+  --color-sidebar:           #16141e;
+  --color-sidebar-foreground:#ededf0;
+  --color-sidebar-border:    #2a2738;
+  --color-sidebar-accent:    #252233;
+  --color-sidebar-accent-foreground:#ededf0;
+  --color-sidebar-ring:      #f472b6;
 
   /* ── Radii ── */
   --radius-sm: 4px;
@@ -52,8 +71,8 @@
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
 
   /* ── Shadows ── */
-  --shadow-elevated:   0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--color-border-default);
-  --shadow-dropdown:   0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--color-border-default);
+  --shadow-elevated:   0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px #2a2738;
+  --shadow-dropdown:   0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px #2a2738;
   --shadow-brain-glow: 0 0 20px rgba(167, 139, 250, 0.08);
 
   /* ── Animations ── */
@@ -62,7 +81,6 @@
   --animate-shimmer: shimmer 1.5s ease-in-out infinite;
 }
 
-/* ── CSS variables that need to remain as raw vars (for rgba/glow) ── */
 :root {
   --accent-brand-glow: rgba(244, 114, 182, 0.15);
   --accent-brand-bg:   rgba(244, 114, 182, 0.08);
@@ -78,7 +96,6 @@
   --gradient-brain:    linear-gradient(135deg, #8b5cf6, #a78bfa);
 }
 
-/* ── Base ── */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -86,7 +103,7 @@
 }
 
 body {
-  @apply bg-bg-primary text-text-primary text-sm leading-relaxed antialiased;
+  @apply bg-background text-foreground text-sm leading-relaxed antialiased;
 }
 
 a {
@@ -97,10 +114,9 @@ a:hover {
 }
 
 :focus-visible {
-  @apply outline-2 outline-offset-2 outline-border-focus;
+  @apply outline-2 outline-offset-2 outline-ring;
 }
 
-/* ── Keyframes ── */
 @keyframes brain-pulse {
   0%, 100% { box-shadow: 0 0 0 0 var(--accent-brain-pulse); }
   50%      { box-shadow: 0 0 0 6px transparent; }
@@ -122,7 +138,6 @@ a:hover {
   100% { transform: scale(1); }
 }
 
-/* ── Utility classes ── */
 @utility tabular {
   font-variant-numeric: tabular-nums;
 }
@@ -134,7 +149,6 @@ a:hover {
   border-radius: var(--radius-md);
 }
 
-/* ── Responsive ── */
 @media (max-width: 1279px) {
   .two-column { grid-template-columns: 1fr !important; }
 }

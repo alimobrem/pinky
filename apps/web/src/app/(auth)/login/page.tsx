@@ -26,7 +26,7 @@ export default function LoginPage() {
       <Card className="w-[420px] p-8 text-center bg-bg-surface border-border-default">
         <div className="flex items-center justify-center gap-3 mb-4">
           <Brain size={32} className="text-accent-brain" />
-          <h1 className="text-3xl font-extrabold tracking-wider bg-[var(--gradient-brand)] bg-clip-text text-transparent">PINKY</h1>
+          <h1 className="text-3xl font-extrabold tracking-wider bg-gradient-to-br from-accent-brand to-accent-brain bg-clip-text text-transparent">PINKY</h1>
         </div>
         <p className="text-text-secondary text-sm mb-1">Multi-cluster ops.</p>
         <p className="text-accent-brain text-sm mb-6">Powered by The Brain.</p>
