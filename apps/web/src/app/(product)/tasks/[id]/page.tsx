@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Brain, CheckCircle, Play, Clock, AlertTriangle, ChevronDown, ChevronRight, Zap } from "lucide-react";
+import { useToast } from "@/components/toast";
 
 const API = "";
 
@@ -85,6 +86,7 @@ export default function TaskDetailPage() {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     Promise.all([
@@ -102,12 +104,20 @@ export default function TaskDetailPage() {
   const doAction = async (action: string) => {
     setActing(true);
     const r = await fetch(`${API}/api/v1/work-items/${taskId}/${action}`, { method: "POST" });
-    if (r.ok) setItem(await r.json());
+    if (r.ok) {
+      const updated = await r.json();
+      setItem(updated);
+      toast(`Task ${action}ed successfully`, "success");
+    } else {
+      const err = await r.json().catch(() => ({}));
+      toast(err.detail || `Failed to ${action} task`, "error");
+    }
     setActing(false);
   };
 
   const triggerInvestigation = async () => {
     setActing(true);
+    toast("Brain investigation started...", "info");
     await fetch(`${API}/api/v1/executions?work_item_id=${taskId}&execution_type=investigation`, { method: "POST" });
     setTimeout(async () => {
       const [inv, evts] = await Promise.all([

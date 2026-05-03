@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { Brain, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Brain, ChevronRight, Filter } from "lucide-react";
 
 const API = "";
 
@@ -46,6 +47,10 @@ export default function TasksPage() {
   const [items, setItems] = useState<WorkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [priorityFilter, setPriorityFilter] = useState<string>("");
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const router = useRouter();
 
   useEffect(() => {
     fetch(`${API}/api/v1/work-items`)
@@ -54,12 +59,31 @@ export default function TasksPage() {
       .catch((e) => { setError(e.message); setLoading(false); });
   }, []);
 
+  const filtered = items.filter(i => {
+    if (statusFilter && i.status !== statusFilter) return false;
+    if (priorityFilter && i.priority !== priorityFilter) return false;
+    return true;
+  });
+
   const counts = {
     ready: items.filter((i) => i.status === "ready").length,
     in_progress: items.filter((i) => i.status === "in_progress" || i.status === "accepted").length,
     blocked: items.filter((i) => i.status === "blocked").length,
     approval: items.filter((i) => i.status === "waiting_for_approval").length,
   };
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      if (e.key === "j") setFocusedIndex(i => Math.min(i + 1, filtered.length - 1));
+      if (e.key === "k") setFocusedIndex(i => Math.max(i - 1, 0));
+      if (e.key === "Enter" && focusedIndex >= 0 && filtered[focusedIndex]) {
+        router.push(`/tasks/${filtered[focusedIndex].id}`);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [filtered, focusedIndex, router]);
 
   return (
     <div>
@@ -89,6 +113,40 @@ export default function TasksPage() {
         ))}
       </div>
 
+      {/* Filter bar */}
+      <div style={{ display: "flex", gap: "var(--space-3)", marginBottom: "var(--space-4)", alignItems: "center" }}>
+        <Filter size={14} style={{ color: "var(--text-tertiary)" }} />
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{
+          background: "var(--bg-elevated)", color: "var(--text-primary)", border: "1px solid var(--border-default)",
+          borderRadius: "var(--radius-md)", padding: "4px 8px", fontSize: 12,
+        }}>
+          <option value="">All Statuses</option>
+          <option value="ready">Ready</option>
+          <option value="accepted">Accepted</option>
+          <option value="in_progress">In Progress</option>
+          <option value="blocked">Blocked</option>
+          <option value="waiting_for_approval">Needs Approval</option>
+        </select>
+        <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} style={{
+          background: "var(--bg-elevated)", color: "var(--text-primary)", border: "1px solid var(--border-default)",
+          borderRadius: "var(--radius-md)", padding: "4px 8px", fontSize: 12,
+        }}>
+          <option value="">All Priorities</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        {(statusFilter || priorityFilter) && (
+          <button onClick={() => { setStatusFilter(""); setPriorityFilter(""); }} style={{
+            background: "none", border: "none", color: "var(--accent-brand)", fontSize: 12, cursor: "pointer",
+          }}>Clear filters</button>
+        )}
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-tertiary)" }}>
+          {filtered.length} of {items.length} tasks · <kbd style={{ fontSize: 10, padding: "1px 4px", background: "var(--bg-elevated)", borderRadius: 2 }}>j</kbd>/<kbd style={{ fontSize: 10, padding: "1px 4px", background: "var(--bg-elevated)", borderRadius: 2 }}>k</kbd> to navigate
+        </span>
+      </div>
+
       {loading && (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           {[1, 2, 3].map(i => (
@@ -103,7 +161,7 @@ export default function TasksPage() {
         </div>
       )}
 
-      {!loading && !error && items.length === 0 && (
+      {!loading && !error && filtered.length === 0 && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "var(--space-16) var(--space-6)", textAlign: "center" }}>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, color: "var(--text-tertiary)", marginBottom: "var(--space-6)" }}>( . _ . )</div>
           <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginBottom: "var(--space-2)" }}>Nothing needs your attention.</div>
@@ -111,13 +169,13 @@ export default function TasksPage() {
         </div>
       )}
 
-      {!loading && items.length > 0 && (
+      {!loading && filtered.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          {items.map((item) => (
+          {filtered.map((item, idx) => (
             <Link key={item.id} href={`/tasks/${item.id}`} style={{ textDecoration: "none", color: "inherit" }}>
               <div style={{
-                background: "var(--bg-surface)",
-                border: "1px solid var(--border-default)",
+                background: idx === focusedIndex ? "var(--bg-hover)" : "var(--bg-surface)",
+                border: idx === focusedIndex ? "1px solid var(--accent-brand)" : "1px solid var(--border-default)",
                 borderRadius: "var(--radius-lg)",
                 padding: "var(--space-4) var(--space-5)",
                 borderLeft: `3px solid ${STATUS_COLORS[item.status] || "var(--border-default)"}`,
