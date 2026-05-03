@@ -1,10 +1,14 @@
 {{- if .Values.route.enabled }}
+{{- $ingressCert := (lookup "v1" "ConfigMap" "openshift-config-managed" "default-ingress-cert") }}
+{{- if $ingressCert }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "pinky.fullname" . }}-trusted-ca
+  name: {{ include "pinky.fullname" . }}-ingress-ca
   labels:
     {{- include "pinky.labels" . | nindent 4 }}
-    config.openshift.io/inject-trusted-cabundle: "true"
-data: {}
+data:
+  ingress-ca.crt: |
+    {{ index $ingressCert.data "ca-bundle.crt" | nindent 4 }}
+{{- end }}
 {{- end }}

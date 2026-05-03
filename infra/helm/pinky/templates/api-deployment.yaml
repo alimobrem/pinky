@@ -84,8 +84,8 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
-            - name: trusted-ca
-              mountPath: /etc/pki/tls/custom
+            - name: ingress-ca
+              mountPath: /etc/pki/tls/ingress
               readOnly: true
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
@@ -111,10 +111,10 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
-        - name: trusted-ca
+        - name: ingress-ca
           configMap:
-            name: {{ include "pinky.fullname" . }}-trusted-ca
+            name: {{ include "pinky.fullname" . }}-ingress-ca
             items:
-              - key: ca-bundle.crt
-                path: ca-bundle.crt
+              - key: ingress-ca.crt
+                path: ingress-ca.crt
             optional: true
