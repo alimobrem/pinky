@@ -79,22 +79,23 @@ async def start_execution(work_item_id: str, execution_type: str = "investigatio
 
     if temporal_state.client is not None:
         try:
-            from pinky_worker.workflows.investigation import InvestigationInput, InvestigationWorkflow
+            workflow_input = {
+                "issue_id": str(wi.issue_id) if wi.issue_id else str(wi.id),
+                "cluster_id": str(wi.cluster_id),
+                "correlation_key": str(wi.id),
+                "evidence_hash": "",
+                "skill_body": "",
+            }
 
-            await temporal_state.client.execute_workflow(
-                InvestigationWorkflow.run,
-                InvestigationInput(
-                    issue_id=str(wi.issue_id) if wi.issue_id else str(wi.id),
-                    cluster_id=str(wi.cluster_id),
-                    correlation_key=str(wi.id),
-                    evidence_hash="",
-                ),
+            await temporal_state.client.start_workflow(
+                "InvestigationWorkflow",
+                workflow_input,
                 id=f"investigation-{ex.id}",
                 task_queue="investigation",
             )
-            logger.info("temporal workflow started", execution_id=str(ex.id))
+            logger.info("temporal workflow started for execution %s", str(ex.id))
         except Exception:
-            logger.exception("failed to start temporal workflow", execution_id=str(ex.id))
+            logger.exception("failed to start temporal workflow for execution %s", str(ex.id))
 
     return _serialize(ex)
 

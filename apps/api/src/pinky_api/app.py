@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     import pinky_api.temporal_state as temporal_state
     try:
         from temporalio.client import Client as TemporalClient
-        temporal_state.client = await TemporalClient.connect("localhost:7233", namespace="pinky")
+        temporal_state.client = await TemporalClient.connect("localhost:7233", namespace="default")
     except Exception:
         import logging
         logging.getLogger(__name__).warning("Temporal not available — workflow execution disabled")

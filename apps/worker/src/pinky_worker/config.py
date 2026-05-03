@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 
 class TemporalConfig(BaseSettings, frozen=True):
     address: str = "localhost:7233"
-    namespace: str = "pinky"
+    namespace: str = "default"
 
 
 class WorkerConfig(BaseSettings, frozen=True):

@@ -121,7 +121,7 @@ async def check_artifact_cache(evidence_hash: str, correlation_key: str) -> Inve
         return None
 
     data = json.loads(row["payload"]) if isinstance(row["payload"], str) else row["payload"]
-    logger.info("cache hit", evidence_hash=evidence_hash)
+    logger.info("cache hit: %s", evidence_hash)
     return InvestigationArtifact(
         artifact_id=data.get("artifact_id", str(uuid4())),
         issue_id=data.get("issue_id", ""),
@@ -210,7 +210,7 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
         }),
         datetime.now(timezone.utc),
     )
-    logger.info("artifact stored", artifact_id=artifact.artifact_id)
+    logger.info("artifact stored: %s", artifact.artifact_id)
     return artifact.artifact_id
 
 
@@ -222,11 +222,20 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
     pool = await get_pool()
     occurred = datetime.now(timezone.utc)
 
+    exec_id_str = event.execution_id or ""
+    try:
+        exec_uuid = UUID(exec_id_str)
+    except ValueError:
+        if exec_id_str.startswith("investigation-"):
+            exec_uuid = UUID(exec_id_str.removeprefix("investigation-"))
+        else:
+            exec_uuid = uuid4()
+
     await pool.execute(
         """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)
            VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT DO NOTHING""",
-        uuid4(), UUID(event.execution_id) if event.execution_id else uuid4(),
+        uuid4(), exec_uuid,
         event.event_type, event.sequence,
         json.dumps(event.payload), occurred,
     )
@@ -240,7 +249,7 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
     except Exception:
         logger.debug("NOTIFY skipped in execution event emission")
 
-    logger.info("execution event emitted", event_type=event.event_type, execution_id=event.execution_id)
+    logger.info("execution event emitted: %s %s", event.event_type, event.execution_id)
 
 
 @activity.defn
@@ -278,11 +287,11 @@ async def apply_change(cluster_id: str, binding_id: str, step: dict) -> dict:
 
     try:
         k8s = await create_client()
-        logger.info("applying change", cluster_id=cluster_id, step=step.get("description"))
+        logger.info("applying change: %s %s", cluster_id, step.get("description"))
         await k8s.close()
         return {"status": "applied", "step": step, "applied_at": datetime.now(timezone.utc).isoformat()}
     except Exception as e:
-        logger.exception("apply_change failed", cluster_id=cluster_id)
+        logger.exception("apply_change failed for cluster %s", cluster_id)
         return {"status": "failed", "step": step, "error": str(e)}
 
 
@@ -346,4 +355,4 @@ async def project_to_postgres(execution_id: str, event_type: str, payload: dict)
         json.dumps(payload), datetime.now(timezone.utc),
     )
 
-    logger.info("projected to postgres", execution_id=execution_id, event_type=event_type)
+    logger.info("projected to postgres: %s %s", execution_id, event_type)
