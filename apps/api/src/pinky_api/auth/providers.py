@@ -1,6 +1,7 @@
 """Auth provider abstraction — OpenShift OAuth and external OIDC."""
 
 import os
+import ssl
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,14 +11,16 @@ _INGRESS_CA = "/etc/pki/tls/ingress/ingress-ca.crt"
 _K8S_CA = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
 
-def _get_ssl_context() -> bool | str:
+def _get_ssl_context() -> ssl.SSLContext | bool:
     if os.environ.get("PINKY_DEBUG", "").lower() == "true":
         return False
-    if Path(_INGRESS_CA).exists():
-        return _INGRESS_CA
-    if Path(_K8S_CA).exists():
-        return _K8S_CA
-    return True
+    ca_files = [p for p in [_INGRESS_CA, _K8S_CA] if Path(p).exists()]
+    if not ca_files:
+        return True
+    ctx = ssl.create_default_context()
+    for ca in ca_files:
+        ctx.load_verify_locations(ca)
+    return ctx
 
 
 @dataclass(frozen=True)
