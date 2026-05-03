@@ -62,7 +62,7 @@ async def create_policy_rule(req: PolicyRuleCreateRequest, db: AsyncSession = De
 
 @router.put("/{rule_id}")
 async def update_policy_rule(rule_id: str, req: PolicyRuleCreateRequest, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> dict:
-    return {"message": "Policy rule update not yet implemented"}
+    raise HTTPException(status_code=501, detail="Policy rule update not implemented")
 
 
 @router.delete("/{rule_id}", status_code=204)

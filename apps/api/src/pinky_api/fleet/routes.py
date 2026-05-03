@@ -77,34 +77,34 @@ async def remove_cluster(cluster_id: str, db: AsyncSession = Depends(get_db), _a
 
 @router.get("/cluster-bindings")
 async def list_bindings(db: AsyncSession = Depends(get_db)) -> dict:
-    return {"items": [], "next_cursor": None, "has_more": False}
+    raise HTTPException(status_code=501, detail="Cluster bindings not implemented")
 
 
 @router.post("/cluster-bindings", status_code=201)
 async def create_binding(db: AsyncSession = Depends(get_db)) -> dict:
-    return {"message": "Binding creation not yet implemented"}
+    raise HTTPException(status_code=501, detail="Cluster binding creation not implemented")
 
 
 @router.post("/cluster-bindings/{binding_id}/refresh")
 async def refresh_binding(binding_id: str) -> dict:
-    return {"message": "Binding refresh not yet implemented"}
+    raise HTTPException(status_code=501, detail="Cluster binding refresh not implemented")
 
 
 @router.delete("/cluster-bindings/{binding_id}", status_code=204)
 async def revoke_binding(binding_id: str) -> None:
-    pass
+    raise HTTPException(status_code=501, detail="Cluster binding revocation not implemented")
 
 
 @router.get("/service-bindings")
 async def list_service_bindings(db: AsyncSession = Depends(get_db)) -> dict:
-    return {"items": [], "next_cursor": None, "has_more": False}
+    raise HTTPException(status_code=501, detail="Service bindings not implemented")
 
 
 @router.post("/service-bindings", status_code=201)
 async def create_service_binding(db: AsyncSession = Depends(get_db)) -> dict:
-    return {"message": "Service binding creation not yet implemented"}
+    raise HTTPException(status_code=501, detail="Service binding creation not implemented")
 
 
 @router.delete("/service-bindings/{binding_id}", status_code=204)
 async def remove_service_binding(binding_id: str) -> None:
-    pass
+    raise HTTPException(status_code=501, detail="Service binding removal not implemented")

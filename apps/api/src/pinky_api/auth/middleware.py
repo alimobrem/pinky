@@ -44,8 +44,7 @@ async def get_current_principal(
     if auth_header and auth_header.startswith("Bearer "):
         api_token = auth_header[7:]
         token_hash = hash_token(api_token)
-        # TODO: look up api_tokens table by token_hash, validate not revoked/expired
-        raise HTTPException(status_code=401, detail="API token auth not yet implemented")
+        raise HTTPException(status_code=501, detail="API token authentication not implemented — use session auth")
 
     # Session cookie auth
     if not session_token:

@@ -18,8 +18,6 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
-        runAsUser: 999
-        fsGroup: 999
       containers:
         - name: redis
           image: {{ .Values.redis.image }}

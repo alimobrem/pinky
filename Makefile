@@ -56,11 +56,12 @@ temporal-init:
 # Docker
 REGISTRY ?= $(shell oc registry info 2>/dev/null || echo "localhost:5000")
 TAG ?= latest
+PLATFORM ?= linux/amd64
 
 docker-build:
-	$(CONTAINER_ENGINE) build -f infra/docker/Dockerfile.api -t $(REGISTRY)/pinky-api:$(TAG) .
-	$(CONTAINER_ENGINE) build -f infra/docker/Dockerfile.web -t $(REGISTRY)/pinky-web:$(TAG) .
-	$(CONTAINER_ENGINE) build -f infra/docker/Dockerfile.worker -t $(REGISTRY)/pinky-worker:$(TAG) .
+	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -f infra/docker/Dockerfile.api -t $(REGISTRY)/pinky-api:$(TAG) .
+	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -f infra/docker/Dockerfile.web -t $(REGISTRY)/pinky-web:$(TAG) .
+	$(CONTAINER_ENGINE) build --platform $(PLATFORM) -f infra/docker/Dockerfile.worker -t $(REGISTRY)/pinky-worker:$(TAG) .
 
 docker-push:
 	$(CONTAINER_ENGINE) push $(REGISTRY)/pinky-api:$(TAG)
