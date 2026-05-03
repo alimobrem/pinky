@@ -1,5 +1,5 @@
 global:
-  imageRegistry: image-registry.openshift-image-registry.svc:5000/pinky
+  imageRegistry: quay.io/amobrem
 
 route:
   enabled: true
@@ -26,6 +26,9 @@ auth:
     apiUrl: https://api.your-cluster.example.com:6443
   callbackBaseUrl: https://pinky.apps.your-cluster.example.com
   appUrl: https://pinky.apps.your-cluster.example.com
+
+networkPolicy:
+  enabled: false
 
 debug: true
 logLevel: DEBUG

@@ -1,14 +1,16 @@
-FROM python:3.12-slim AS builder
+FROM registry.access.redhat.com/ubi9/python-312:latest AS builder
+USER 0
 WORKDIR /build
 COPY apps/worker/pyproject.toml .
-RUN pip install --no-cache-dir -e . 2>/dev/null || pip install --no-cache-dir .
+RUN pip install --no-cache-dir . 2>/dev/null || pip install --no-cache-dir -e .
 
-FROM python:3.12-slim
-RUN groupadd -r pinky && useradd -r -g pinky -u 1001 pinky
-WORKDIR /app
-COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+FROM registry.access.redhat.com/ubi9/python-312:latest
+USER 0
+COPY --from=builder /opt/app-root/lib/python3.12/site-packages /opt/app-root/lib/python3.12/site-packages
+COPY --from=builder /opt/app-root/bin /opt/app-root/bin
+WORKDIR /opt/app-root/src
 COPY apps/worker/src/ ./
-COPY definitions/ /app/definitions/
+COPY definitions/ ./definitions/
+ENV PINKY_DEFINITIONS_DIR=/opt/app-root/src/definitions
 USER 1001
 CMD ["python", "-m", "pinky_worker.main"]

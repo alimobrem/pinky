@@ -5,12 +5,11 @@ COPY packages/ ./packages/
 COPY apps/web/ ./apps/web/
 RUN corepack enable && pnpm install --frozen-lockfile && pnpm --filter @pinky/contracts build && pnpm --filter @pinky/web build
 
-FROM node:20-alpine
-RUN addgroup -S pinky && adduser -S pinky -G pinky -u 1001
-WORKDIR /app
+FROM registry.access.redhat.com/ubi9/nodejs-20-minimal:latest
+WORKDIR /opt/app-root/src
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder /app/apps/web/public ./apps/web/public
 USER 1001
 EXPOSE 3000
-CMD ["node", "apps/web/server.js"]
+ENTRYPOINT ["/usr/bin/node"]
+CMD ["apps/web/server.js"]

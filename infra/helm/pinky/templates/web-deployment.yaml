@@ -17,7 +17,6 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1001
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}

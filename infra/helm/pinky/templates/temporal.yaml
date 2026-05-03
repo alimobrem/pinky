@@ -19,8 +19,6 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
-        runAsUser: 999
-        fsGroup: 999
       containers:
         - name: postgresql
           image: {{ .Values.postgresql.image }}
@@ -66,7 +64,6 @@ spec:
   ports:
     - port: 5432
       targetPort: 5432
-  clusterIP: None
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -85,11 +82,34 @@ spec:
       labels:
         app.kubernetes.io/name: pinky-temporal
     spec:
+      initContainers:
+        - name: copy-config
+          image: {{ .Values.temporal.image }}
+          command: ["sh", "-c", "cp -r /etc/temporal/config/* /temporal-config/"]
+          volumeMounts:
+            - name: temporal-config
+              mountPath: /temporal-config
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+        - name: wait-db
+          image: {{ .Values.postgresql.image }}
+          command: ["sh", "-c", "until pg_isready -h {{ include "pinky.fullname" . }}-temporal-db.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local -U temporal; do echo 'waiting for temporal-db...'; sleep 2; done"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: temporal
           image: {{ .Values.temporal.image }}
           ports:
             - containerPort: 7233
+          volumeMounts:
+            - name: temporal-config
+              mountPath: /etc/temporal/config
+            - name: tmpdir
+              mountPath: /tmp
           env:
             - name: DB
               value: postgres12
@@ -110,6 +130,11 @@ spec:
             limits:
               cpu: "1"
               memory: 1Gi
+      volumes:
+        - name: temporal-config
+          emptyDir: {}
+        - name: tmpdir
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -152,6 +177,9 @@ spec:
               value: {{ include "pinky.fullname" . }}-temporal:7233
             - name: TEMPORAL_CORS_ORIGINS
               value: "http://localhost:3000"
+          volumeMounts:
+            - name: ui-config
+              mountPath: /home/ui-server/config
           resources:
             requests:
               cpu: 50m
@@ -159,6 +187,9 @@ spec:
             limits:
               cpu: 200m
               memory: 128Mi
+      volumes:
+        - name: ui-config
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

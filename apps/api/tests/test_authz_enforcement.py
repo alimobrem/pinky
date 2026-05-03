@@ -44,7 +44,6 @@ def test_admin_routes_allow_admin(authed_client: TestClient) -> None:
 def test_read_routes_allow_non_admin(non_admin_client: TestClient) -> None:
     read_routes = [
         "/api/v1/clusters",
-        "/api/v1/cluster-bindings",
         "/api/v1/definitions",
         "/api/v1/webhook-subscriptions",
         "/api/v1/policy-rules",

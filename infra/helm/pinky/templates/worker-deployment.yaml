@@ -17,16 +17,27 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1001
-        fsGroup: 1001
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
         - name: wait-db
-          image: {{ .Values.postgresql.image }}
-          command: ["sh", "-c", "until pg_isready -h {{ include "pinky.fullname" . }}-postgresql -U {{ .Values.postgresql.auth.username }}; do sleep 2; done"]
+          image: {{ include "pinky.image" (dict "global" .Values.global "image" .Values.worker.image) }}
+          command:
+            - python3
+            - -c
+            - |
+              import socket, time
+              host = '{{ include "pinky.fullname" . }}-postgresql'
+              while True:
+                  try:
+                      socket.create_connection((host, 5432), timeout=2).close()
+                      print(f'connected to {host}:5432')
+                      break
+                  except Exception:
+                      print(f'waiting for {host}:5432...')
+                      time.sleep(2)
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

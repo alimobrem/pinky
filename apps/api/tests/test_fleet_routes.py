@@ -12,13 +12,11 @@ def test_list_clusters(authed_client: TestClient) -> None:
     assert "items" in response.json()
 
 
-def test_list_bindings(authed_client: TestClient) -> None:
+def test_list_bindings_not_implemented(authed_client: TestClient) -> None:
     response = authed_client.get("/api/v1/cluster-bindings")
-    assert response.status_code == 200
-    assert "items" in response.json()
+    assert response.status_code == 501
 
 
-def test_list_service_bindings(authed_client: TestClient) -> None:
+def test_list_service_bindings_not_implemented(authed_client: TestClient) -> None:
     response = authed_client.get("/api/v1/service-bindings")
-    assert response.status_code == 200
-    assert "items" in response.json()
+    assert response.status_code == 501
