@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-web
+  name: {{ include "pinky.fullname" . }}-web
   labels:
     app.kubernetes.io/name: pinky-web
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    {{- include "pinky.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.web.replicas }}
   selector:
@@ -18,11 +18,21 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1001
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: web
-          image: "{{ .Values.web.image.repository }}:{{ .Values.web.image.tag }}"
+          image: {{ include "pinky.image" (dict "global" .Values.global "image" .Values.web.image) }}
+          imagePullPolicy: {{ .Values.web.image.pullPolicy }}
           ports:
             - containerPort: 3000
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: nextcache
+              mountPath: /app/apps/web/.next/cache
           resources:
             {{- toYaml .Values.web.resources | nindent 12 }}
           securityContext:
@@ -34,11 +44,16 @@ spec:
             httpGet:
               path: /
               port: 3000
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 15
           readinessProbe:
             httpGet:
               path: /
               port: 3000
-            initialDelaySeconds: 3
+            initialDelaySeconds: 5
             periodSeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: nextcache
+          emptyDir: {}

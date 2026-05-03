@@ -41,7 +41,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     import pinky_api.temporal_state as temporal_state
     try:
         from temporalio.client import Client as TemporalClient
-        temporal_state.client = await TemporalClient.connect("localhost:7233", namespace="default")
+        temporal_state.client = await TemporalClient.connect(
+            settings.temporal.address, namespace=settings.temporal.namespace,
+        )
     except Exception:
         import logging
         logging.getLogger(__name__).warning("Temporal not available — workflow execution disabled")
@@ -65,7 +67,7 @@ app = FastAPI(
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=get_settings().cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],

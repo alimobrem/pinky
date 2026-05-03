@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-worker
+  name: {{ include "pinky.fullname" . }}-worker
   labels:
     app.kubernetes.io/name: pinky-worker
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    {{- include "pinky.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.worker.replicas }}
   selector:
@@ -19,24 +19,44 @@ spec:
         runAsNonRoot: true
         runAsUser: 1001
         fsGroup: 1001
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-db
+          image: {{ .Values.postgresql.image }}
+          command: ["sh", "-c", "until pg_isready -h {{ include "pinky.fullname" . }}-postgresql -U {{ .Values.postgresql.auth.username }}; do sleep 2; done"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: worker
-          image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
+          image: {{ include "pinky.image" (dict "global" .Values.global "image" .Values.worker.image) }}
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "pinky.fullname" . }}-config
           env:
             - name: PINKY_DATABASE__URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.database.existingSecret }}
-                  key: {{ .Values.database.secretKey }}
-            - name: TEMPORAL_ADDRESS
-              value: {{ .Values.temporal.address }}
-            - name: TEMPORAL_NAMESPACE
-              value: {{ .Values.temporal.namespace }}
+                  name: {{ include "pinky.dbSecretName" . }}
+                  key: url
+            - name: PINKY_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pinky.dbSecretName" . }}
+                  key: url-plain
             - name: PINKY_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.encryption.existingSecret }}
+                  name: {{ include "pinky.encryptionSecretName" . }}
                   key: key
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           resources:
             {{- toYaml .Values.worker.resources | nindent 12 }}
           securityContext:
@@ -46,3 +66,6 @@ spec:
               drop: ["ALL"]
             seccompProfile:
               type: RuntimeDefault
+      volumes:
+        - name: tmp
+          emptyDir: {}

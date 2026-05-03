@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+**/node_modules
+**/__pycache__
+**/tests
+**/.pytest_cache
+**/.next
+docs/
+infra/helm
+*.md
+.env*
+.claude/

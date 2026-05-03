@@ -1,0 +1,40 @@
+{{- if .Values.route.enabled }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "pinky.fullname" . }}
+  labels:
+    {{- include "pinky.labels" . | nindent 4 }}
+spec:
+  host: {{ .Values.route.host }}
+  to:
+    kind: Service
+    name: {{ include "pinky.fullname" . }}-web
+    weight: 100
+  port:
+    targetPort: 3000
+  tls:
+    termination: {{ .Values.route.tls.termination }}
+    insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "pinky.fullname" . }}-api
+  labels:
+    {{- include "pinky.labels" . | nindent 4 }}
+  annotations:
+    haproxy.router.openshift.io/timeout: 3600s
+spec:
+  host: {{ .Values.route.host }}
+  path: /api
+  to:
+    kind: Service
+    name: {{ include "pinky.fullname" . }}-api
+    weight: 100
+  port:
+    targetPort: 8000
+  tls:
+    termination: {{ .Values.route.tls.termination }}
+    insecureEdgeTerminationPolicy: Redirect
+{{- end }}

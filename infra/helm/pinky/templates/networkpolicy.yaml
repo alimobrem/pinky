@@ -2,7 +2,9 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ .Release.Name }}-api-policy
+  name: {{ include "pinky.fullname" . }}-api-policy
+  labels:
+    {{- include "pinky.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
@@ -17,11 +19,14 @@ spec:
               app.kubernetes.io/name: pinky-web
       ports:
         - port: 8000
+    - from: []
+      ports:
+        - port: 8000
   egress:
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: pinky-postgres
+              app.kubernetes.io/name: pinky-postgresql
       ports:
         - port: 5432
     - to:
@@ -30,4 +35,49 @@ spec:
               app.kubernetes.io/name: pinky-redis
       ports:
         - port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pinky-temporal
+      ports:
+        - port: 7233
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "pinky.fullname" . }}-worker-policy
+  labels:
+    {{- include "pinky.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: pinky-worker
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pinky-postgresql
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pinky-temporal
+      ports:
+        - port: 7233
+    - ports:
+        - port: 443
+          protocol: TCP
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
 {{- end }}

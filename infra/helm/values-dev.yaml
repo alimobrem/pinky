@@ -1,0 +1,31 @@
+global:
+  imageRegistry: image-registry.openshift-image-registry.svc:5000/pinky
+
+route:
+  enabled: true
+  host: pinky.apps.aws-jb-acsacm-1.dev05.red-chesterfield.com
+
+ingress:
+  enabled: false
+
+api:
+  replicas: 1
+  corsOrigins: '["https://pinky.apps.aws-jb-acsacm-1.dev05.red-chesterfield.com"]'
+
+worker:
+  replicas: 1
+
+web:
+  replicas: 1
+
+auth:
+  openshift:
+    issuerUrl: https://oauth-openshift.apps.aws-jb-acsacm-1.dev05.red-chesterfield.com
+    clientId: pinky
+    clientSecret: REDACTED_ROTATE_THIS_SECRET
+    apiUrl: https://api.aws-jb-acsacm-1.dev05.red-chesterfield.com:6443
+  callbackBaseUrl: https://pinky.apps.aws-jb-acsacm-1.dev05.red-chesterfield.com
+  appUrl: https://pinky.apps.aws-jb-acsacm-1.dev05.red-chesterfield.com
+
+debug: true
+logLevel: DEBUG

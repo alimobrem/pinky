@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pinky.fullname" . }}-config
+  labels:
+    {{- include "pinky.labels" . | nindent 4 }}
+data:
+  PINKY_LOG_LEVEL: {{ .Values.logLevel | quote }}
+  PINKY_DEBUG: {{ .Values.debug | quote }}
+  PINKY_CORS_ORIGINS: {{ .Values.api.corsOrigins | quote }}
+  PINKY_TEMPORAL__ADDRESS: {{ include "pinky.temporalAddress" . | quote }}
+  PINKY_TEMPORAL__NAMESPACE: {{ .Values.temporal.namespace | quote }}
+  PINKY_DEFINITIONS_DIR: "/app/definitions"
+  PINKY_OBSERVER_ENABLED: {{ .Values.worker.observerEnabled | quote }}
+  PINKY_TEMPORAL_ENABLED: {{ .Values.worker.temporalEnabled | quote }}
+  PINKY_WEBHOOKS_ENABLED: {{ .Values.worker.webhooksEnabled | quote }}
+  PINKY_SCAN_INTERVAL: {{ .Values.worker.scanInterval | quote }}
+  {{- if .Values.auth.callbackBaseUrl }}
+  PINKY_AUTH__CALLBACK_BASE_URL: {{ .Values.auth.callbackBaseUrl | quote }}
+  {{- end }}
+  {{- if .Values.auth.appUrl }}
+  PINKY_AUTH__APP_URL: {{ .Values.auth.appUrl | quote }}
+  {{- end }}
+  {{- if .Values.auth.cookieDomain }}
+  PINKY_AUTH__COOKIE_DOMAIN: {{ .Values.auth.cookieDomain | quote }}
+  {{- end }}
+  {{- if .Values.auth.openshift.issuerUrl }}
+  PINKY_AUTH__OPENSHIFT_ISSUER_URL: {{ .Values.auth.openshift.issuerUrl | quote }}
+  PINKY_AUTH__OPENSHIFT_CLIENT_ID: {{ .Values.auth.openshift.clientId | quote }}
+  PINKY_AUTH__OPENSHIFT_API_URL: {{ .Values.auth.openshift.apiUrl | quote }}
+  {{- end }}
+  {{- if .Values.auth.oidc.issuerUrl }}
+  PINKY_AUTH__OIDC_ISSUER_URL: {{ .Values.auth.oidc.issuerUrl | quote }}
+  PINKY_AUTH__OIDC_CLIENT_ID: {{ .Values.auth.oidc.clientId | quote }}
+  {{- end }}
