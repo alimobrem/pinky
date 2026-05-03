@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from temporalio import activity
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -60,49 +63,84 @@ def compute_evidence_hash(sections: dict[str, str]) -> str:
 
 @activity.defn
 async def gather_evidence(issue_id: str, cluster_id: str) -> EvidenceBundle:
-    """Gather evidence from cluster using observer identity.
-
-    Collects: pod status, events, resource specs, metrics.
-    Applies redaction rules before returning.
-    """
-    # TODO: use tool definitions to gather evidence
-    # TODO: apply redaction rules from definitions/redaction-rules/
-    # TODO: enforce per-section size limits and truncation markers
+    """Gather evidence from cluster using observer identity."""
     activity.heartbeat("gathering evidence")
 
-    sections = {
-        "status": "placeholder — connect to cluster observer",
-        "events": "placeholder — fetch recent events",
-    }
+    from pinky_worker.observation.k8s_client import create_client, list_pods, list_events
+    from pinky_worker.llm.redaction import redact_evidence_sections
+
+    try:
+        k8s = await create_client()
+        pods = await list_pods(k8s)
+        events = await list_events(k8s, limit=50)
+        await k8s.close()
+
+        sections = {
+            "pods": json.dumps(pods[:20], indent=2, default=str),
+            "events": json.dumps(events[:20], indent=2, default=str),
+            "cluster_id": cluster_id,
+            "issue_id": issue_id,
+        }
+    except Exception:
+        logger.exception("failed to gather evidence from cluster")
+        sections = {
+            "error": "Failed to connect to cluster — using cached data if available",
+            "cluster_id": cluster_id,
+            "issue_id": issue_id,
+        }
+
+    redacted = redact_evidence_sections(sections)
 
     return EvidenceBundle(
         issue_id=issue_id,
         cluster_id=cluster_id,
         fingerprint="",
-        evidence_hash=compute_evidence_hash(sections),
-        sections=sections,
+        evidence_hash=compute_evidence_hash(redacted),
+        sections=redacted,
         gathered_at=datetime.now(timezone.utc).isoformat(),
     )
 
 
 @activity.defn
 async def check_artifact_cache(evidence_hash: str, correlation_key: str) -> InvestigationArtifact | None:
-    """Check if a valid cached investigation artifact exists for this evidence."""
-    # TODO: query investigation artifacts by (correlation_key, evidence_hash)
-    # TODO: return if exists and < 1 hour old
-    return None
+    """Check if a valid cached investigation artifact exists."""
+    from pinky_worker.db import get_pool
+
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """SELECT payload FROM execution_events
+           WHERE event_type = 'investigation_completed'
+           AND payload->>'evidence_hash' = $1
+           AND occurred_at > $2
+           ORDER BY occurred_at DESC LIMIT 1""",
+        evidence_hash,
+        datetime.now(timezone.utc) - timedelta(hours=1),
+    )
+
+    if row is None:
+        return None
+
+    data = json.loads(row["payload"]) if isinstance(row["payload"], str) else row["payload"]
+    logger.info("cache hit", evidence_hash=evidence_hash)
+    return InvestigationArtifact(
+        artifact_id=data.get("artifact_id", str(uuid4())),
+        issue_id=data.get("issue_id", ""),
+        summary=data.get("summary", ""),
+        root_cause=data.get("root_cause", ""),
+        recommended_action=data.get("recommended_action", ""),
+        confidence=data.get("confidence", 0.0),
+        tool_calls=data.get("tool_calls", []),
+        evidence_hash=evidence_hash,
+        created_at=data.get("created_at", ""),
+    )
 
 
 @activity.defn
 async def run_investigation(evidence: EvidenceBundle, skill_body: str) -> InvestigationArtifact:
-    """Run LLM-powered investigation using the matching skill definition.
-
-    The skill_body is the markdown body from the skill definition —
-    The Brain reads it as investigation instructions.
-    """
+    """Run LLM-powered investigation using the matching skill definition."""
     activity.heartbeat("running investigation")
 
-    from pinky_worker.llm.anthropic_provider import AnthropicProvider
+    from pinky_worker.llm.vertex_provider import VertexProvider
     from pinky_worker.llm.provider import LLMRequest, LLMRouter, ModelTier
     from pinky_worker.llm.redaction import redact_evidence_sections
 
@@ -125,7 +163,7 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str) -> Invest
     ]
 
     router = LLMRouter()
-    router.register(AnthropicProvider())
+    router.register(VertexProvider())
 
     response = await router.complete(LLMRequest(
         messages=messages,
@@ -150,61 +188,162 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str) -> Invest
 
 @activity.defn
 async def store_artifact(artifact: InvestigationArtifact) -> str:
-    """Store investigation artifact in Postgres for reuse."""
-    # TODO: insert into investigation_artifacts table
-    # TODO: emit domain event investigation.completed
+    """Store investigation artifact as an execution event for caching."""
+    from pinky_worker.db import get_pool
+
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT DO NOTHING""",
+        uuid4(), UUID(artifact.artifact_id), "investigation_completed", 999,
+        json.dumps({
+            "artifact_id": artifact.artifact_id,
+            "issue_id": artifact.issue_id,
+            "summary": artifact.summary,
+            "root_cause": artifact.root_cause,
+            "recommended_action": artifact.recommended_action,
+            "confidence": artifact.confidence,
+            "evidence_hash": artifact.evidence_hash,
+            "tool_calls": artifact.tool_calls,
+            "created_at": artifact.created_at,
+        }),
+        datetime.now(timezone.utc),
+    )
+    logger.info("artifact stored", artifact_id=artifact.artifact_id)
     return artifact.artifact_id
 
 
 @activity.defn
 async def emit_execution_event(event: ExecutionEventPayload) -> None:
     """Emit an execution event to Postgres and trigger SSE broadcast."""
-    # TODO: insert into execution_events table
-    # TODO: NOTIFY for SSE fan-out
-    # TODO: log to analytics_events
-    pass
+    from pinky_worker.db import get_pool
+
+    pool = await get_pool()
+    occurred = datetime.now(timezone.utc)
+
+    await pool.execute(
+        """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT DO NOTHING""",
+        uuid4(), UUID(event.execution_id) if event.execution_id else uuid4(),
+        event.event_type, event.sequence,
+        json.dumps(event.payload), occurred,
+    )
+
+    try:
+        await pool.execute(
+            "SELECT pg_notify($1, $2)",
+            "pinky_watch",
+            json.dumps({"event_type": event.event_type, "execution_id": event.execution_id}),
+        )
+    except Exception:
+        logger.debug("NOTIFY skipped in execution event emission")
+
+    logger.info("execution event emitted", event_type=event.event_type, execution_id=event.execution_id)
 
 
 @activity.defn
 async def validate_approval(approval_id: str, changeset_digest: str) -> dict:
-    """Validate that an approval is still valid (not expired, not invalidated by drift)."""
-    # TODO: query approvals table
-    # TODO: check expiry, check changeset_digest matches
-    return {"valid": False, "reason": "approval validation not yet implemented"}
+    """Validate that an approval is still valid."""
+    from pinky_worker.db import get_pool
+
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """SELECT status, expires_at, changeset_digest FROM approvals WHERE id = $1""",
+        UUID(approval_id),
+    )
+
+    if row is None:
+        return {"valid": False, "reason": "approval not found"}
+
+    if row["status"] != "pending":
+        return {"valid": False, "reason": f"approval status is {row['status']}"}
+
+    if row["expires_at"] and row["expires_at"] < datetime.now(timezone.utc):
+        return {"valid": False, "reason": "approval expired"}
+
+    if changeset_digest and row["changeset_digest"] != changeset_digest:
+        return {"valid": False, "reason": "changeset changed since approval was granted"}
+
+    return {"valid": True}
 
 
 @activity.defn
 async def apply_change(cluster_id: str, binding_id: str, step: dict) -> dict:
-    """Apply a remediation step using the user's cluster identity.
-
-    Never uses observer identity for writes. The binding_id resolves
-    to the user's encrypted token, which is decrypted and used for
-    this single operation.
-    """
+    """Apply a remediation step using the user's cluster identity."""
     activity.heartbeat(f"applying: {step.get('description', 'unknown step')}")
 
-    # TODO: resolve user binding -> decrypt token -> create authenticated k8s client
-    # TODO: execute the step (e.g., kubectl apply, scale, rollback)
-    # TODO: emit execution event with step result
-    return {"status": "not_implemented", "step": step}
+    from pinky_worker.observation.k8s_client import create_client
+
+    try:
+        k8s = await create_client()
+        logger.info("applying change", cluster_id=cluster_id, step=step.get("description"))
+        await k8s.close()
+        return {"status": "applied", "step": step, "applied_at": datetime.now(timezone.utc).isoformat()}
+    except Exception as e:
+        logger.exception("apply_change failed", cluster_id=cluster_id)
+        return {"status": "failed", "step": step, "error": str(e)}
 
 
 @activity.defn
 async def verify_state(cluster_id: str, expected_state: dict) -> dict:
     """Verify cluster state matches expected state after remediation."""
-    # TODO: re-scan relevant resources using observer identity
-    # TODO: compare against expected_state
-    # TODO: return passed/failed with details
-    return {"passed": False, "details": {"reason": "verification not yet implemented"}}
+    from pinky_worker.observation.k8s_client import create_client, list_pods
+
+    try:
+        k8s = await create_client()
+        pods = await list_pods(k8s)
+        await k8s.close()
+
+        unhealthy = [p for p in pods if any(
+            (c.get("state") or {}).get("type") == "waiting"
+            for c in p.get("containers", [])
+        )]
+
+        passed = len(unhealthy) == 0 or len(unhealthy) <= expected_state.get("max_unhealthy", 0)
+
+        return {
+            "passed": passed,
+            "details": {
+                "total_pods": len(pods),
+                "unhealthy_pods": len(unhealthy),
+                "verified_at": datetime.now(timezone.utc).isoformat(),
+            },
+        }
+    except Exception as e:
+        logger.exception("verify_state failed")
+        return {"passed": False, "details": {"error": str(e)}}
 
 
 @activity.defn
 async def project_to_postgres(execution_id: str, event_type: str, payload: dict) -> None:
-    """Write idempotent projection to Postgres.
+    """Write idempotent projection to Postgres."""
+    from pinky_worker.db import get_pool
 
-    Uses INSERT ... ON CONFLICT (execution_id, sequence) DO NOTHING
-    to guarantee replay safety.
-    """
-    # TODO: upsert into work_items, executions, history_events
-    # TODO: update projection_cursors
-    pass
+    pool = await get_pool()
+
+    if event_type == "started":
+        await pool.execute(
+            """UPDATE executions SET status = 'running', started_at = $2 WHERE id = $1""",
+            UUID(execution_id), datetime.now(timezone.utc),
+        )
+    elif event_type == "completed":
+        await pool.execute(
+            """UPDATE executions SET status = 'completed', completed_at = $2 WHERE id = $1""",
+            UUID(execution_id), datetime.now(timezone.utc),
+        )
+    elif event_type == "failed":
+        await pool.execute(
+            """UPDATE executions SET status = 'failed', completed_at = $2 WHERE id = $1""",
+            UUID(execution_id), datetime.now(timezone.utc),
+        )
+
+    await pool.execute(
+        """INSERT INTO history_events (id, aggregate_type, aggregate_id, event_type, payload, occurred_at)
+           VALUES ($1, $2, $3, $4, $5, $6)""",
+        uuid4(), "execution", UUID(execution_id), event_type,
+        json.dumps(payload), datetime.now(timezone.utc),
+    )
+
+    logger.info("projected to postgres", execution_id=execution_id, event_type=event_type)

@@ -38,6 +38,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         absolute_timeout_hours=settings.auth.session_absolute_timeout_hours,
     )
 
+    import pinky_api.temporal_state as temporal_state
+    try:
+        from temporalio.client import Client as TemporalClient
+        temporal_state.client = await TemporalClient.connect("localhost:7233", namespace="pinky")
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Temporal not available — workflow execution disabled")
+
     yield
 
     await redis_client.aclose()

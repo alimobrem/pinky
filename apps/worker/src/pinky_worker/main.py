@@ -90,6 +90,10 @@ async def run_observer(registry: DefinitionRegistry, correlator: IssueCorrelator
 async def run() -> None:
     logger.info("pinky-worker starting")
 
+    from pinky_worker.db import get_pool, close_pool
+    await get_pool()
+    logger.info("database pool initialized")
+
     definitions_dir = os.environ.get("PINKY_DEFINITIONS_DIR", str(Path(__file__).parent.parent.parent.parent.parent / "definitions"))
     registry = DefinitionRegistry()
     loaded = registry.load_filesystem(definitions_dir)
@@ -99,18 +103,25 @@ async def run() -> None:
 
     observer_enabled = os.environ.get("PINKY_OBSERVER_ENABLED", "true") == "true"
     temporal_enabled = os.environ.get("PINKY_TEMPORAL_ENABLED", "true") == "true"
+    webhooks_enabled = os.environ.get("PINKY_WEBHOOKS_ENABLED", "true") == "true"
 
     tasks = []
     if temporal_enabled:
         tasks.append(run_temporal_workers())
     if observer_enabled:
         tasks.append(run_observer(registry, correlator))
+    if webhooks_enabled:
+        from pinky_worker.webhooks.delivery import run_delivery_loop
+        tasks.append(run_delivery_loop())
 
     if not tasks:
         logger.warning("no tasks enabled — idling")
         await asyncio.Event().wait()
     else:
-        await asyncio.gather(*tasks)
+        try:
+            await asyncio.gather(*tasks)
+        finally:
+            await close_pool()
 
 
 def main() -> None:

@@ -1,5 +1,6 @@
 """Execution routes — Brain workflows and approval management."""
 
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,7 +8,10 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.db.deps import get_db
+from pinky_api.events import emit
 from pinky_api.repositories.executions import ExecutionRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/executions", tags=["executions"])
 
@@ -58,17 +62,74 @@ async def get_execution(execution_id: str, db: AsyncSession = Depends(get_db)) -
 
 @router.post("")
 async def start_execution(work_item_id: str, execution_type: str = "investigation", db: AsyncSession = Depends(get_db)) -> dict:
+    import pinky_api.temporal_state as temporal_state
+
     repo = ExecutionRepository(db)
-    ex = await repo.create(work_item_id=UUID(work_item_id), cluster_id=UUID(work_item_id), execution_type=execution_type)
+
+    wi_id = UUID(work_item_id)
+    from pinky_api.repositories.work_items import WorkItemRepository
+    wi_repo = WorkItemRepository(db)
+    wi = await wi_repo.get(wi_id)
+    if wi is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+
+    ex = await repo.create(work_item_id=wi_id, cluster_id=wi.cluster_id, execution_type=execution_type)
+    await emit(db, "execution.started", "execution", ex.id, {"type": execution_type, "work_item_id": work_item_id})
     await db.commit()
+
+    if temporal_state.client is not None:
+        try:
+            from pinky_worker.workflows.investigation import InvestigationInput, InvestigationWorkflow
+
+            await temporal_state.client.execute_workflow(
+                InvestigationWorkflow.run,
+                InvestigationInput(
+                    issue_id=str(wi.issue_id) if wi.issue_id else str(wi.id),
+                    cluster_id=str(wi.cluster_id),
+                    correlation_key=str(wi.id),
+                    evidence_hash="",
+                ),
+                id=f"investigation-{ex.id}",
+                task_queue="investigation",
+            )
+            logger.info("temporal workflow started", execution_id=str(ex.id))
+        except Exception:
+            logger.exception("failed to start temporal workflow", execution_id=str(ex.id))
+
     return _serialize(ex)
 
 
 @router.post("/{execution_id}/approve")
-async def approve_execution(execution_id: str, req: ApproveRequest) -> dict:
-    return {"message": "Approve — requires Temporal workflow signal"}
+async def approve_execution(execution_id: str, req: ApproveRequest, db: AsyncSession = Depends(get_db)) -> dict:
+    import pinky_api.temporal_state as temporal_state
+
+    if temporal_state.client is None:
+        raise HTTPException(status_code=503, detail="Temporal not available")
+
+    try:
+        handle = temporal_state.client.get_workflow_handle(f"investigation-{execution_id}")
+        await handle.signal("approve", {"changeset_digest": req.changeset_digest})
+        await emit(db, "approval.granted", "execution", UUID(execution_id), {"changeset_digest": req.changeset_digest})
+        await db.commit()
+        return {"status": "approved", "execution_id": execution_id}
+    except Exception:
+        logger.exception("failed to signal approval")
+        raise HTTPException(status_code=500, detail="Failed to signal workflow")
 
 
 @router.post("/{execution_id}/reject")
-async def reject_execution(execution_id: str, req: RejectRequest) -> dict:
-    return {"message": "Reject — requires Temporal workflow signal"}
+async def reject_execution(execution_id: str, req: RejectRequest, db: AsyncSession = Depends(get_db)) -> dict:
+    import pinky_api.temporal_state as temporal_state
+
+    if temporal_state.client is None:
+        raise HTTPException(status_code=503, detail="Temporal not available")
+
+    try:
+        handle = temporal_state.client.get_workflow_handle(f"investigation-{execution_id}")
+        await handle.signal("reject", {"reason": req.reason})
+        await emit(db, "approval.rejected", "execution", UUID(execution_id), {"reason": req.reason})
+        await db.commit()
+        return {"status": "rejected", "execution_id": execution_id}
+    except Exception:
+        logger.exception("failed to signal rejection")
+        raise HTTPException(status_code=500, detail="Failed to signal workflow")
