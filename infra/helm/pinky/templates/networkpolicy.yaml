@@ -14,37 +14,25 @@ spec:
     - Egress
   ingress:
     - from:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: pinky-web
-      ports:
-        - port: 8000
-    - from: []
+        - namespaceSelector: {}
       ports:
         - port: 8000
   egress:
+    # In-cluster: service network + pod network (covers DNS, Postgres, Redis, Temporal)
     - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: pinky-postgresql
-      ports:
-        - port: 5432
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.serviceNetwork | default "172.30.0.0/16" }}
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.clusterNetwork | default "10.128.0.0/14" }}
+    # External HTTPS (OAuth, LLM APIs)
     - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: pinky-redis
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - {{ .Values.networkPolicy.serviceNetwork | default "172.30.0.0/16" }}
+              - {{ .Values.networkPolicy.clusterNetwork | default "10.128.0.0/14" }}
       ports:
-        - port: 6379
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: pinky-temporal
-      ports:
-        - port: 7233
-    - ports:
-        - port: 53
-          protocol: UDP
-        - port: 53
+        - port: 443
           protocol: TCP
 ---
 apiVersion: networking.k8s.io/v1
@@ -60,24 +48,22 @@ spec:
   policyTypes:
     - Egress
   egress:
+    # In-cluster: service network + pod network
     - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: pinky-postgresql
-      ports:
-        - port: 5432
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.serviceNetwork | default "172.30.0.0/16" }}
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.clusterNetwork | default "10.128.0.0/14" }}
+    # External HTTPS (LLM APIs, K8s API for observer)
     - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: pinky-temporal
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - {{ .Values.networkPolicy.serviceNetwork | default "172.30.0.0/16" }}
+              - {{ .Values.networkPolicy.clusterNetwork | default "10.128.0.0/14" }}
       ports:
-        - port: 7233
-    - ports:
         - port: 443
           protocol: TCP
-    - ports:
-        - port: 53
-          protocol: UDP
-        - port: 53
+        - port: 6443
           protocol: TCP
 {{- end }}

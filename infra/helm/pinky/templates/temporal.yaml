@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/name: pinky-temporal-db
     {{- include "pinky.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "pinky.fullname" . }}-temporal-db
+  serviceName: {{ include "pinky.fullname" . }}-temporal-db-headless
   replicas: 1
   selector:
     matchLabels:
@@ -25,17 +25,18 @@ spec:
           ports:
             - containerPort: 5432
           env:
-            - name: POSTGRES_USER
+            - name: POSTGRESQL_USER
               value: temporal
-            - name: POSTGRES_PASSWORD
+            - name: POSTGRESQL_DATABASE
               value: temporal
-            - name: POSTGRES_DB
-              value: temporal
-            - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pinky.fullname" . }}-temporal-db-credentials
+                  key: password
           volumeMounts:
             - name: data
-              mountPath: /var/lib/postgresql/data
+              mountPath: /var/lib/pgsql/data
           resources:
             requests:
               cpu: 100m
@@ -51,6 +52,20 @@ spec:
         resources:
           requests:
             storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pinky.fullname" . }}-temporal-db-headless
+  labels:
+    app.kubernetes.io/name: pinky-temporal-db
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: pinky-temporal-db
+  ports:
+    - port: 5432
+      targetPort: 5432
 ---
 apiVersion: v1
 kind: Service
@@ -94,8 +109,8 @@ spec:
             capabilities:
               drop: ["ALL"]
         - name: wait-db
-          image: {{ .Values.postgresql.image }}
-          command: ["sh", "-c", "until pg_isready -h {{ include "pinky.fullname" . }}-temporal-db.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local -U temporal; do echo 'waiting for temporal-db...'; sleep 2; done"]
+          image: {{ .Values.temporal.image }}
+          command: ["sh", "-c", "until nc -z {{ include "pinky.fullname" . }}-temporal-db 5432; do echo 'waiting for temporal-db...'; sleep 2; done"]
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -116,7 +131,10 @@ spec:
             - name: POSTGRES_USER
               value: temporal
             - name: POSTGRES_PWD
-              value: temporal
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pinky.fullname" . }}-temporal-db-credentials
+                  key: password
             - name: POSTGRES_SEEDS
               value: {{ include "pinky.fullname" . }}-temporal-db
             - name: DEFAULT_NAMESPACE
