@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/name: pinky-postgresql
     {{- include "pinky.labels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "pinky.fullname" . }}-postgresql
+  serviceName: {{ include "pinky.fullname" . }}-postgresql-headless
   replicas: 1
   selector:
     matchLabels:
@@ -25,29 +25,27 @@ spec:
           ports:
             - containerPort: 5432
           env:
-            - name: POSTGRES_USER
+            - name: POSTGRESQL_USER
               value: {{ .Values.postgresql.auth.username }}
-            - name: POSTGRES_DB
+            - name: POSTGRESQL_DATABASE
               value: {{ .Values.postgresql.auth.database }}
-            - name: POSTGRES_PASSWORD
+            - name: POSTGRESQL_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "pinky.dbSecretName" . }}
                   key: password
-            - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
           volumeMounts:
             - name: data
-              mountPath: /var/lib/postgresql/data
+              mountPath: /var/lib/pgsql/data
           livenessProbe:
             exec:
-              command: ["pg_isready", "-U", {{ .Values.postgresql.auth.username | quote }}]
-            initialDelaySeconds: 15
+              command: ["sh", "-c", "pg_isready -U {{ .Values.postgresql.auth.username }}"]
+            initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", {{ .Values.postgresql.auth.username | quote }}]
-            initialDelaySeconds: 5
+              command: ["sh", "-c", "pg_isready -U {{ .Values.postgresql.auth.username }}"]
+            initialDelaySeconds: 10
             periodSeconds: 5
           resources:
             requests:
@@ -64,6 +62,21 @@ spec:
         resources:
           requests:
             storage: {{ .Values.postgresql.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pinky.fullname" . }}-postgresql-headless
+  labels:
+    app.kubernetes.io/name: pinky-postgresql
+    {{- include "pinky.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: pinky-postgresql
+  ports:
+    - port: 5432
+      targetPort: 5432
 ---
 apiVersion: v1
 kind: Service

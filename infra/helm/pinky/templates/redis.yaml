@@ -1,12 +1,13 @@
 {{- if .Values.redis.deploy }}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ include "pinky.fullname" . }}-redis
   labels:
     app.kubernetes.io/name: pinky-redis
     {{- include "pinky.labels" . | nindent 4 }}
 spec:
+  serviceName: {{ include "pinky.fullname" . }}-redis-headless
   replicas: 1
   selector:
     matchLabels:
@@ -23,30 +24,44 @@ spec:
           image: {{ .Values.redis.image }}
           ports:
             - containerPort: 6379
-          command: ["redis-server", "--appendonly", "yes", "--dir", "/data"]
           volumeMounts:
             - name: data
-              mountPath: /data
+              mountPath: /var/lib/redis/data
           livenessProbe:
             exec:
               command: ["redis-cli", "ping"]
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 10
           readinessProbe:
             exec:
               command: ["redis-cli", "ping"]
-            initialDelaySeconds: 3
+            initialDelaySeconds: 5
             periodSeconds: 5
           resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              cpu: 500m
-              memory: 256Mi
-      volumes:
-        - name: data
-          emptyDir: {}
+            {{- toYaml .Values.redis.resources | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.redis.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pinky.fullname" . }}-redis-headless
+  labels:
+    app.kubernetes.io/name: pinky-redis
+    {{- include "pinky.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: pinky-redis
+  ports:
+    - port: 6379
+      targetPort: 6379
 ---
 apiVersion: v1
 kind: Service

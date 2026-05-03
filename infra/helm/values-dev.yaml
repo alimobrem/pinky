@@ -28,7 +28,7 @@ auth:
   appUrl: https://pinky.apps.your-cluster.example.com
 
 networkPolicy:
-  enabled: false
+  enabled: true
 
 debug: true
 logLevel: DEBUG
