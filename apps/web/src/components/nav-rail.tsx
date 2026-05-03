@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { CheckSquare, Eye, Clock, AlertTriangle, Settings, Brain } from "lucide-react";
 import type { ComponentType } from "react";
+
+const API = "";
 
 interface NavItem {
   id: string;
@@ -23,45 +26,60 @@ const NAV_ITEMS: NavItem[] = [
 
 export function NavRail() {
   const pathname = usePathname();
+  const [badges, setBadges] = useState<Record<string, number>>({});
+  const [brainActive, setBrainActive] = useState(false);
+
+  useEffect(() => {
+    const fetchBadges = () => {
+      fetch(`${API}/api/v1/work-items?status=ready`)
+        .then(r => r.json())
+        .then(d => setBadges(prev => ({ ...prev, tasks: (d.items || []).length })))
+        .catch(() => {});
+
+      fetch(`${API}/api/v1/alerts`)
+        .then(r => r.json())
+        .then(d => { const c = (d.items || []).length; setBadges(prev => ({ ...prev, alerts: c })); })
+        .catch(() => {});
+
+      fetch(`${API}/api/v1/issues?status=open`)
+        .then(r => r.json())
+        .then(d => { setBrainActive((d.items || []).length > 0); })
+        .catch(() => {});
+    };
+
+    fetchBadges();
+    const interval = setInterval(fetchBadges, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <nav style={{
-      width: 220,
-      minHeight: "100vh",
-      background: "var(--bg-surface)",
+      width: 220, minHeight: "100vh", background: "var(--bg-surface)",
       borderRight: "1px solid var(--border-default)",
-      padding: "var(--space-5) 0",
-      display: "flex",
-      flexDirection: "column",
+      padding: "var(--space-5) 0", display: "flex", flexDirection: "column",
     }}>
-      <div style={{
-        padding: "0 var(--space-5) var(--space-8)",
-        display: "flex",
-        alignItems: "center",
-        gap: "var(--space-2)",
-      }}>
+      <div style={{ padding: "0 var(--space-5) var(--space-8)", display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
         <Brain size={22} style={{ color: "var(--accent-brain)" }} />
         <span style={{
-          fontSize: 20,
-          fontWeight: 800,
-          letterSpacing: "0.04em",
-          background: "var(--gradient-brand)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          backgroundClip: "text",
-        }}>
-          PINKY
-        </span>
+          fontSize: 20, fontWeight: 800, letterSpacing: "0.04em",
+          background: "var(--gradient-brand)", WebkitBackgroundClip: "text",
+          WebkitTextFillColor: "transparent", backgroundClip: "text",
+        }}>PINKY</span>
       </div>
 
       <div style={{ borderBottom: "1px solid var(--border-subtle)", margin: "0 var(--space-4) var(--space-3)" }} />
 
       {NAV_ITEMS.filter(i => i.section === "primary").map(item => (
-        <NavLink key={item.id} item={item} active={pathname.startsWith(item.path)} />
+        <NavLink
+          key={item.id}
+          item={item}
+          active={pathname.startsWith(item.path)}
+          badge={badges[item.id]}
+          brainDot={item.id === "watch" && brainActive}
+        />
       ))}
 
       <div style={{ flex: 1 }} />
-
       <div style={{ borderBottom: "1px solid var(--border-subtle)", margin: "var(--space-3) var(--space-4)" }} />
 
       {NAV_ITEMS.filter(i => i.section === "secondary").map(item => (
@@ -71,27 +89,43 @@ export function NavRail() {
   );
 }
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+function NavLink({ item, active, badge, brainDot }: {
+  item: NavItem;
+  active: boolean;
+  badge?: number;
+  brainDot?: boolean;
+}) {
   const Icon = item.icon;
   return (
     <Link
       href={item.path}
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "var(--space-3)",
+        display: "flex", alignItems: "center", gap: "var(--space-3)",
         padding: "var(--space-2) var(--space-5)",
         color: active ? "var(--text-primary)" : "var(--text-secondary)",
         background: active ? "var(--bg-elevated)" : "transparent",
         borderLeft: active ? "3px solid var(--accent-brand)" : "3px solid transparent",
-        fontSize: 14,
-        fontWeight: active ? 600 : 400,
-        textDecoration: "none",
+        fontSize: 14, fontWeight: active ? 600 : 400, textDecoration: "none",
         transition: "color var(--transition-fast), background var(--transition-fast)",
       }}
     >
       <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />
-      {item.label}
+      <span style={{ flex: 1 }}>{item.label}</span>
+      {badge != null && badge > 0 && (
+        <span style={{
+          fontSize: 11, fontWeight: 600, fontVariantNumeric: "tabular-nums",
+          background: "var(--accent-brand)", color: "#fff",
+          padding: "1px 6px", borderRadius: "var(--radius-full)",
+          minWidth: 20, textAlign: "center",
+        }}>{badge}</span>
+      )}
+      {brainDot && (
+        <span style={{
+          width: 8, height: 8, borderRadius: "50%",
+          background: "var(--accent-brain)",
+          animation: "brain-pulse 2s ease-in-out infinite",
+        }} />
+      )}
     </Link>
   );
 }

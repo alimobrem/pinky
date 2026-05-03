@@ -146,3 +146,18 @@ a:hover { text-decoration: underline; }
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: var(--radius-md);
 }
+
+/* ── Responsive ── */
+@media (max-width: 1279px) {
+  .nav-rail { width: 56px !important; }
+  .nav-rail .nav-brand-text { display: none; }
+  .nav-rail .nav-label { display: none; }
+  .stat-strip { flex-wrap: wrap; }
+  .two-column { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 767px) {
+  .nav-rail { display: none !important; }
+  .main-content { padding: var(--space-3) !important; }
+  .stat-strip > div { min-width: 100px !important; flex: 1; }
+}
