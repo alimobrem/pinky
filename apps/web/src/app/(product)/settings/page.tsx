@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Settings as SettingsIcon, Plus, Trash2, Brain } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { ClusterRegistryEntry, Definition, WebhookSubscription, PolicyRule, PaginatedResponse } from "@pinky/contracts";
+import type { ClusterRegistryEntry, ClusterIdentityBinding, Definition, WebhookSubscription, PolicyRule, PaginatedResponse } from "@pinky/contracts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +26,10 @@ export default function SettingsPage() {
   const { data: rulesData } = useQuery({ queryKey: ["rules"], queryFn: () => api.get<PaginatedResponse<PolicyRule>>("/api/v1/policy-rules") });
   const { data: roiData } = useQuery({ queryKey: ["analytics-roi"], queryFn: () => api.get<{ metrics: Record<string, unknown> }>("/api/v1/analytics/roi") });
 
+  const { data: bindingsData } = useQuery({ queryKey: ["bindings"], queryFn: () => api.get<{ items: ClusterIdentityBinding[] }>("/api/v1/cluster-bindings") });
+
   const clusters = clustersData?.items ?? [];
+  const bindings = bindingsData?.items ?? [];
   const definitions = defsData?.items ?? [];
   const webhooks = webhooksData?.items ?? [];
   const rules = rulesData?.items ?? [];
@@ -96,6 +99,7 @@ export default function SettingsPage() {
       else if (deleteTarget.type === "definition") await api.del(`/api/v1/definitions/${deleteTarget.id}`);
       else if (deleteTarget.type === "webhook") await api.del(`/api/v1/webhook-subscriptions/${deleteTarget.id}`);
       else if (deleteTarget.type === "rule") await api.del(`/api/v1/policy-rules/${deleteTarget.id}`);
+      else if (deleteTarget.type === "binding") await api.del(`/api/v1/cluster-bindings/${deleteTarget.id}`);
       toast.success(`${deleteTarget.type} deleted`);
       refresh();
     } catch { toast.error("Failed to delete"); }
@@ -115,6 +119,7 @@ export default function SettingsPage() {
           <TabsTrigger value="definitions">Definitions ({definitions.length})</TabsTrigger>
           <TabsTrigger value="webhooks">Webhooks ({webhooks.length})</TabsTrigger>
           <TabsTrigger value="rules">Policy Rules ({rules.length})</TabsTrigger>
+          <TabsTrigger value="access">Cluster Access ({bindings.length})</TabsTrigger>
           <TabsTrigger value="analytics">Analytics / ROI</TabsTrigger>
         </TabsList>
 
@@ -326,6 +331,62 @@ export default function SettingsPage() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* Cluster Access */}
+        <TabsContent value="access">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-sm font-semibold text-text-secondary">Your Cluster Bindings</span>
+          </div>
+          {bindings.length === 0 ? (
+            <div className="text-center py-10 text-text-secondary">No cluster bindings. Connect to a cluster to enable remediations.</div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {bindings.map(b => {
+                const statusColor: Record<string, string> = {
+                  valid: "text-status-done", expiring: "text-status-in-progress",
+                  expired: "text-status-blocked", missing: "text-text-tertiary", revoked: "text-text-tertiary",
+                };
+                const cluster = clusters.find(c => c.id === b.cluster_id);
+                return (
+                  <Card key={b.id} className="flex justify-between items-center p-3 px-5">
+                    <div>
+                      <div className="font-semibold text-sm">{cluster?.display_name ?? b.cluster_id}</div>
+                      <div className="text-xs text-text-tertiary">
+                        {b.binding_method} · {b.cluster_username || "no username"} · expires {b.expires_at ? new Date(b.expires_at).toLocaleString() : "never"}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xs font-semibold uppercase ${statusColor[b.status] || "text-text-tertiary"}`}>{b.status}</span>
+                      {(b.status === "expired" || b.status === "expiring") && (
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
+                          try { await api.post(`/api/v1/cluster-bindings/${b.id}/refresh`); toast.success("Binding refreshed"); refresh(); }
+                          catch { toast.error("Failed to refresh"); }
+                        }}>Refresh</Button>
+                      )}
+                      {b.status !== "revoked" && (
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteTarget({ id: b.id, type: "binding", label: cluster?.display_name ?? "binding" })}>
+                          <Trash2 size={14} className="text-text-tertiary" />
+                        </Button>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+          <div className="mt-4">
+            <Button variant="outline" size="sm" onClick={async () => {
+              if (clusters.length === 0) { toast.error("Register a cluster first"); return; }
+              try {
+                await api.post("/api/v1/cluster-bindings", { cluster_id: clusters[0].id });
+                toast.success("Binding created");
+                refresh();
+              } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+            }}>
+              <Plus size={14} /> Connect to Cluster
+            </Button>
+          </div>
         </TabsContent>
 
         {/* Analytics */}
