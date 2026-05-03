@@ -30,5 +30,5 @@ auth:
 networkPolicy:
   enabled: true
 
-debug: true
-logLevel: DEBUG
+debug: false
+logLevel: INFO

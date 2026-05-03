@@ -4,6 +4,7 @@ set -euo pipefail
 VALUES_FILE="${1:-infra/helm/values-dev.yaml}"
 REGISTRY="${PINKY_REGISTRY:-quay.io/amobrem}"
 TAG="${PINKY_TAG:-latest}"
+KUBE="${PINKY_KUBE_CLI:-$(command -v oc 2>/dev/null || command -v kubectl 2>/dev/null || echo kubectl)}"
 ERRORS=0
 
 pass() { echo "  [OK] $1"; }
@@ -15,17 +16,17 @@ echo ""
 
 # 1. Cluster connection
 echo "--- Cluster"
-if kubectl cluster-info &>/dev/null; then
-  SERVER=$(kubectl config current-context 2>/dev/null || echo "unknown")
+if ${KUBE} cluster-info &>/dev/null; then
+  SERVER=$(${KUBE} config current-context 2>/dev/null || echo "unknown")
   pass "Connected to cluster: ${SERVER}"
+elif command -v oc &>/dev/null && oc whoami &>/dev/null; then
+  pass "Connected via oc: $(oc whoami)"
 else
   fail "Not connected to a Kubernetes cluster"
 fi
 
 if command -v oc &>/dev/null && oc whoami &>/dev/null; then
   pass "OpenShift user: $(oc whoami)"
-else
-  warn "Not logged into OpenShift (oc whoami failed)"
 fi
 
 # 2. Helm
@@ -46,7 +47,7 @@ fi
 
 # 4. Helm lint
 echo "--- Chart validation"
-if helm lint infra/helm/pinky &>/dev/null; then
+if helm lint infra/helm/pinky -f "${VALUES_FILE}" &>/dev/null; then
   pass "helm lint passed"
 else
   fail "helm lint failed"
@@ -61,10 +62,11 @@ fi
 
 # 5. Images
 echo "--- Images"
+ENGINE="${CONTAINER_ENGINE:-$(command -v podman 2>/dev/null || command -v docker 2>/dev/null || echo podman)}"
 for IMG in pinky-api pinky-worker pinky-web; do
   FULL="${REGISTRY}/${IMG}:${TAG}"
-  if podman inspect "${FULL}" &>/dev/null; then
-    ARCH=$(podman inspect "${FULL}" --format '{{.Architecture}}' 2>/dev/null)
+  if ${ENGINE} inspect "${FULL}" &>/dev/null 2>&1; then
+    ARCH=$(${ENGINE} inspect "${FULL}" --format '{{.Architecture}}' 2>/dev/null)
     if [[ "${ARCH}" == "amd64" ]]; then
       pass "${IMG}: ${ARCH}"
     else
@@ -77,11 +79,10 @@ done
 
 # 6. Container engine
 echo "--- Container engine"
-ENGINE="${CONTAINER_ENGINE:-podman}"
 if command -v "${ENGINE}" &>/dev/null; then
   pass "${ENGINE} available"
 else
-  fail "${ENGINE} not found"
+  warn "No container engine found (not needed if images are in registry)"
 fi
 
 echo ""
