@@ -281,18 +281,47 @@ async def validate_approval(approval_id: str, changeset_digest: str) -> dict:
 @activity.defn
 async def apply_change(cluster_id: str, binding_id: str, step: dict) -> dict:
     """Apply a remediation step using the user's cluster identity."""
-    activity.heartbeat(f"applying: {step.get('description', 'unknown step')}")
+    action = step.get("action", "")
+    namespace = step.get("namespace", "default")
+    resource = step.get("resource", "")
+    params = step.get("params", {})
+    description = step.get("description", f"{action} {resource}")
 
-    from pinky_worker.observation.k8s_client import create_client
+    activity.heartbeat(f"applying: {description}")
+
+    from pinky_worker.observation.k8s_client import (
+        create_client, scale_deployment, delete_pod, patch_resource, rollback_deployment,
+    )
 
     try:
         k8s = await create_client()
-        logger.info("applying change: %s %s", cluster_id, step.get("description"))
+
+        if action == "scale":
+            name = resource.split("/")[-1] if "/" in resource else resource
+            replicas = params.get("replicas", 1)
+            result = await scale_deployment(k8s, namespace, name, replicas)
+        elif action == "delete_pod":
+            name = resource.split("/")[-1] if "/" in resource else resource
+            result = await delete_pod(k8s, namespace, name)
+        elif action == "patch":
+            parts = resource.split("/")
+            kind = parts[0] if len(parts) > 1 else "deployment"
+            name = parts[-1]
+            result = await patch_resource(k8s, namespace, kind, name, params.get("patch", {}))
+        elif action == "rollback":
+            name = resource.split("/")[-1] if "/" in resource else resource
+            result = await rollback_deployment(k8s, namespace, name)
+        else:
+            result = {"status": "unsupported", "action": action}
+            logger.warning("unsupported apply_change action: %s", action)
+
         await k8s.close()
-        return {"status": "applied", "step": step, "applied_at": datetime.now(timezone.utc).isoformat()}
+        result["applied_at"] = datetime.now(timezone.utc).isoformat()
+        return result
+
     except Exception as e:
         logger.exception("apply_change failed for cluster %s", cluster_id)
-        return {"status": "failed", "step": step, "error": str(e)}
+        return {"status": "failed", "action": action, "resource": resource, "error": str(e)}
 
 
 @activity.defn

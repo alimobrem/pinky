@@ -39,6 +39,55 @@ async def list_events(api_client: ApiClient, namespace: str = "", limit: int = 1
     return [_event_summary(e) for e in result.items]
 
 
+async def scale_deployment(api_client: ApiClient, namespace: str, name: str, replicas: int) -> dict:
+    apps_v1 = client.AppsV1Api(api_client)
+    body = {"spec": {"replicas": replicas}}
+    result = await apps_v1.patch_namespaced_deployment_scale(name, namespace, body)
+    logger.info("scaled deployment %s/%s to %d replicas", namespace, name, replicas)
+    return {"name": name, "namespace": namespace, "replicas": replicas, "status": "scaled"}
+
+
+async def delete_pod(api_client: ApiClient, namespace: str, name: str) -> dict:
+    v1 = client.CoreV1Api(api_client)
+    await v1.delete_namespaced_pod(name, namespace)
+    logger.info("deleted pod %s/%s", namespace, name)
+    return {"name": name, "namespace": namespace, "status": "deleted"}
+
+
+async def patch_resource(api_client: ApiClient, namespace: str, kind: str, name: str, patch: dict) -> dict:
+    if kind.lower() in ("deployment", "deployments"):
+        apps_v1 = client.AppsV1Api(api_client)
+        await apps_v1.patch_namespaced_deployment(name, namespace, patch)
+    elif kind.lower() in ("statefulset", "statefulsets"):
+        apps_v1 = client.AppsV1Api(api_client)
+        await apps_v1.patch_namespaced_stateful_set(name, namespace, patch)
+    elif kind.lower() in ("daemonset", "daemonsets"):
+        apps_v1 = client.AppsV1Api(api_client)
+        await apps_v1.patch_namespaced_daemon_set(name, namespace, patch)
+    else:
+        raise ValueError(f"Unsupported resource kind for patch: {kind}")
+    logger.info("patched %s %s/%s", kind, namespace, name)
+    return {"kind": kind, "name": name, "namespace": namespace, "status": "patched"}
+
+
+async def rollback_deployment(api_client: ApiClient, namespace: str, name: str) -> dict:
+    apps_v1 = client.AppsV1Api(api_client)
+    dep = await apps_v1.read_namespaced_deployment(name, namespace)
+    current_revision = dep.metadata.annotations.get("deployment.kubernetes.io/revision", "0")
+    body = {
+        "spec": {
+            "template": {
+                "metadata": {
+                    "annotations": {"kubectl.kubernetes.io/restartedAt": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}
+                }
+            }
+        }
+    }
+    await apps_v1.patch_namespaced_deployment(name, namespace, body)
+    logger.info("triggered rollback for deployment %s/%s from revision %s", namespace, name, current_revision)
+    return {"name": name, "namespace": namespace, "status": "rollback_triggered", "previous_revision": current_revision}
+
+
 async def list_nodes(api_client: ApiClient) -> list[dict]:
     v1 = client.CoreV1Api(api_client)
     result = await v1.list_node()

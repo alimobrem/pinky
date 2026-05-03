@@ -32,21 +32,27 @@ class AuthProvider:
         return self._well_known
 
     def get_authorize_url(self, redirect_uri: str, state: str) -> str:
+        from urllib.parse import quote
+
+        encoded_redirect = quote(redirect_uri, safe="")
+        encoded_client_id = quote(self.client_id, safe="")
+        encoded_state = quote(state, safe="")
+
         if self.provider_type == "openshift":
             return (
                 f"{self.issuer_url}/oauth/authorize"
-                f"?client_id={self.client_id}"
-                f"&redirect_uri={redirect_uri}"
+                f"?client_id={encoded_client_id}"
+                f"&redirect_uri={encoded_redirect}"
                 f"&response_type=code"
-                f"&state={state}"
+                f"&state={encoded_state}"
             )
         return (
             f"{self.issuer_url}/authorize"
-            f"?client_id={self.client_id}"
-            f"&redirect_uri={redirect_uri}"
+            f"?client_id={encoded_client_id}"
+            f"&redirect_uri={encoded_redirect}"
             f"&response_type=code"
             f"&scope=openid+email+profile"
-            f"&state={state}"
+            f"&state={encoded_state}"
         )
 
     async def exchange_code(self, code: str, redirect_uri: str) -> dict:
