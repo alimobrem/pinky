@@ -1,8 +1,13 @@
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
 web:
   replicas: 2
   image:
     repository: pinky-web
     tag: latest
+    pullPolicy: IfNotPresent
   resources:
     requests:
       cpu: 100m
@@ -16,6 +21,7 @@ api:
   image:
     repository: pinky-api
     tag: latest
+    pullPolicy: IfNotPresent
   resources:
     requests:
       cpu: 250m
@@ -23,12 +29,14 @@ api:
     limits:
       cpu: "1"
       memory: 512Mi
+  corsOrigins: '["https://pinky.example.com"]'
 
 worker:
   replicas: 2
   image:
     repository: pinky-worker
     tag: latest
+    pullPolicy: IfNotPresent
   resources:
     requests:
       cpu: 500m
@@ -36,32 +44,66 @@ worker:
     limits:
       cpu: "2"
       memory: 1Gi
+  observerEnabled: "true"
+  temporalEnabled: "true"
+  webhooksEnabled: "true"
+  scanInterval: "60"
 
-database:
-  existingSecret: pinky-database-url
-  secretKey: url
+postgresql:
+  deploy: true
+  image: postgres:16-alpine
+  storage: 10Gi
+  auth:
+    username: pinky
+    database: pinky
+    existingSecret: ""
 
 redis:
-  existingSecret: pinky-redis-url
-  secretKey: url
+  deploy: true
+  image: redis:7-alpine
+  storage: 1Gi
+  external:
+    url: ""
 
 temporal:
-  address: pinky-temporal:7233
+  deploy: true
+  image: temporalio/auto-setup:1.25
+  uiImage: temporalio/ui:2.31.2
   namespace: pinky
+  external:
+    address: ""
 
 encryption:
-  existingSecret: pinky-encryption-key
+  existingSecret: ""
 
-ingress:
+auth:
+  openshift:
+    issuerUrl: ""
+    clientId: ""
+    clientSecret: ""
+    apiUrl: ""
+  oidc:
+    issuerUrl: ""
+    clientId: ""
+    clientSecret: ""
+  callbackBaseUrl: ""
+  appUrl: ""
+  cookieDomain: ""
+
+route:
   enabled: true
   host: pinky.example.com
-  tls: true
+  tls:
+    termination: edge
 
-observer:
-  additionalRules: []
-  # - apiGroups: ["kafka.strimzi.io"]
-  #   resources: ["kafkatopics"]
-  #   verbs: ["get", "list", "watch"]
+ingress:
+  enabled: false
+  host: pinky.example.com
+  className: nginx
+  tls: true
 
 networkPolicy:
   enabled: true
+
+debug: false
+logLevel: INFO

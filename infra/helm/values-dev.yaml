@@ -1,0 +1,31 @@
+global:
+  imageRegistry: image-registry.openshift-image-registry.svc:5000/pinky
+
+route:
+  enabled: true
+  host: pinky.apps.your-cluster.example.com
+
+ingress:
+  enabled: false
+
+api:
+  replicas: 1
+  corsOrigins: '["https://pinky.apps.your-cluster.example.com"]'
+
+worker:
+  replicas: 1
+
+web:
+  replicas: 1
+
+auth:
+  openshift:
+    issuerUrl: https://oauth-openshift.apps.your-cluster.example.com
+    clientId: pinky
+    clientSecret: REDACTED_ROTATE_THIS_SECRET
+    apiUrl: https://api.your-cluster.example.com:6443
+  callbackBaseUrl: https://pinky.apps.your-cluster.example.com
+  appUrl: https://pinky.apps.your-cluster.example.com
+
+debug: true
+logLevel: DEBUG

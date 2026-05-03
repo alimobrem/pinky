@@ -26,12 +26,19 @@ class AuthConfig(BaseSettings, frozen=True):
     app_url: str = "http://localhost:3000"
 
 
+class TemporalConfig(BaseSettings, frozen=True):
+    address: str = "localhost:7233"
+    namespace: str = "default"
+
+
 class PinkySettings(BaseSettings, frozen=True):
     model_config = {"env_prefix": "PINKY_", "env_nested_delimiter": "__"}
 
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     redis: RedisConfig = Field(default_factory=RedisConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
+    temporal: TemporalConfig = Field(default_factory=TemporalConfig)
+    cors_origins: list[str] = ["http://localhost:3000"]
     debug: bool = False
     log_level: str = "INFO"
     log_format: str = "json"

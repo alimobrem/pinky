@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "pinky.fullname" . }}-migrate
+  labels:
+    app.kubernetes.io/name: pinky-migrate
+    {{- include "pinky.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pinky-migrate
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-db
+          image: {{ .Values.postgresql.image }}
+          command: ["sh", "-c", "until pg_isready -h {{ include "pinky.fullname" . }}-postgresql -U {{ .Values.postgresql.auth.username }}; do sleep 2; done"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: migrate
+          image: {{ include "pinky.image" (dict "global" .Values.global "image" .Values.api.image) }}
+          command: ["python", "-m", "alembic", "upgrade", "head"]
+          env:
+            - name: PINKY_DATABASE__URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pinky.dbSecretName" . }}
+                  key: url
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      restartPolicy: Never
+      volumes:
+        - name: tmp
+          emptyDir: {}

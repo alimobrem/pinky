@@ -2,20 +2,21 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Release.Name }}-ingress
+  name: {{ include "pinky.fullname" . }}-ingress
+  labels:
+    {{- include "pinky.labels" . | nindent 4 }}
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-body-size: "1m"
-    nginx.ingress.kubernetes.io/limit-rps: "50"
 spec:
+  ingressClassName: {{ .Values.ingress.className }}
   {{- if .Values.ingress.tls }}
   tls:
     - hosts:
         - {{ .Values.ingress.host }}
-      secretName: {{ .Release.Name }}-tls
+      secretName: {{ include "pinky.fullname" . }}-tls
   {{- end }}
   rules:
     - host: {{ .Values.ingress.host }}
@@ -25,14 +26,14 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ .Release.Name }}-api
+                name: {{ include "pinky.fullname" . }}-api
                 port:
                   number: 8000
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: {{ .Release.Name }}-web
+                name: {{ include "pinky.fullname" . }}-web
                 port:
                   number: 3000
 {{- end }}

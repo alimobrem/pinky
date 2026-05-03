@@ -1,4 +1,4 @@
-.PHONY: dev dev-infra dev-api dev-worker dev-web lint typecheck test verify clean db-upgrade db-migrate temporal-init
+.PHONY: dev dev-infra dev-api dev-worker dev-web lint typecheck test verify clean db-upgrade db-migrate temporal-init docker-build docker-push helm-lint helm-template deploy
 
 # Development
 CONTAINER_ENGINE ?= podman
@@ -52,6 +52,30 @@ db-migrate:
 # Temporal
 temporal-init:
 	temporal operator namespace create pinky 2>/dev/null || true
+
+# Docker
+REGISTRY ?= $(shell oc registry info 2>/dev/null || echo "localhost:5000")
+TAG ?= latest
+
+docker-build:
+	$(CONTAINER_ENGINE) build -f infra/docker/Dockerfile.api -t $(REGISTRY)/pinky-api:$(TAG) .
+	$(CONTAINER_ENGINE) build -f infra/docker/Dockerfile.web -t $(REGISTRY)/pinky-web:$(TAG) .
+	$(CONTAINER_ENGINE) build -f infra/docker/Dockerfile.worker -t $(REGISTRY)/pinky-worker:$(TAG) .
+
+docker-push:
+	$(CONTAINER_ENGINE) push $(REGISTRY)/pinky-api:$(TAG)
+	$(CONTAINER_ENGINE) push $(REGISTRY)/pinky-web:$(TAG)
+	$(CONTAINER_ENGINE) push $(REGISTRY)/pinky-worker:$(TAG)
+
+# Helm
+helm-lint:
+	helm lint infra/helm/pinky
+
+helm-template:
+	helm template pinky infra/helm/pinky
+
+deploy:
+	./scripts/deploy.sh $(VALUES)
 
 # Clean
 clean:
