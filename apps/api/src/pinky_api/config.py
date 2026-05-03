@@ -24,7 +24,7 @@ class AuthConfig(BaseSettings, frozen=True):
 
 
 class PinkySettings(BaseSettings, frozen=True):
-    model_config = {"env_prefix": "PINKY_"}
+    model_config = {"env_prefix": "PINKY_", "env_nested_delimiter": "__"}
 
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     redis: RedisConfig = Field(default_factory=RedisConfig)
