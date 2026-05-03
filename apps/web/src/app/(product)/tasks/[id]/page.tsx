@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Brain, CheckCircle, Play, ChevronDown, ChevronRight, Zap, Shield, ShieldOff, UserPlus, Ban, Rocket } from "lucide-react";
+import { ArrowLeft, Brain, CheckCircle, Play, ChevronDown, ChevronRight, Zap, Shield, ShieldOff, UserPlus, Ban, Rocket, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { WorkItem, Execution, Investigation, TimelineEvent, PaginatedResponse } from "@pinky/contracts";
@@ -46,6 +46,8 @@ export default function TaskDetailPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [approveOpen, setApproveOpen] = useState(false);
   const [reinvestigateOpen, setReinvestigateOpen] = useState(false);
+  const [ticketOpen, setTicketOpen] = useState(false);
+  const [ticketUrl, setTicketUrl] = useState("");
   const [activeRemediationId, setActiveRemediationId] = useState<string | null>(null);
   const [investigating, setInvestigating] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -108,6 +110,12 @@ export default function TaskDetailPage() {
   const rejectMutation = useMutation({
     mutationFn: () => api.post(`/api/v1/executions/${pendingExecution!.id}/reject`, { reason: rejectReason }),
     onSuccess: () => { toast.success("Rejected"); setRejectOpen(false); setRejectReason(""); invalidateAll(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const ticketMutation = useMutation({
+    mutationFn: () => api.post(`/api/v1/work-items/${taskId}/annotations`, { annotations: { ticket_url: ticketUrl } }),
+    onSuccess: () => { toast.success("Ticket linked"); setTicketOpen(false); setTicketUrl(""); invalidateAll(); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -198,6 +206,7 @@ export default function TaskDetailPage() {
             </>
           )}
           {!isDone && <Button variant="outline" onClick={() => setReassignOpen(true)} disabled={acting}><UserPlus size={14} /> Reassign</Button>}
+          {!isDone && <Button variant="outline" onClick={() => setTicketOpen(true)}><Link2 size={14} /> Link Ticket</Button>}
         </div>
       </div>
 
@@ -207,6 +216,11 @@ export default function TaskDetailPage() {
           <span className={cn("text-[11px] px-2 py-0.5 rounded-sm font-semibold text-white uppercase", PRIORITY_BG[item.priority])}>{item.priority}</span>
           <span className={cn("text-[11px] px-2 py-0.5 rounded-sm font-semibold text-white uppercase", STATUS_BG[item.status])}>{item.status.replace(/_/g, " ")}</span>
           {Object.entries(item.labels).map(([k, v]) => <span key={k} className="text-[11px] px-1.5 py-0.5 bg-bg-elevated rounded-sm text-text-secondary">{k}={v}</span>)}
+          {item.annotations?.ticket_url && (
+            <a href={item.annotations.ticket_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-accent-brand">
+              <Link2 size={12} /> {item.annotations.ticket_url.replace(/^https?:\/\//, "").slice(0, 40)}
+            </a>
+          )}
         </div>
       </div>
 
@@ -357,6 +371,13 @@ export default function TaskDetailPage() {
           <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => { setReinvestigateOpen(false); triggerInvestigation(); }}>Re-investigate</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Ticket Link Dialog */}
+      <Dialog open={ticketOpen} onOpenChange={v => { if (!v) { setTicketOpen(false); setTicketUrl(""); } }}>
+        <DialogContent><DialogHeader><DialogTitle>Link External Ticket</DialogTitle></DialogHeader>
+          <div className="space-y-2"><Label>Ticket URL *</Label><Input value={ticketUrl} onChange={e => setTicketUrl(e.target.value)} placeholder="https://jira.example.com/browse/OPS-123" /></div>
+          <DialogFooter><Button variant="outline" onClick={() => { setTicketOpen(false); setTicketUrl(""); }}>Cancel</Button><Button onClick={() => ticketMutation.mutate()} disabled={!ticketUrl.trim()}>Link</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

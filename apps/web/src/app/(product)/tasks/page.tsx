@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Brain, ChevronRight, Filter } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import type { WorkItem } from "@pinky/contracts";
 import type { PaginatedResponse } from "@pinky/contracts";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,7 @@ export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const router = useRouter();
   const searchParams = useSearchParams();
   const cluster = searchParams.get("cluster");
@@ -53,6 +55,26 @@ export default function TasksPage() {
   }), [queryClient]);
 
   useSSE("/api/v1/streams/work-items", { onEvent: sseHandlers });
+
+  const bulkMutation = useMutation({
+    mutationFn: (action: string) => api.post<{ results: { id: string; status: string }[] }>("/api/v1/work-items/bulk", { ids: [...selectedIds], action }),
+    onSuccess: (data, action) => {
+      const ok = data.results.filter(r => r.status === "ok").length;
+      toast.success(`${ok} tasks ${action === "accepted" ? "accepted" : action === "done" ? "completed" : action}`);
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["work-items"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const filtered = items.filter(i => {
     if (statusFilter && i.status !== statusFilter) return false;
@@ -136,10 +158,27 @@ export default function TasksPage() {
         </div>
       )}
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 mb-4 p-3 px-4 bg-bg-elevated border border-border-default rounded-lg">
+          <span className="text-sm font-semibold">{selectedIds.size} selected</span>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => bulkMutation.mutate("accepted")} disabled={bulkMutation.isPending}>Accept All</Button>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => bulkMutation.mutate("done")} disabled={bulkMutation.isPending}>Complete All</Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+        </div>
+      )}
+
       {!isLoading && filtered.length > 0 && (
         <div className="flex flex-col gap-2">
           {filtered.map((item, idx) => (
-            <Link key={item.id} href={`/tasks/${item.id}`}
+            <div key={item.id} className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={selectedIds.has(item.id)}
+                onChange={() => toggleSelect(item.id)}
+                className="mt-4 ml-1 accent-accent-brand shrink-0"
+              />
+            <Link href={`/tasks/${item.id}`}
               className={cn(
                 "block bg-bg-surface border border-border-default rounded-lg p-4 px-5 border-l-3 transition-colors no-underline",
                 STATUS_BORDER[item.status] || "border-l-border-default",
@@ -167,6 +206,7 @@ export default function TasksPage() {
                 {Object.entries(item.labels).map(([k, v]) => <span key={k} className="text-[11px] px-1.5 py-0.5 bg-bg-elevated rounded-sm text-text-secondary">{k}={v}</span>)}
               </div>
             </Link>
+            </div>
           ))}
         </div>
       )}

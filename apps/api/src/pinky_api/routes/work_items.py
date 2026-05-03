@@ -148,6 +148,60 @@ async def reassign_work_item(
     return _serialize(item)
 
 
+class BulkActionRequest(BaseModel):
+    ids: list[str]
+    action: str
+
+
+@router.post("/bulk")
+async def bulk_action(
+    req: BulkActionRequest,
+    db: AsyncSession = Depends(get_db),
+    _principal: dict = Depends(require_authenticated),
+) -> dict:
+    repo = WorkItemRepository(db)
+    results: list[dict] = []
+    for item_id in req.ids:
+        try:
+            item = await repo.transition(UUID(item_id), req.action)
+            if item:
+                await emit(db, f"work_item.{req.action}", "work_item", UUID(item_id), {"status": req.action})
+                results.append({"id": item_id, "status": "ok"})
+            else:
+                results.append({"id": item_id, "status": "not_found"})
+        except ValueError as e:
+            results.append({"id": item_id, "status": "error", "detail": str(e)})
+    await db.commit()
+    return {"results": results}
+
+
+class AnnotationsUpdateRequest(BaseModel):
+    annotations: dict[str, str]
+
+
+@router.patch("/{work_item_id}/annotations")
+async def update_annotations(
+    work_item_id: str,
+    req: AnnotationsUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    _principal: dict = Depends(require_authenticated),
+) -> dict:
+    from sqlalchemy import update as sa_update
+    from pinky_api.models.work_item import WorkItem
+
+    repo = WorkItemRepository(db)
+    item = await repo.get(UUID(work_item_id))
+    if item is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+
+    merged = {**(item.annotations or {}), **req.annotations}
+    await db.execute(sa_update(WorkItem).where(WorkItem.id == UUID(work_item_id)).values(annotations=merged))
+    await db.commit()
+    db.expire_all()
+    updated = await repo.get(UUID(work_item_id))
+    return _serialize(updated)
+
+
 @router.get("/{work_item_id}/events")
 async def get_work_item_events(work_item_id: str, db: AsyncSession = Depends(get_db)) -> dict:
     from pinky_api.repositories.executions import ExecutionRepository
