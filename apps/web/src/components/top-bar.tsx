@@ -4,11 +4,21 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Search, Brain, ChevronDown, LogOut } from "lucide-react";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface Cluster { id: string; display_name: string; onboarding_state: string; }
 interface SessionInfo { authenticated: boolean; principal?: { display_name?: string }; }
+
+const PAGE_NAMES: Record<string, string> = {
+  dashboard: "Dashboard",
+  tasks: "Tasks",
+  watch: "Watch",
+  history: "History",
+  alerts: "Alerts",
+  settings: "Settings",
+};
 
 export function TopBar() {
   const [clusters, setClusters] = useState<Cluster[]>([]);
@@ -43,9 +53,40 @@ export function TopBar() {
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   };
 
+  const segments = pathname.split("/").filter(Boolean);
+  const breadcrumbs = segments.map((seg, i) => ({
+    label: PAGE_NAMES[seg] || (seg.length > 12 ? `${seg.slice(0, 8)}...` : seg),
+    href: "/" + segments.slice(0, i + 1).join("/"),
+    isLast: i === segments.length - 1,
+  }));
+
   return (
     <header className="flex items-center justify-between h-12 px-5 border-b border-border-subtle bg-bg-primary">
       <div className="flex items-center gap-4">
+        {/* Breadcrumb */}
+        {breadcrumbs.length > 0 && (
+          <Breadcrumb>
+            <BreadcrumbList>
+              {breadcrumbs.map((bc, i) => (
+                <BreadcrumbItem key={bc.href}>
+                  {i > 0 && <BreadcrumbSeparator />}
+                  {bc.isLast ? (
+                    <BreadcrumbPage>{bc.label}</BreadcrumbPage>
+                  ) : (
+                    <BreadcrumbLink asChild>
+                      <Link href={bc.href}>{bc.label}</Link>
+                    </BreadcrumbLink>
+                  )}
+                </BreadcrumbItem>
+              ))}
+            </BreadcrumbList>
+          </Breadcrumb>
+        )}
+
+        {/* Divider */}
+        <div className="w-px h-4 bg-border-subtle" />
+
+        {/* Cluster selector */}
         <div className="relative">
           <select
             aria-label="Cluster selector"
@@ -58,15 +99,18 @@ export function TopBar() {
           </select>
           <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
         </div>
+
+        {/* Search */}
         <button
           onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
           className="flex items-center gap-2 px-3 py-1.5 bg-bg-surface border border-border-default rounded-lg text-text-tertiary text-xs cursor-pointer hover:border-accent-brain/30 transition-colors"
         >
           <Search size={13} />
-          <span className="text-text-tertiary">Search...</span>
+          <span>Search...</span>
           <kbd className="font-mono text-xs px-1.5 py-0.5 rounded bg-bg-active text-text-tertiary ml-4 border border-border-default">⌘K</kbd>
         </button>
       </div>
+
       <div className="flex items-center gap-5 text-xs">
         <div className="flex items-center gap-2 text-text-tertiary">
           <Brain size={13} className="text-accent-brain" />
