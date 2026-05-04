@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from pinky_api.auth.middleware import get_current_principal
 from pinky_api.auth.routes import router as auth_router
@@ -80,6 +81,21 @@ app.include_router(definitions_router)
 app.include_router(webhooks_router)
 app.include_router(policy_rules_router)
 app.include_router(analytics_router)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def starlette_http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    request_id = getattr(request.state, "request_id", "")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "code": f"http_{exc.status_code}",
+                "message": str(exc.detail),
+                "request_id": request_id,
+            }
+        },
+    )
 
 
 @app.exception_handler(HTTPException)
