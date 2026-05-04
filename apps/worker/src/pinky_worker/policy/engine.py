@@ -77,9 +77,11 @@ def matches(conditions: PolicyConditions, input: PolicyInput) -> bool:
             return False
     if conditions.resource_kind and conditions.resource_kind != input.resource_kind:
         return False
-    if conditions.resource_namespace_regex:
-        if not re.match(conditions.resource_namespace_regex, input.resource_namespace):
-            return False
+    if (
+        conditions.resource_namespace_regex
+        and not re.match(conditions.resource_namespace_regex, input.resource_namespace)
+    ):
+        return False
     if conditions.cluster_id and conditions.cluster_id != input.cluster_id:
         return False
     if conditions.labels:
@@ -87,8 +89,7 @@ def matches(conditions: PolicyConditions, input: PolicyInput) -> bool:
             if input.labels.get(k) != v:
                 return False
     if conditions.recurrence_count_gte is not None:
-        if input.recurrence_count < conditions.recurrence_count_gte:
-            return False
+        return input.recurrence_count >= conditions.recurrence_count_gte
     return True
 
 

@@ -50,24 +50,38 @@ def _serialize(r: Any) -> dict:
 async def list_policy_rules(db: AsyncSession = Depends(get_db)) -> dict:
     repo = PolicyRuleRepository(db)
     result = await repo.list()
-    return {"items": [_serialize(r) for r in result["items"]], "next_cursor": result["next_cursor"], "has_more": result["has_more"]}
+    return {
+        "items": [_serialize(r) for r in result["items"]],
+        "next_cursor": result["next_cursor"],
+        "has_more": result["has_more"],
+    }
 
 
 @router.post("", status_code=201)
-async def create_policy_rule(req: PolicyRuleCreateRequest, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> dict:
+async def create_policy_rule(
+    req: PolicyRuleCreateRequest, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin),
+) -> dict:
     repo = PolicyRuleRepository(db)
-    rule = await repo.create(name=req.name, description=req.description, priority=req.priority, conditions=req.conditions, action=req.action)
+    rule = await repo.create(
+        name=req.name, description=req.description, priority=req.priority,
+        conditions=req.conditions, action=req.action,
+    )
     await db.commit()
     return _serialize(rule)
 
 
 @router.put("/{rule_id}")
-async def update_policy_rule(rule_id: str, req: PolicyRuleCreateRequest, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> dict:
+async def update_policy_rule(
+    rule_id: str, req: PolicyRuleCreateRequest,
+    db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin),
+) -> dict:
     raise HTTPException(status_code=501, detail="Policy rule update not implemented")
 
 
 @router.delete("/{rule_id}", status_code=204)
-async def delete_policy_rule(rule_id: str, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> None:
+async def delete_policy_rule(
+    rule_id: str, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin),
+) -> None:
     repo = PolicyRuleRepository(db)
     deleted = await repo.delete(UUID(rule_id))
     if not deleted:

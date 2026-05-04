@@ -30,15 +30,19 @@ class DbIssueCorrelator:
 
             if existing and existing["status"] in ("resolved", "suppressed"):
                 await conn.execute(
-                    "UPDATE issues SET status = 'open', last_seen_at = $1, resolved_at = NULL, updated_at = $1 WHERE id = $2",
+                    "UPDATE issues SET status = 'open', last_seen_at = $1, "
+                "resolved_at = NULL, updated_at = $1 WHERE id = $2",
                     obs.observed_at, existing["id"],
                 )
-                logger.info("reopened issue", issue_id=str(existing["id"]), correlation_key=obs.correlation_key)
+                logger.info(
+                "reopened issue", issue_id=str(existing["id"]), correlation_key=obs.correlation_key,
+            )
                 return CorrelationResult(action="reopened", issue_id=str(existing["id"]))
 
             issue_id = uuid.uuid4()
             await conn.execute(
-                """INSERT INTO issues (id, cluster_id, correlation_key, title, severity, status, labels, annotations, first_seen_at, last_seen_at, created_at, updated_at)
+                """INSERT INTO issues (id, cluster_id, correlation_key, title, severity,
+                status, labels, annotations, first_seen_at, last_seen_at, created_at, updated_at)
                 VALUES ($1, $2::uuid, $3, $4, $5, 'open', $6, '{}', $7, $7, $7, $7)""",
                 issue_id, obs.cluster_id, obs.correlation_key, obs.title, obs.severity,
                 f'{{"scanner": "{obs.scanner}", "check_id": "{obs.check_id}", "resource_kind": "{obs.resource_kind}"}}',
@@ -50,7 +54,9 @@ class DbIssueCorrelator:
             recommended = f"Investigate {obs.check_id} on {obs.resource_namespace}/{obs.resource_name}"
 
             await conn.execute(
-                """INSERT INTO work_items (id, issue_id, cluster_id, title, why_now, recommended_next_step, status, confidence, priority, labels, annotations, artifact_refs, created_at, updated_at)
+                """INSERT INTO work_items (id, issue_id, cluster_id, title, why_now,
+                recommended_next_step, status, confidence, priority, labels,
+                annotations, artifact_refs, created_at, updated_at)
                 VALUES ($1, $2, $3::uuid, $4, $5, $6, 'ready', 0.7, $7, $8, '{}', '{}', $9, $9)""",
                 work_item_id, issue_id, obs.cluster_id, obs.title, why_now, recommended,
                 "high" if obs.severity in ("critical", "high") else "medium",
@@ -67,5 +73,8 @@ class DbIssueCorrelator:
                 f'{{"event_type": "issue.created", "aggregate_id": "{issue_id}"}}',
             )
 
-            logger.info("created issue + work_item", issue_id=str(issue_id), work_item_id=str(work_item_id), title=obs.title)
+            logger.info(
+                "created issue + work_item",
+                issue_id=str(issue_id), work_item_id=str(work_item_id), title=obs.title,
+            )
             return CorrelationResult(action="created", issue_id=str(issue_id))

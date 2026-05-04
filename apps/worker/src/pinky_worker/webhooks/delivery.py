@@ -65,7 +65,8 @@ async def run_delivery_loop() -> None:
                 for event in events:
                     event_type = event["event_type"]
                     event_dict = dict(event)
-                    event_dict["payload"] = json.loads(event_dict["payload"]) if isinstance(event_dict["payload"], str) else event_dict["payload"]
+                    if isinstance(event_dict["payload"], str):
+                        event_dict["payload"] = json.loads(event_dict["payload"])
                     event_dict["aggregate_id"] = str(event_dict["aggregate_id"])
 
                     for sub in subs:
@@ -77,7 +78,8 @@ async def run_delivery_loop() -> None:
                         delivery_id = uuid4()
 
                         await pool.execute(
-                            """INSERT INTO webhook_deliveries (id, subscription_id, domain_event_id, status, attempts, created_at)
+                            """INSERT INTO webhook_deliveries
+                               (id, subscription_id, domain_event_id, status, attempts, created_at)
                                VALUES ($1, $2, $3, 'pending', 0, $4)""",
                             delivery_id, sub["id"], event["id"], datetime.now(UTC),
                         )

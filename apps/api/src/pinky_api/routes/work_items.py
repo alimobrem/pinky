@@ -76,7 +76,9 @@ async def list_work_items(
 
 
 @router.get("/{work_item_id}")
-async def get_work_item(work_item_id: str, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated)) -> dict:
+async def get_work_item(
+    work_item_id: str, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated),
+) -> dict:
     repo = WorkItemRepository(db)
     item = await repo.get(UUID(work_item_id))
     if item is None:
@@ -86,7 +88,9 @@ async def get_work_item(work_item_id: str, db: AsyncSession = Depends(get_db), p
 
 
 @router.post("/{work_item_id}/accept")
-async def accept_work_item(work_item_id: str, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated)) -> dict:
+async def accept_work_item(
+    work_item_id: str, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated),
+) -> dict:
     repo = WorkItemRepository(db)
     current = await repo.get(UUID(work_item_id))
     if current is None:
@@ -104,7 +108,9 @@ async def accept_work_item(work_item_id: str, db: AsyncSession = Depends(get_db)
 
 
 @router.post("/{work_item_id}/start")
-async def start_work_item(work_item_id: str, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated)) -> dict:
+async def start_work_item(
+    work_item_id: str, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated),
+) -> dict:
     repo = WorkItemRepository(db)
     current = await repo.get(UUID(work_item_id))
     if current is None:
@@ -122,7 +128,9 @@ async def start_work_item(work_item_id: str, db: AsyncSession = Depends(get_db),
 
 
 @router.post("/{work_item_id}/complete")
-async def complete_work_item(work_item_id: str, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated)) -> dict:
+async def complete_work_item(
+    work_item_id: str, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated),
+) -> dict:
     repo = WorkItemRepository(db)
     current = await repo.get(UUID(work_item_id))
     if current is None:
@@ -237,7 +245,9 @@ async def update_annotations(
 
 
 @router.get("/{work_item_id}/events")
-async def get_work_item_events(work_item_id: str, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated)) -> dict:
+async def get_work_item_events(
+    work_item_id: str, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated),
+) -> dict:
     work_item_repo = WorkItemRepository(db)
     item = await work_item_repo.get(UUID(work_item_id))
     if item is None:
@@ -262,7 +272,9 @@ async def get_work_item_events(work_item_id: str, db: AsyncSession = Depends(get
 
 
 @router.get("/{work_item_id}/investigation")
-async def get_work_item_investigation(work_item_id: str, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated)) -> dict:
+async def get_work_item_investigation(
+    work_item_id: str, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated),
+) -> dict:
     work_item_repo = WorkItemRepository(db)
     item = await work_item_repo.get(UUID(work_item_id))
     if item is None:

@@ -1,5 +1,6 @@
 import os
 
+import cryptography.exceptions
 import pytest
 
 from pinky_api.security.crypto import decrypt, encrypt, generate_csrf_token, generate_session_token, hash_token
@@ -30,7 +31,7 @@ def test_encrypt_decrypt_with_aad() -> None:
 def test_aad_mismatch_fails() -> None:
     plaintext = b"secret"
     blob = encrypt(plaintext, aad="table_a:row_1")
-    with pytest.raises(Exception):
+    with pytest.raises((ValueError, cryptography.exceptions.InvalidTag)):
         decrypt(blob, aad="table_b:row_2")
 
 
@@ -50,7 +51,7 @@ def test_tampered_blob_fails() -> None:
     plaintext = b"secret"
     blob = encrypt(plaintext)
     tampered = blob[:-1] + bytes([blob[-1] ^ 0xFF])
-    with pytest.raises(Exception):
+    with pytest.raises((ValueError, cryptography.exceptions.InvalidTag)):
         decrypt(tampered)
 
 

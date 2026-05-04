@@ -56,4 +56,6 @@ def test_read_routes_allow_non_admin(non_admin_client: TestClient) -> None:
 def test_live_cluster_reads_require_binding(non_admin_client: TestClient) -> None:
     for path in ["/api/v1/work-items", "/api/v1/issues", "/api/v1/alerts"]:
         response = non_admin_client.get(path)
-        assert response.status_code in (200, 401), f"GET {path} should require binding or return empty, got {response.status_code}"
+        assert response.status_code in (200, 401), (
+            f"GET {path} should require binding or return empty, got {response.status_code}"
+        )
