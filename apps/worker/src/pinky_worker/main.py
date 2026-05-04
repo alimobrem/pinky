@@ -15,6 +15,7 @@ import structlog
 
 from pinky_worker.config import get_settings
 from pinky_worker.definitions.loader import DefinitionRegistry
+from pinky_worker.db import get_pool, close_pool
 from pinky_worker.issues.db_correlator import DbIssueCorrelator
 from pinky_worker.observation.observer import observe_cluster
 from pinky_worker.queues import ALL_QUEUES, INVESTIGATION_QUEUE
@@ -101,7 +102,6 @@ async def run_observer(registry: DefinitionRegistry, correlator: DbIssueCorrelat
 async def run() -> None:
     logger.info("pinky-worker starting")
 
-    from pinky_worker.db import get_pool, close_pool
     await get_pool()
     logger.info("database pool initialized")
 
