@@ -30,6 +30,12 @@ jobs:
       - name: Lint
         working-directory: apps/api
         run: ruff check src/
+      - name: Run migrations
+        working-directory: apps/api
+        env:
+          PINKY_DB__URL: postgresql+asyncpg://pinky:pinky@localhost:5432/pinky
+          PINKY_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+        run: alembic upgrade head
       - name: Test
         working-directory: apps/api
         run: pytest tests/ -v --timeout=30
