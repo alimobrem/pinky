@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select, update as sa_update
+from sqlalchemy import select
+from sqlalchemy import update as sa_update
 
 from pinky_api.models.fleet import ClusterIdentityBinding
 from pinky_api.repositories.base import BaseRepository
@@ -32,6 +33,15 @@ class BindingRepository(BaseRepository):
             )
         )
         return result.scalar_one_or_none()
+
+    async def list_accessible_cluster_ids(self, principal_id: UUID) -> list[UUID]:
+        result = await self.session.execute(
+            select(ClusterIdentityBinding.cluster_id).where(
+                ClusterIdentityBinding.principal_id == principal_id,
+                ClusterIdentityBinding.status.in_(["valid", "expiring"]),
+            )
+        )
+        return [row[0] for row in result.all()]
 
     async def create(self, **kwargs: object) -> ClusterIdentityBinding:
         binding = ClusterIdentityBinding(**kwargs)

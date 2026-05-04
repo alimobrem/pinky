@@ -8,8 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from datetime import UTC, datetime, timedelta
 
 import redis.asyncio as redis
 
@@ -31,7 +30,7 @@ class SessionStore:
         raw_token = generate_session_token()
         csrf_token = generate_csrf_token()
         token_hash = hash_token(raw_token)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         session_data = {
             "principal_id": principal_id,
@@ -44,7 +43,7 @@ class SessionStore:
         key = SESSION_PREFIX + token_hash
         await self._redis.set(key, json.dumps(session_data), ex=int(self.idle_timeout.total_seconds()))
 
-        logger.info("session created", principal_id=principal_id)
+        logger.info("session created for principal %s", principal_id)
         return raw_token, csrf_token
 
     async def validate(self, raw_token: str) -> dict | None:
@@ -59,9 +58,9 @@ class SessionStore:
         session = json.loads(data)
 
         absolute_expires = datetime.fromisoformat(session["absolute_expires_at"])
-        if datetime.now(timezone.utc) > absolute_expires:
+        if datetime.now(UTC) > absolute_expires:
             await self._redis.delete(key)
-            logger.info("session expired (absolute)", principal_id=session["principal_id"])
+            logger.info("session expired (absolute) for principal %s", session["principal_id"])
             return None
 
         # Refresh idle timeout
@@ -101,5 +100,5 @@ class SessionStore:
 
         session = json.loads(data)
         created = datetime.fromisoformat(session["created_at"])
-        age = datetime.now(timezone.utc) - created
+        age = datetime.now(UTC) - created
         return int(age.total_seconds() / 60)

@@ -36,12 +36,16 @@ export default function TasksPage() {
   const cluster = searchParams.get("cluster");
   const queryClient = useQueryClient();
 
-  const queryKey = ["work-items", cluster] as const;
+  const queryKey = ["work-items", cluster, statusFilter, priorityFilter] as const;
   const { data, isLoading, error } = useQuery({
     queryKey,
     queryFn: () => {
-      let url = `/api/v1/work-items`;
-      if (cluster && cluster !== "all") url += `?cluster_id=${cluster}`;
+      const params = new URLSearchParams();
+      if (cluster && cluster !== "all") params.set("cluster_id", cluster);
+      if (statusFilter) params.set("status", statusFilter);
+      if (priorityFilter) params.set("priority", priorityFilter);
+      params.set("limit", "100");
+      const url = `/api/v1/work-items?${params.toString()}`;
       return api.get<PaginatedResponse<WorkItem>>(url);
     },
   });
@@ -88,8 +92,6 @@ export default function TasksPage() {
   // Filter + search + sort
   const processed = useMemo(() => {
     let result = items.filter(i => {
-      if (statusFilter && i.status !== statusFilter) return false;
-      if (priorityFilter && i.priority !== priorityFilter) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         const searchable = [i.title, i.why_now, i.recommended_next_step, ...Object.entries(i.labels).map(([k, v]) => `${k}=${v}`)].filter(Boolean).join(" ").toLowerCase();
@@ -110,7 +112,7 @@ export default function TasksPage() {
     });
 
     return result;
-  }, [items, statusFilter, priorityFilter, searchQuery, sortMode]);
+  }, [items, searchQuery, sortMode]);
 
   const counts = {
     ready: items.filter(i => i.status === "ready").length,
@@ -173,7 +175,7 @@ export default function TasksPage() {
             className="pl-9 h-8 text-xs bg-bg-surface"
           />
         </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
+        <select aria-label="Filter tasks by status" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
           <option value="">All Statuses</option>
           <option value="ready">Ready</option>
           <option value="accepted">Accepted</option>
@@ -181,7 +183,7 @@ export default function TasksPage() {
           <option value="blocked">Blocked</option>
           <option value="waiting_for_approval">Needs Approval</option>
         </select>
-        <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
+        <select aria-label="Filter tasks by priority" value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
           <option value="">All Priorities</option>
           <option value="critical">Critical</option>
           <option value="high">High</option>

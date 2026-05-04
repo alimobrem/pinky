@@ -6,7 +6,6 @@ Layer 3: Execution authorization — risk class, approval state, session freshne
 """
 
 from enum import StrEnum
-from typing import Any
 
 from fastapi import HTTPException
 

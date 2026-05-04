@@ -1,5 +1,6 @@
 """Policy rule routes — declarative triage rule management."""
 
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -32,7 +33,7 @@ class PolicyRuleEvalRequest(BaseModel):
     recurrence_count: int = 1
 
 
-def _serialize(r: object) -> dict:
+def _serialize(r: Any) -> dict:
     return {
         "id": str(r.id),
         "name": r.name,

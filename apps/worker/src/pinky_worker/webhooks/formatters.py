@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 
 def format_generic(event: dict) -> dict:
     return {

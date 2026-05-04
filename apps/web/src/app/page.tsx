@@ -1,8 +1,7 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { fetchServerSession } from "@/lib/server-auth";
 
 export default async function Home() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get("pinky_session");
-  redirect(session ? "/dashboard" : "/login");
+  const session = await fetchServerSession();
+  redirect(session.authenticated ? "/tasks" : "/login");
 }

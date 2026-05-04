@@ -18,7 +18,7 @@ TEST_DB_URL = os.environ.get(
 )
 
 TEST_PRINCIPAL = {
-    "id": "test-principal-id",
+    "id": "00000000-0000-0000-0000-000000000010",
     "provider": "test",
     "email": "test@pinky.dev",
     "groups": ["pinky-admins"],
@@ -55,7 +55,7 @@ def authed_client() -> TestClient:
 
 
 NON_ADMIN_PRINCIPAL = {
-    "id": "regular-user",
+    "id": "00000000-0000-0000-0000-000000000011",
     "provider": "test",
     "email": "user@pinky.dev",
     "groups": ["users"],
@@ -78,4 +78,5 @@ def non_admin_client() -> TestClient:
 
 @pytest.fixture
 def unauthed_client() -> TestClient:
+    app.dependency_overrides.clear()
     return TestClient(app)

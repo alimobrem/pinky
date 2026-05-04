@@ -6,8 +6,7 @@ DB definitions (via API) take precedence over filesystem for same (kind, name).
 
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml

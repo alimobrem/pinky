@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -15,7 +15,7 @@ class AnalyticsRepository(BaseRepository):
         event = AnalyticsEvent(
             event_type=event_type,
             payload=payload,
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=datetime.now(UTC),
             **kwargs,
         )
         self.session.add(event)

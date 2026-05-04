@@ -1,9 +1,8 @@
 """Definition repository — CRUD for runtime definition overrides."""
 
-from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy import delete as sa_delete
+from sqlalchemy import select
 
 from pinky_api.models.extensibility import Definition
 from pinky_api.repositories.base import BaseRepository
@@ -37,7 +36,10 @@ class DefinitionRepository(BaseRepository):
         return defn
 
     async def delete(self, kind: str, name: str) -> bool:
-        result = await self.session.execute(
+        existing = await self.get(kind, name)
+        if existing is None:
+            return False
+        await self.session.execute(
             sa_delete(Definition).where(Definition.kind == kind, Definition.name == name)
         )
-        return result.rowcount > 0
+        return True

@@ -5,14 +5,15 @@ from __future__ import annotations
 import logging
 import os
 import time
+from typing import cast
 
-from anthropic import AsyncAnthropicVertex
+import anthropic
 
 from pinky_worker.llm.provider import LLMProviderConfig, LLMRequest, LLMResponse, ModelTier
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL_MAP = {
+DEFAULT_MODEL_MAP: dict[str | ModelTier, str] = {
     ModelTier.UTILITY: "claude-haiku-4-5-20251001",
     ModelTier.INTERACTIVE: "claude-sonnet-4-6",
     ModelTier.REASONING: "claude-sonnet-4-6",
@@ -25,15 +26,18 @@ class VertexProvider:
         self,
         project_id: str | None = None,
         region: str | None = None,
-        model_map: dict[str, str] | None = None,
+        model_map: dict[str | ModelTier, str] | None = None,
     ) -> None:
         self._project_id = project_id or os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID", "")
         self._region = region or os.environ.get("CLOUD_ML_REGION", "global")
-        self._client = AsyncAnthropicVertex(project_id=self._project_id, region=self._region)
+        vertex_client = getattr(anthropic, "AsyncAnthropicVertex", None)
+        if vertex_client is None:
+            raise RuntimeError("Anthropic SDK does not expose AsyncAnthropicVertex")
+        self._client = vertex_client(project_id=self._project_id, region=self._region)
         self.config = LLMProviderConfig(
             name="vertex",
             base_url=f"https://{self._region}-aiplatform.googleapis.com",
-            model_map=model_map or DEFAULT_MODEL_MAP,
+            model_map=cast("dict[str | ModelTier, str]", model_map or DEFAULT_MODEL_MAP),
         )
 
     async def complete(self, request: LLMRequest) -> LLMResponse:

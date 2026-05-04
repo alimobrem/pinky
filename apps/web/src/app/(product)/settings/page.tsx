@@ -44,6 +44,7 @@ export default function SettingsPage() {
   const [ruleOpen, setRuleOpen] = useState(false);
   const [ruleForm, setRuleForm] = useState({ name: "", description: "", priority: "50", conditions: "{}", action: "{}" });
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: string; label: string } | null>(null);
+  const [bindingClusterId, setBindingClusterId] = useState("");
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["clusters"] });
@@ -383,16 +384,34 @@ export default function SettingsPage() {
             </div>
           )}
           <div className="mt-4">
-            <Button variant="outline" size="sm" onClick={async () => {
-              if (clusters.length === 0) { toast.error("Register a cluster first"); return; }
-              try {
-                await api.post("/api/v1/cluster-bindings", { cluster_id: clusters[0].id });
-                toast.success("Binding created");
-                refresh();
-              } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
-            }}>
-              <Plus size={14} /> Connect to Cluster
-            </Button>
+            <div className="flex items-center gap-3">
+              <Select value={bindingClusterId} onValueChange={setBindingClusterId}>
+                <SelectTrigger className="w-[260px]">
+                  <SelectValue placeholder="Select a cluster to bind" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clusters.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.display_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!bindingClusterId}
+                onClick={async () => {
+                  if (!bindingClusterId) { toast.error("Select a cluster first"); return; }
+                  try {
+                    await api.post("/api/v1/cluster-bindings", { cluster_id: bindingClusterId });
+                    toast.success("Binding created");
+                    setBindingClusterId("");
+                    refresh();
+                  } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+                }}
+              >
+                <Plus size={14} /> Connect to Cluster
+              </Button>
+            </div>
           </div>
         </TabsContent>
 

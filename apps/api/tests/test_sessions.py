@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from pinky_api.auth.sessions import SessionData, SessionManager
 
@@ -10,7 +10,7 @@ def test_create_session() -> None:
     assert len(token) > 32
     assert session.principal_id == "principal-123"
     assert session.csrf_token
-    assert session.idle_expires_at > datetime.now(timezone.utc)
+    assert session.idle_expires_at > datetime.now(UTC)
     assert session.absolute_expires_at > session.idle_expires_at
 
 
@@ -28,7 +28,7 @@ def test_session_invalid_after_idle_expiry() -> None:
         principal_id=session.principal_id,
         token_hash=session.token_hash,
         csrf_token=session.csrf_token,
-        idle_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        idle_expires_at=datetime.now(UTC) - timedelta(minutes=1),
         absolute_expires_at=session.absolute_expires_at,
         created_at=session.created_at,
     )
@@ -43,8 +43,8 @@ def test_session_invalid_after_absolute_expiry() -> None:
         principal_id=session.principal_id,
         token_hash=session.token_hash,
         csrf_token=session.csrf_token,
-        idle_expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-        absolute_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        idle_expires_at=datetime.now(UTC) + timedelta(hours=1),
+        absolute_expires_at=datetime.now(UTC) - timedelta(minutes=1),
         created_at=session.created_at,
     )
     assert not mgr.is_valid(expired)

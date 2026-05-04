@@ -8,7 +8,6 @@ if redaction can't be confirmed, the field is excluded.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 
 BUILTIN_PATTERNS: list[tuple[str, str]] = [
     (r"Bearer [A-Za-z0-9\-._~+/]+", "[REDACTED-BEARER]"),

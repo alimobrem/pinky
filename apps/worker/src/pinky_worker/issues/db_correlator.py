@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 
 import structlog
 
 from pinky_worker.db import get_pool
-from pinky_worker.issues.correlator import RawObservation, CorrelationResult
+from pinky_worker.issues.correlator import CorrelationResult, RawObservation
 
 logger = structlog.get_logger(__name__)
 

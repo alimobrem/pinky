@@ -7,7 +7,7 @@ against K8s API data, and produces RawObservations.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pinky_worker.definitions.loader import Definition
 from pinky_worker.issues.correlator import RawObservation
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def run_pod_health_checks(pods: list[dict], cluster_id: str, scanner_def: Definition) -> list[RawObservation]:
     observations: list[RawObservation] = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for pod in pods:
         ns = pod.get("namespace", "")

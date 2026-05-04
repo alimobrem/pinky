@@ -1,5 +1,7 @@
 """Security headers middleware — strict CSP, HSTS, etc."""
 
+from uuid import uuid4
+
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
@@ -21,7 +23,10 @@ CSP_HEADER = "; ".join(f"{k} {v}" for k, v in CSP_DIRECTIVES.items())
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        request_id = request.headers.get("x-request-id") or uuid4().hex[:12]
+        request.state.request_id = request_id
         response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
         response.headers["Content-Security-Policy"] = CSP_HEADER
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         response.headers["X-Content-Type-Options"] = "nosniff"

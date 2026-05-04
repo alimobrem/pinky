@@ -28,6 +28,11 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 cookie_scheme = APIKeyCookie(name=SESSION_COOKIE_NAME, auto_error=False)
 
 
+def _use_secure_cookies() -> bool:
+    settings = get_settings()
+    return settings.auth.app_url.startswith("https://") or settings.auth.callback_base_url.startswith("https://")
+
+
 def _get_provider(provider_type: str) -> AuthProvider:
     settings = get_settings()
     if provider_type == "openshift":
@@ -130,7 +135,7 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
         token_data = await auth_provider.exchange_code(code, redirect_uri)
     except Exception as e:
         logger.exception("OAuth code exchange failed")
-        raise HTTPException(status_code=502, detail=f"Code exchange failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Code exchange failed: {e}") from None
 
     access_token = token_data.get("access_token")
     if not access_token:
@@ -140,7 +145,7 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
         user_info = await auth_provider.get_user_info(access_token)
     except Exception as e:
         logger.exception("Failed to fetch user info")
-        raise HTTPException(status_code=502, detail=f"User info fetch failed: {e}")
+        raise HTTPException(status_code=502, detail=f"User info fetch failed: {e}") from None
 
     principal_data = await _resolve_principal(user_info, db)
     await db.commit()
@@ -152,12 +157,13 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
 
     logger.info("login successful: %s via %s", principal_data["id"], stored_provider)
 
-    redirect = RedirectResponse(url=f"{settings.auth.app_url}/dashboard", status_code=302)
+    redirect = RedirectResponse(url=f"{settings.auth.app_url}/tasks", status_code=302)
+    secure_cookies = _use_secure_cookies()
     cookie_kwargs = {
         "key": SESSION_COOKIE_NAME,
         "value": raw_token,
         "httponly": True,
-        "secure": False,
+        "secure": secure_cookies,
         "samesite": "lax",
         "path": "/",
         "max_age": int(store.absolute_timeout.total_seconds()),
@@ -169,7 +175,7 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
         "key": "csrf_token",
         "value": csrf_token,
         "httponly": False,
-        "secure": False,
+        "secure": secure_cookies,
         "samesite": "lax",
         "path": "/",
         "max_age": int(store.absolute_timeout.total_seconds()),
@@ -182,11 +188,32 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
 
 @router.post("/logout")
 async def logout(response: Response, session_token: str | None = Depends(cookie_scheme)) -> dict:
+    settings = get_settings()
+    secure_cookies = _use_secure_cookies()
     if session_token and auth_state.session_store:
         await auth_state.session_store.revoke(session_token)
         logger.info("logout")
 
-    response.delete_cookie(SESSION_COOKIE_NAME, httponly=True, secure=True, samesite="strict", path="/")
+    cookie_kwargs = {
+        "key": SESSION_COOKIE_NAME,
+        "httponly": True,
+        "secure": secure_cookies,
+        "samesite": "lax",
+        "path": "/",
+    }
+    csrf_cookie_kwargs = {
+        "key": "csrf_token",
+        "httponly": False,
+        "secure": secure_cookies,
+        "samesite": "lax",
+        "path": "/",
+    }
+    if settings.auth.cookie_domain:
+        cookie_kwargs["domain"] = settings.auth.cookie_domain
+        csrf_cookie_kwargs["domain"] = settings.auth.cookie_domain
+
+    response.delete_cookie(**cookie_kwargs)
+    response.delete_cookie(**csrf_cookie_kwargs)
     return {"message": "Logged out"}
 
 

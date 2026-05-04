@@ -7,7 +7,6 @@ These are the numbers that prove Pinky's value.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 
 
 @dataclass(frozen=True)

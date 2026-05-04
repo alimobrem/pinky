@@ -1,5 +1,6 @@
 """Webhook subscription routes — outbound notification management."""
 
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,7 +22,7 @@ class WebhookCreateRequest(BaseModel):
     channel_config: dict = {}
 
 
-def _serialize_sub(s: object) -> dict:
+def _serialize_sub(s: Any) -> dict:
     return {
         "id": str(s.id),
         "name": s.name,

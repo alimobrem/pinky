@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import base64
 import json
-from typing import Any, TypeVar
-from uuid import UUID
+from datetime import datetime
+from typing import TypeVar
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +28,19 @@ def decode_cursor(cursor: str) -> dict:
     return json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
 
 
+DATETIME_CURSOR_COLUMNS = {
+    "created_at",
+    "updated_at",
+    "occurred_at",
+    "observed_at",
+    "started_at",
+    "completed_at",
+    "expires_at",
+    "first_seen_at",
+    "last_seen_at",
+}
+
+
 class BaseRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -42,14 +55,19 @@ class BaseRepository:
     ) -> dict:
         limit = clamp_limit(limit)
         order_col = getattr(model_class, order_column)
+        count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
 
         if cursor:
             cursor_data = decode_cursor(cursor)
             cursor_value = cursor_data.get("v")
+            if isinstance(cursor_value, str) and order_column in DATETIME_CURSOR_COLUMNS:
+                cursor_value = datetime.fromisoformat(cursor_value)
             stmt = stmt.where(order_col < cursor_value)
 
         stmt = stmt.order_by(order_col.desc()).limit(limit + 1)
 
+        total_result = await self.session.execute(count_stmt)
+        total_count = int(total_result.scalar_one() or 0)
         result = await self.session.execute(stmt)
         rows = result.scalars().all()
 
@@ -66,4 +84,5 @@ class BaseRepository:
             "items": items,
             "next_cursor": next_cursor,
             "has_more": has_more,
+            "total_count": total_count,
         }

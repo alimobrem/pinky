@@ -17,16 +17,19 @@ export default function AlertsPage() {
   const cluster = useCluster();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["alerts", cluster],
+    queryKey: ["alerts", cluster, severityFilter],
     queryFn: () => {
-      let url = "/api/v1/alerts";
-      if (cluster) url += `?cluster_id=${cluster}`;
+      const params = new URLSearchParams();
+      if (cluster) params.set("cluster_id", cluster);
+      if (severityFilter) params.set("severity", severityFilter);
+      params.set("limit", "100");
+      const url = `/api/v1/alerts?${params.toString()}`;
       return api.get<PaginatedResponse<Observation>>(url);
     },
   });
 
   const alerts = data?.items ?? [];
-  const filtered = severityFilter ? alerts.filter(a => a.severity === severityFilter) : alerts;
+  const filtered = alerts;
 
   return (
     <div>
@@ -37,7 +40,7 @@ export default function AlertsPage() {
 
       <div className="flex gap-3 mb-4 items-center">
         <Filter size={14} className="text-text-tertiary" />
-        <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
+        <select aria-label="Filter alerts by severity" value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
           <option value="">All Severities</option>
           <option value="critical">Critical</option>
           <option value="high">High</option>
