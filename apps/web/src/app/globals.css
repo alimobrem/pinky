@@ -1,34 +1,32 @@
 @import "tailwindcss";
 
 @theme {
-  /* ── Backgrounds — deeper, richer dark palette ── */
-  --color-bg-primary:    #08070c;
-  --color-bg-surface:    #111019;
-  --color-bg-elevated:   #1a1825;
-  --color-bg-hover:      #221f30;
-  --color-bg-active:     #2a2640;
+  /* ── Surface system — clear visual hierarchy ── */
+  --color-bg-primary:    #07060b;
+  --color-bg-surface:    #0f0e17;
+  --color-bg-elevated:   #181624;
+  --color-bg-hover:      #1f1d2e;
+  --color-bg-active:     #28253a;
 
-  /* ── Text — refined hierarchy ── */
-  --color-text-primary:  #e8e6ef;
-  --color-text-secondary:#9490a6;
-  --color-text-tertiary: #5c586e;
-  --color-text-inverse:  #08070c;
+  /* ── Text ── */
+  --color-text-primary:  #eae8f0;
+  --color-text-secondary:#a09cb4;
+  --color-text-tertiary: #6b667e;
+  --color-text-inverse:  #07060b;
 
-  /* ── Brand: Pinky — warmer, more vibrant ── */
+  /* ── Brand ── */
   --color-accent-brand:      #f472b6;
   --color-accent-brand-dim:  #ec4899;
-
-  /* ── Brand: The Brain — electric violet ── */
   --color-accent-brain:      #a78bfa;
   --color-accent-brain-dim:  #8b5cf6;
 
-  /* ── Status — desaturated for dark bg, not garish ── */
-  --color-status-ready:      #7cacf8;
-  --color-status-accepted:   #929cf5;
-  --color-status-in-progress:#f0c74b;
-  --color-status-blocked:    #f07070;
-  --color-status-approval:   #f09850;
-  --color-status-done:       #4fd3a5;
+  /* ── Status — slightly muted for dark backgrounds ── */
+  --color-status-ready:      #6fa8f7;
+  --color-status-accepted:   #8b95f0;
+  --color-status-in-progress:#e8be3c;
+  --color-status-blocked:    #ef6b6b;
+  --color-status-approval:   #e89040;
+  --color-status-done:       #45c99a;
 
   /* ── Priority ── */
   --color-priority-critical: #ef4444;
@@ -36,36 +34,36 @@
   --color-priority-medium:   #eab308;
   --color-priority-low:      #6b7280;
 
-  /* ── Borders — visible but not harsh ── */
-  --color-border-default:    #28253a;
-  --color-border-subtle:     #1e1b2e;
+  /* ── Borders ── */
+  --color-border-default:    #2a2740;
+  --color-border-subtle:     #1c1a2d;
   --color-border-focus:      #a78bfa;
   --color-border-brain:      rgba(167, 139, 250, 0.25);
 
-  /* ── shadcn semantic colors ── */
-  --color-background:        #08070c;
-  --color-foreground:        #e8e6ef;
-  --color-card:              #111019;
-  --color-card-foreground:   #e8e6ef;
-  --color-popover:           #1a1825;
-  --color-popover-foreground:#e8e6ef;
+  /* ── shadcn semantic ── */
+  --color-background:        #07060b;
+  --color-foreground:        #eae8f0;
+  --color-card:              #0f0e17;
+  --color-card-foreground:   #eae8f0;
+  --color-popover:           #181624;
+  --color-popover-foreground:#eae8f0;
   --color-primary:           #f472b6;
-  --color-primary-foreground:#08070c;
-  --color-secondary:         #1a1825;
-  --color-secondary-foreground:#e8e6ef;
-  --color-muted:             #111019;
-  --color-muted-foreground:  #9490a6;
-  --color-accent:            #221f30;
-  --color-accent-foreground: #e8e6ef;
-  --color-destructive:       #f07070;
-  --color-border:            #28253a;
-  --color-input:             #28253a;
+  --color-primary-foreground:#07060b;
+  --color-secondary:         #181624;
+  --color-secondary-foreground:#eae8f0;
+  --color-muted:             #0f0e17;
+  --color-muted-foreground:  #a09cb4;
+  --color-accent:            #1f1d2e;
+  --color-accent-foreground: #eae8f0;
+  --color-destructive:       #ef6b6b;
+  --color-border:            #2a2740;
+  --color-input:             #2a2740;
   --color-ring:              #a78bfa;
-  --color-sidebar:           #0d0c14;
-  --color-sidebar-foreground:#e8e6ef;
-  --color-sidebar-border:    #1e1b2e;
-  --color-sidebar-accent:    #1a1825;
-  --color-sidebar-accent-foreground:#e8e6ef;
+  --color-sidebar:           #0b0a12;
+  --color-sidebar-foreground:#eae8f0;
+  --color-sidebar-border:    #1c1a2d;
+  --color-sidebar-accent:    #181624;
+  --color-sidebar-accent-foreground:#eae8f0;
   --color-sidebar-ring:      #f472b6;
 
   /* ── Radii ── */
@@ -74,84 +72,50 @@
   --radius-lg: 12px;
   --radius-xl: 16px;
 
-  /* ── Font ── */
   --font-mono: 'IBM Plex Mono', 'JetBrains Mono', monospace;
 
-  /* ── Shadows — dramatic depth ── */
-  --shadow-elevated:   0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(40, 37, 58, 0.6);
-  --shadow-dropdown:   0 16px 48px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(40, 37, 58, 0.6);
-  --shadow-brain-glow: 0 0 30px rgba(167, 139, 250, 0.1), 0 0 60px rgba(167, 139, 250, 0.05);
-  --shadow-card:       0 2px 8px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(40, 37, 58, 0.5);
-  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(167, 139, 250, 0.15);
+  /* ── Shadows ── */
+  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --shadow-dropdown: 0 16px 64px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-brain-glow: 0 0 40px rgba(167, 139, 250, 0.08);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  --shadow-card-hover: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
 
-  /* ── Animations ── */
   --animate-brain-pulse: brain-pulse 2s ease-in-out infinite;
   --animate-slide-in: slide-in 300ms cubic-bezier(0.16, 1, 0.3, 1);
-  --animate-fade-in: fade-in 400ms ease-out;
+  --animate-fade-in: fade-in 500ms ease-out;
   --animate-shimmer: shimmer 1.5s ease-in-out infinite;
 }
 
 :root {
-  --accent-brand-glow: rgba(244, 114, 182, 0.12);
   --accent-brand-bg:   rgba(244, 114, 182, 0.06);
-  --accent-brain-glow: rgba(167, 139, 250, 0.10);
-  --accent-brain-bg:   rgba(167, 139, 250, 0.05);
+  --accent-brain-bg:   rgba(167, 139, 250, 0.06);
   --accent-brain-pulse:rgba(167, 139, 250, 0.2);
-  --status-ready-bg:       rgba(124, 172, 248, 0.08);
-  --status-in-progress-bg: rgba(240, 199, 75, 0.08);
-  --status-blocked-bg:     rgba(240, 112, 112, 0.08);
-  --status-approval-bg:    rgba(240, 152, 80, 0.08);
-  --status-done-bg:        rgba(79, 211, 165, 0.08);
-  --gradient-brand:    linear-gradient(135deg, #f472b6, #a78bfa);
-  --gradient-brain:    linear-gradient(135deg, #8b5cf6, #a78bfa);
-  --noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  --status-ready-bg:       rgba(111, 168, 247, 0.08);
+  --status-in-progress-bg: rgba(232, 190, 60, 0.08);
+  --status-blocked-bg:     rgba(239, 107, 107, 0.08);
+  --status-approval-bg:    rgba(232, 144, 64, 0.08);
+  --status-done-bg:        rgba(69, 201, 154, 0.08);
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  @apply bg-background text-foreground text-sm leading-relaxed antialiased;
-  background-image: var(--noise);
-  background-repeat: repeat;
+  @apply bg-background text-foreground text-[13px] leading-relaxed antialiased;
 }
 
-a {
-  @apply text-accent-brand no-underline;
-}
-a:hover {
-  @apply underline;
-}
+a { @apply text-accent-brand no-underline; }
+a:hover { @apply underline; }
 
-:focus-visible {
-  @apply outline-2 outline-offset-2 outline-ring;
-}
+:focus-visible { @apply outline-2 outline-offset-2 outline-ring; }
 
-::selection {
-  background: rgba(167, 139, 250, 0.3);
-  color: #e8e6ef;
-}
+::selection { background: rgba(167, 139, 250, 0.3); color: #eae8f0; }
 
-/* ── Scrollbar ── */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(148, 144, 166, 0.2);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 144, 166, 0.35);
-}
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(160, 156, 180, 0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(160, 156, 180, 0.3); }
 
-/* ── Keyframes ── */
 @keyframes brain-pulse {
   0%, 100% { box-shadow: 0 0 0 0 var(--accent-brain-pulse); }
   50%      { box-shadow: 0 0 0 8px transparent; }
@@ -163,8 +127,8 @@ a:hover {
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes shimmer {
@@ -172,41 +136,15 @@ a:hover {
   100% { background-position: 200% 0; }
 }
 
-@keyframes count-bump {
-  0%   { transform: scale(1); }
-  50%  { transform: scale(1.08); }
-  100% { transform: scale(1); }
-}
-
-@keyframes glow-line {
-  0%   { opacity: 0.3; }
-  50%  { opacity: 0.8; }
-  100% { opacity: 0.3; }
-}
-
-/* ── Utilities ── */
-@utility tabular {
-  font-variant-numeric: tabular-nums;
-}
+@utility tabular { font-variant-numeric: tabular-nums; }
 
 @utility skeleton {
-  background: linear-gradient(90deg, var(--color-bg-elevated) 25%, rgba(42, 38, 64, 0.6) 50%, var(--color-bg-elevated) 75%);
+  background: linear-gradient(90deg, var(--color-bg-elevated) 25%, rgba(42, 39, 64, 0.5) 50%, var(--color-bg-elevated) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: var(--radius-md);
 }
 
-@utility glass {
-  background: rgba(17, 16, 25, 0.7);
-  backdrop-filter: blur(12px) saturate(150%);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
-}
-
-@utility glow-border {
-  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.15), 0 0 20px rgba(167, 139, 250, 0.05);
-}
-
-/* ── Responsive ── */
 @media (max-width: 1279px) {
   .two-column { grid-template-columns: 1fr !important; }
 }

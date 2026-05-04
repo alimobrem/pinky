@@ -47,35 +47,30 @@ export function NavRail() {
   }, []);
 
   return (
-    <nav className="w-[200px] min-h-screen bg-sidebar border-r border-sidebar-border flex flex-col max-xl:w-14 max-md:hidden relative overflow-hidden">
-      {/* Subtle gradient glow at top */}
-      <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-accent-brain/[0.04] to-transparent pointer-events-none" />
-
-      <div className="px-4 pt-5 pb-6 flex items-center gap-2.5 relative">
+    <nav className="w-[220px] min-h-screen bg-sidebar border-r border-sidebar-border flex flex-col max-xl:w-[56px] max-md:hidden">
+      {/* Brand */}
+      <div className="px-5 pt-5 pb-6 flex items-center gap-3">
         <div className="relative">
-          <Brain size={24} className="text-accent-brain" />
+          <Brain size={24} className="text-accent-brain drop-shadow-[0_0_8px_rgba(167,139,250,0.4)]" />
           {brainActive && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-status-done animate-brain-pulse" />}
         </div>
-        <span className="text-lg font-bold tracking-[0.08em] bg-gradient-to-br from-accent-brand to-accent-brain bg-clip-text text-transparent max-xl:hidden">PINKY</span>
+        <span className="text-[17px] font-bold tracking-[0.1em] bg-gradient-to-r from-accent-brand to-accent-brain bg-clip-text text-transparent max-xl:hidden">PINKY</span>
       </div>
 
-      <div className="px-3 mb-2 max-xl:px-2">
-        <div className="h-px bg-gradient-to-r from-transparent via-border-default to-transparent" />
-      </div>
+      <div className="mx-4 mb-3 h-px bg-border-subtle" />
 
-      <div className="flex flex-col gap-0.5 px-2 max-xl:px-1">
+      {/* Primary nav */}
+      <div className="flex flex-col gap-1 px-3 max-xl:px-1.5">
         {NAV_ITEMS.filter(i => i.section === "primary").map(item => (
           <NavLink key={item.id} item={item} active={pathname.startsWith(item.path)} badge={badges[item.id]} />
         ))}
       </div>
 
       <div className="flex-1" />
+      <div className="mx-4 my-3 h-px bg-border-subtle" />
 
-      <div className="px-3 my-2 max-xl:px-2">
-        <div className="h-px bg-gradient-to-r from-transparent via-border-default to-transparent" />
-      </div>
-
-      <div className="flex flex-col gap-0.5 px-2 pb-4 max-xl:px-1">
+      {/* Secondary nav */}
+      <div className="flex flex-col gap-1 px-3 pb-5 max-xl:px-1.5">
         {NAV_ITEMS.filter(i => i.section === "secondary").map(item => (
           <NavLink key={item.id} item={item} active={pathname.startsWith(item.path)} />
         ))}
@@ -92,19 +87,17 @@ function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badg
       aria-label={item.label}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] no-underline transition-all duration-200",
+        "group relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium no-underline transition-all duration-150",
         active
-          ? "text-text-primary font-medium bg-accent/80"
-          : "text-text-secondary hover:text-text-primary hover:bg-bg-hover/60"
+          ? "text-text-primary bg-bg-elevated shadow-card"
+          : "text-text-secondary hover:text-text-primary hover:bg-bg-hover"
       )}
     >
-      {active && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full bg-accent-brand" />
-      )}
-      <Icon size={17} strokeWidth={active ? 2.2 : 1.7} className={cn("shrink-0 transition-colors", active ? "text-accent-brand" : "text-text-tertiary group-hover:text-text-secondary")} />
+      {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-accent-brand" />}
+      <Icon size={18} strokeWidth={active ? 2 : 1.6} className={cn("shrink-0", active ? "text-accent-brand" : "text-text-tertiary group-hover:text-text-secondary")} />
       <span className="flex-1 max-xl:hidden">{item.label}</span>
       {badge != null && badge !== "0" && (
-        <span className="text-[10px] font-mono font-semibold tabular bg-accent-brand/15 text-accent-brand px-1.5 py-0.5 rounded-full min-w-5 text-center max-xl:hidden">{badge}</span>
+        <span className="text-[10px] font-mono font-semibold tabular bg-accent-brand/15 text-accent-brand px-1.5 py-0.5 rounded min-w-[20px] text-center max-xl:hidden">{badge}</span>
       )}
     </Link>
   );

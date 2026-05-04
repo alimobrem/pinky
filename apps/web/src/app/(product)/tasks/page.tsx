@@ -99,10 +99,10 @@ export default function TasksPage() {
           { label: "BLOCKED", count: counts.blocked, color: "bg-status-blocked", glow: "shadow-[0_0_12px_rgba(240,112,112,0.08)]" },
           { label: "NEEDS APPROVAL", count: counts.approval, color: "bg-status-approval", glow: "shadow-[0_0_12px_rgba(240,152,80,0.08)]" },
         ].map(s => (
-          <div key={s.label} className={cn("bg-bg-surface border border-border-default rounded-xl p-4 transition-shadow hover:shadow-card", s.count > 0 && s.glow)}>
-            <div className={cn("h-0.5 rounded-full mb-3 w-8", s.color)} />
-            <div className="tabular text-2xl font-bold font-mono">{s.count}</div>
-            <div className="text-[10px] text-text-tertiary font-semibold uppercase tracking-[0.1em] mt-1">{s.label}</div>
+          <div key={s.label} className={cn("bg-bg-surface border border-border-default rounded-xl p-4 shadow-card", s.count > 0 && s.glow)}>
+            <div className={cn("h-1 rounded-full mb-3 w-10", s.color, s.count > 0 ? "opacity-100" : "opacity-30")} />
+            <div className="tabular text-[28px] font-bold font-mono leading-none">{s.count}</div>
+            <div className="text-[10px] text-text-tertiary font-medium uppercase tracking-[0.1em] mt-2">{s.label}</div>
           </div>
         ))}
       </div>
