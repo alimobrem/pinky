@@ -7,6 +7,7 @@ stateless resume (refetch from API on reconnect).
 """
 
 import asyncio
+import contextlib
 import json
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
@@ -37,10 +38,8 @@ async def _sse_with_notify(request: Request, channel: str) -> AsyncGenerator[str
     sequence = 0
     last_event_id = request.headers.get("last-event-id")
     if last_event_id:
-        try:
+        with contextlib.suppress(ValueError):
             sequence = int(last_event_id)
-        except ValueError:
-            pass
     conn: asyncpg.Connection | None = None
 
     try:
@@ -51,10 +50,8 @@ async def _sse_with_notify(request: Request, channel: str) -> AsyncGenerator[str
         queue: asyncio.Queue[str] = asyncio.Queue(maxsize=100)
 
         def _on_notify(conn: asyncpg.Connection, pid: int, channel: str, payload: str) -> None:
-            try:
+            with contextlib.suppress(asyncio.QueueFull):
                 queue.put_nowait(payload)
-            except asyncio.QueueFull:
-                pass
 
         await conn.remove_listener(channel, lambda *_: None)
         await conn.add_listener(channel, _on_notify)

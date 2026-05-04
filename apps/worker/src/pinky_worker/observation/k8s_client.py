@@ -42,7 +42,7 @@ async def list_events(api_client: ApiClient, namespace: str = "", limit: int = 1
 async def scale_deployment(api_client: ApiClient, namespace: str, name: str, replicas: int) -> dict:
     apps_v1 = client.AppsV1Api(api_client)
     body = {"spec": {"replicas": replicas}}
-    result = await apps_v1.patch_namespaced_deployment_scale(name, namespace, body)
+    await apps_v1.patch_namespaced_deployment_scale(name, namespace, body)
     logger.info("scaled deployment %s/%s to %d replicas", namespace, name, replicas)
     return {"name": name, "namespace": namespace, "replicas": replicas, "status": "scaled"}
 
@@ -78,7 +78,13 @@ async def rollback_deployment(api_client: ApiClient, namespace: str, name: str) 
         "spec": {
             "template": {
                 "metadata": {
-                    "annotations": {"kubectl.kubernetes.io/restartedAt": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}
+                    "annotations": {
+                        "kubectl.kubernetes.io/restartedAt": (
+                            __import__("datetime").datetime.now(
+                                __import__("datetime").timezone.utc
+                            ).isoformat()
+                        )
+                    }
                 }
             }
         }

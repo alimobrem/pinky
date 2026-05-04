@@ -38,19 +38,30 @@ def _serialize_sub(s: Any) -> dict:
 async def list_webhook_subscriptions(db: AsyncSession = Depends(get_db)) -> dict:
     repo = WebhookRepository(db)
     result = await repo.list_subscriptions()
-    return {"items": [_serialize_sub(s) for s in result["items"]], "next_cursor": result["next_cursor"], "has_more": result["has_more"]}
+    return {
+        "items": [_serialize_sub(s) for s in result["items"]],
+        "next_cursor": result["next_cursor"],
+        "has_more": result["has_more"],
+    }
 
 
 @router.post("/webhook-subscriptions", status_code=201)
-async def create_webhook_subscription(req: WebhookCreateRequest, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> dict:
+async def create_webhook_subscription(
+    req: WebhookCreateRequest, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin),
+) -> dict:
     repo = WebhookRepository(db)
-    sub = await repo.create_subscription(name=req.name, url=req.url, event_patterns=req.event_patterns, formatter=req.formatter, channel_config=req.channel_config)
+    sub = await repo.create_subscription(
+        name=req.name, url=req.url, event_patterns=req.event_patterns,
+        formatter=req.formatter, channel_config=req.channel_config,
+    )
     await db.commit()
     return _serialize_sub(sub)
 
 
 @router.delete("/webhook-subscriptions/{subscription_id}", status_code=204)
-async def delete_webhook_subscription(subscription_id: str, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> None:
+async def delete_webhook_subscription(
+    subscription_id: str, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin),
+) -> None:
     repo = WebhookRepository(db)
     deleted = await repo.delete_subscription(UUID(subscription_id))
     if not deleted:
@@ -59,7 +70,10 @@ async def delete_webhook_subscription(subscription_id: str, db: AsyncSession = D
 
 
 @router.get("/webhook-deliveries")
-async def list_webhook_deliveries(subscription_id: str | None = None, status: str | None = None, limit: int = 50, db: AsyncSession = Depends(get_db)) -> dict:
+async def list_webhook_deliveries(
+    subscription_id: str | None = None, status: str | None = None,
+    limit: int = 50, db: AsyncSession = Depends(get_db),
+) -> dict:
     repo = WebhookRepository(db)
     result = await repo.list_deliveries(subscription_id=subscription_id, status=status, limit=limit)
     return {"items": [], "next_cursor": result["next_cursor"], "has_more": result["has_more"]}

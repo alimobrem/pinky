@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import logging
 import time
-
-logger = logging.getLogger(__name__)
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
+
+logger = logging.getLogger(__name__)
 
 
 class ModelTier(StrEnum):

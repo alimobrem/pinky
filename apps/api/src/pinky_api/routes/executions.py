@@ -123,7 +123,7 @@ async def start_execution(
             raise HTTPException(status_code=409, detail="Cluster binding required before remediation can start")
         if not isinstance(approval_value, str) or not approval_value:
             raise HTTPException(status_code=409, detail="Approval is required before remediation can start")
-        plan_steps = cast(list[dict[str, Any]], raw_plan_steps)
+        plan_steps = cast("list[dict[str, Any]]", raw_plan_steps)
         binding_id = binding_value
         approval_id = approval_value
     else:
@@ -143,7 +143,9 @@ async def start_execution(
         temporal_client = await get_client()
     except Exception:
         logger.exception("cannot connect to Temporal")
-        raise HTTPException(status_code=503, detail="Workflow engine unavailable — please try again in a moment") from None
+        raise HTTPException(
+            status_code=503, detail="Workflow engine unavailable — please try again in a moment",
+        ) from None
 
     ex = await repo.create(work_item_id=wi_id, cluster_id=wi.cluster_id, execution_type=execution_type)
     await emit(db, "execution.started", "execution", ex.id, {"type": execution_type, "work_item_id": work_item_id})
@@ -245,7 +247,10 @@ async def reject_execution(
     try:
         handle = temporal_client.get_workflow_handle(f"remediation-{execution_id}")
         await handle.signal("reject", {"reason": req.reason})
-        await emit(db, "approval.rejected", "execution", ex.id, {"reason": req.reason}, cluster_id=ex.cluster_id)
+        await emit(
+            db, "approval.rejected", "execution", ex.id,
+            {"reason": req.reason}, cluster_id=ex.cluster_id,
+        )
         await db.commit()
         return {"status": "rejected", "execution_id": execution_id}
     except Exception:

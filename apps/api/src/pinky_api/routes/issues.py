@@ -78,7 +78,9 @@ async def list_issues(
 
 
 @router.get("/{issue_id}")
-async def get_issue(issue_id: str, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated)) -> dict:
+async def get_issue(
+    issue_id: str, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated),
+) -> dict:
     repo = IssueRepository(db)
     issue = await repo.get(UUID(issue_id))
     if issue is None:

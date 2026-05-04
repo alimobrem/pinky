@@ -112,7 +112,8 @@ async def run() -> None:
     await get_pool()
     logger.info("database pool initialized")
 
-    definitions_dir = os.environ.get("PINKY_DEFINITIONS_DIR", str(Path(__file__).parent.parent.parent.parent.parent / "definitions"))
+    default_defs = str(Path(__file__).parent.parent.parent.parent.parent / "definitions")
+    definitions_dir = os.environ.get("PINKY_DEFINITIONS_DIR", default_defs)
     registry = DefinitionRegistry()
     loaded = registry.load_filesystem(definitions_dir)
     logger.info("definitions loaded", count=loaded)

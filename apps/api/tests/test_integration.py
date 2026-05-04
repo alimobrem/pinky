@@ -58,7 +58,10 @@ async def seeded():
                 groups=["pinky-admins"],
             )
         )
-        s.add(ClusterRegistry(id=cluster_id, display_name="int-test-cluster", api_endpoint="https://test", onboarding_state="ready"))
+        s.add(ClusterRegistry(
+            id=cluster_id, display_name="int-test-cluster",
+            api_endpoint="https://test", onboarding_state="ready",
+        ))
         await s.flush()
         s.add(
             ClusterIdentityBinding(
@@ -68,8 +71,13 @@ async def seeded():
                 status="valid",
             )
         )
-        s.add(WorkItem(id=wi1_id, cluster_id=cluster_id, title="Int Task A", status="ready", priority="high"))
-        s.add(WorkItem(id=wi2_id, cluster_id=cluster_id, title="Int Task B", status="ready", priority="medium", why_now="test reason"))
+        s.add(WorkItem(
+            id=wi1_id, cluster_id=cluster_id, title="Int Task A", status="ready", priority="high",
+        ))
+        s.add(WorkItem(
+            id=wi2_id, cluster_id=cluster_id, title="Int Task B",
+            status="ready", priority="medium", why_now="test reason",
+        ))
         await s.commit()
 
     transport = httpx.ASGITransport(app=app)
@@ -79,11 +87,15 @@ async def seeded():
     # Cleanup seeded data
     async with _factory() as s:
         await s.execute(WorkItem.__table__.delete().where(WorkItem.id.in_([wi1_id, wi2_id])))
-        await s.execute(ClusterIdentityBinding.__table__.delete().where(ClusterIdentityBinding.cluster_id == cluster_id))
+        await s.execute(
+            ClusterIdentityBinding.__table__.delete().where(ClusterIdentityBinding.cluster_id == cluster_id)
+        )
         from pinky_api.models.issue import Issue
         await s.execute(Issue.__table__.delete().where(Issue.cluster_id == cluster_id))
         await s.execute(ClusterRegistry.__table__.delete().where(ClusterRegistry.id == cluster_id))
-        await s.execute(Principal.__table__.delete().where(Principal.id == UUID("00000000-0000-0000-0000-000000000010")))
+        await s.execute(
+            Principal.__table__.delete().where(Principal.id == UUID("00000000-0000-0000-0000-000000000010"))
+        )
         await s.commit()
 
     app.dependency_overrides.clear()
@@ -202,7 +214,11 @@ async def test_issue_suppress_and_resolve(seeded) -> None:
     now = datetime.now()
     async with _factory() as s:
         client, cluster_id, *_ = seeded
-        s.add(Issue(id=issue_id, cluster_id=cluster_id, correlation_key="test-issue", title="Test Issue", severity="medium", status="open", first_seen_at=now, last_seen_at=now))
+        s.add(Issue(
+            id=issue_id, cluster_id=cluster_id, correlation_key="test-issue",
+            title="Test Issue", severity="medium", status="open",
+            first_seen_at=now, last_seen_at=now,
+        ))
         await s.commit()
 
     client, cluster_id, *_ = seeded

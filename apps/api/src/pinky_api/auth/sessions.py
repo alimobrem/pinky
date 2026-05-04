@@ -42,9 +42,7 @@ class SessionManager:
         now = datetime.now(UTC)
         if now > session.absolute_expires_at:
             return False
-        if now > session.idle_expires_at:
-            return False
-        return True
+        return not now > session.idle_expires_at
 
     def refresh_idle(self, session: SessionData) -> SessionData:
         now = datetime.now(UTC)
