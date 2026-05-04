@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Brain, ChevronRight, Filter, Search, Check, Play, Ban, Shield, ShieldOff, ArrowUpDown } from "lucide-react";
+import { Brain, ChevronRight, Search, Check, Play, ArrowUpDown } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { WorkItem } from "@pinky/contracts";
@@ -17,6 +17,7 @@ import { STATUS_BG, STATUS_BORDER, PRIORITY_BG, confColor } from "@/lib/status-c
 
 const PRIORITY_WEIGHT: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
 const STATUS_WEIGHT: Record<string, number> = { ready: 3, waiting_for_approval: 2.5, blocked: 2, in_progress: 1.5, accepted: 1, done: 0 };
+const EMPTY_ITEMS: WorkItem[] = [];
 
 function urgencyScore(item: WorkItem): number {
   return (PRIORITY_WEIGHT[item.priority] ?? 1) * (STATUS_WEIGHT[item.status] ?? 1);
@@ -50,7 +51,7 @@ export default function TasksPage() {
     },
   });
 
-  const items = data?.items ?? [];
+  const items = data?.items ?? EMPTY_ITEMS;
 
   const sseHandlers = useMemo(() => ({
     update: () => queryClient.invalidateQueries({ queryKey: ["work-items"] }),
@@ -91,7 +92,7 @@ export default function TasksPage() {
 
   // Filter + search + sort
   const processed = useMemo(() => {
-    let result = items.filter(i => {
+    const result = items.filter(i => {
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         const searchable = [i.title, i.why_now, i.recommended_next_step, ...Object.entries(i.labels).map(([k, v]) => `${k}=${v}`)].filter(Boolean).join(" ").toLowerCase();
