@@ -20,7 +20,9 @@ SESSION_PREFIX = "pinky:session:"
 
 
 class SessionStore:
-    def __init__(self, redis_client: redis.Redis, idle_timeout_minutes: int = 30, absolute_timeout_hours: int = 8) -> None:
+    def __init__(
+        self, redis_client: redis.Redis, idle_timeout_minutes: int = 30, absolute_timeout_hours: int = 8,
+    ) -> None:
         self._redis = redis_client
         self.idle_timeout = timedelta(minutes=idle_timeout_minutes)
         self.absolute_timeout = timedelta(hours=absolute_timeout_hours)
