@@ -34,7 +34,9 @@ class ProviderUserInfo:
 
 
 class AuthProvider:
-    def __init__(self, provider_type: str, client_id: str, client_secret: str, issuer_url: str, api_url: str = "") -> None:
+    def __init__(
+        self, provider_type: str, client_id: str, client_secret: str, issuer_url: str, api_url: str = "",
+    ) -> None:
         self.provider_type = provider_type
         self.client_id = client_id
         self.client_secret = client_secret
@@ -99,7 +101,9 @@ class AuthProvider:
     async def get_user_info(self, access_token: str) -> ProviderUserInfo:
         if self.provider_type == "openshift":
             if not self.api_url:
-                raise ValueError("openshift_api_url is required — set PINKY_AUTH__OPENSHIFT_API_URL to the K8s API server URL")
+                raise ValueError(
+                    "openshift_api_url is required — set PINKY_AUTH__OPENSHIFT_API_URL to the K8s API server URL"
+                )
             userinfo_url = f"{self.api_url}/apis/user.openshift.io/v1/users/~"
         else:
             wk = await self.get_well_known()

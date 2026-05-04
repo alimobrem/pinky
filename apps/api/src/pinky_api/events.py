@@ -54,7 +54,10 @@ async def emit(
     })
     try:
         raw_conn = await db.connection()
-        await raw_conn.execute(text("SELECT pg_notify(:channel, :payload)"), {"channel": channel, "payload": notify_payload})
+        await raw_conn.execute(
+            text("SELECT pg_notify(:channel, :payload)"),
+            {"channel": channel, "payload": notify_payload},
+        )
     except Exception:
         logger.debug("NOTIFY skipped — not connected to Postgres or in test mode")
 
