@@ -12,7 +12,8 @@ from datetime import datetime, timezone
 import structlog
 
 from pinky_worker.definitions.loader import Definition, DefinitionRegistry
-from pinky_worker.issues.correlator import IssueCorrelator, RawObservation
+from pinky_worker.issues.correlator import RawObservation
+from pinky_worker.issues.db_correlator import DbIssueCorrelator
 from pinky_worker.observation.k8s_client import create_client, list_pods
 from pinky_worker.observation.scanner_runner import run_pod_health_checks
 from pinky_worker.policy.engine import PolicyInput, evaluate, rules_from_definitions
@@ -23,7 +24,7 @@ logger = structlog.get_logger(__name__)
 async def observe_cluster(
     cluster_id: str,
     registry: DefinitionRegistry,
-    correlator: IssueCorrelator,
+    correlator: DbIssueCorrelator,
     scan_interval: int = 60,
     max_cycles: int = 0,
 ) -> None:
@@ -40,7 +41,7 @@ async def observe_cluster(
 
     cycle = 0
     try:
-        api_client = await create_client()
+        api_client = await create_client(in_cluster=True)
     except Exception:
         logger.exception("failed to create K8s client for cluster %s", cluster_id)
         return
@@ -55,7 +56,7 @@ async def observe_cluster(
                 observations = run_pod_health_checks(pods, cluster_id, pod_health_def)
 
                 for obs in observations:
-                    result = correlator.correlate(obs)
+                    result = await correlator.correlate(obs)
                     logger.info(
                         "observation",
                         action=result.action,

@@ -15,7 +15,7 @@ import structlog
 
 from pinky_worker.config import get_settings
 from pinky_worker.definitions.loader import DefinitionRegistry
-from pinky_worker.issues.correlator import IssueCorrelator
+from pinky_worker.issues.db_correlator import DbIssueCorrelator
 from pinky_worker.observation.observer import observe_cluster
 from pinky_worker.queues import ALL_QUEUES, INVESTIGATION_QUEUE
 
@@ -66,23 +66,34 @@ async def run_temporal_workers() -> None:
         await asyncio.Event().wait()
 
 
-async def run_observer(registry: DefinitionRegistry, correlator: IssueCorrelator) -> None:
-    cluster_id = os.environ.get("PINKY_OBSERVER_CLUSTER_ID", "default")
+async def run_observer(registry: DefinitionRegistry, correlator: DbIssueCorrelator) -> None:
     scan_interval = int(os.environ.get("PINKY_SCAN_INTERVAL", "60"))
 
-    logger.info("starting observer daemon", cluster_id=cluster_id, scan_interval=scan_interval)
+    logger.info("starting observer daemon", scan_interval=scan_interval)
 
     while True:
         try:
-            await observe_cluster(
-                cluster_id=cluster_id,
-                registry=registry,
-                correlator=correlator,
-                scan_interval=scan_interval,
-                max_cycles=1,
-            )
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch("SELECT id::text FROM cluster_registry WHERE onboarding_state = 'ready'")
+            cluster_ids = [r["id"] for r in rows]
+
+            if not cluster_ids:
+                logger.info("no clusters registered — waiting")
+            else:
+                for cluster_id in cluster_ids:
+                    try:
+                        await observe_cluster(
+                            cluster_id=cluster_id,
+                            registry=registry,
+                            correlator=correlator,
+                            scan_interval=scan_interval,
+                            max_cycles=1,
+                        )
+                    except Exception:
+                        logger.exception("observer scan failed", cluster_id=cluster_id)
         except Exception:
-            logger.exception("observer scan cycle failed", cluster_id=cluster_id)
+            logger.exception("observer cycle failed")
 
         await asyncio.sleep(scan_interval)
 
@@ -99,7 +110,7 @@ async def run() -> None:
     loaded = registry.load_filesystem(definitions_dir)
     logger.info("definitions loaded", count=loaded)
 
-    correlator = IssueCorrelator()
+    correlator = DbIssueCorrelator()
 
     observer_enabled = os.environ.get("PINKY_OBSERVER_ENABLED", "true") == "true"
     temporal_enabled = os.environ.get("PINKY_TEMPORAL_ENABLED", "true") == "true"
