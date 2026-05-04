@@ -149,7 +149,7 @@ export default function TasksPage() {
       <h1 className="text-lg font-semibold tracking-tight mb-5 text-text-primary">Tasks</h1>
 
       {/* Stat strip */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "READY", count: counts.ready, color: "bg-status-ready", glow: "shadow-[0_0_12px_rgba(111,168,247,0.1)]" },
           { label: "IN PROGRESS", count: counts.in_progress, color: "bg-status-in-progress", glow: "shadow-[0_0_12px_rgba(232,190,60,0.1)]" },
@@ -165,8 +165,8 @@ export default function TasksPage() {
       </div>
 
       {/* Search + Filters + Sort */}
-      <div className="flex gap-3 mb-6 items-center">
-        <div className="relative flex-1 max-w-[280px]">
+      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative w-full lg:max-w-[280px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
           <Input
             id="task-search"
@@ -176,33 +176,35 @@ export default function TasksPage() {
             className="pl-9 h-8 text-xs bg-bg-surface"
           />
         </div>
-        <select aria-label="Filter tasks by status" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
-          <option value="">All Statuses</option>
-          <option value="ready">Ready</option>
-          <option value="accepted">Accepted</option>
-          <option value="in_progress">In Progress</option>
-          <option value="blocked">Blocked</option>
-          <option value="waiting_for_approval">Needs Approval</option>
-        </select>
-        <select aria-label="Filter tasks by priority" value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
-          <option value="">All Priorities</option>
-          <option value="critical">Critical</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-        <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
-          <ArrowUpDown size={12} />
-          <select value={sortMode} onChange={e => setSortMode(e.target.value as SortMode)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2 py-1.5 text-xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring">
-            <option value="urgency">Urgency</option>
-            <option value="priority">Priority</option>
-            <option value="newest">Newest</option>
-            <option value="oldest">Oldest</option>
-            <option value="confidence">Confidence</option>
+        <div className="flex flex-wrap items-center gap-3">
+          <select aria-label="Filter tasks by status" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full rounded-lg border border-border-default bg-bg-surface px-2.5 py-2 text-xs text-text-primary transition-colors hover:border-accent-brain/30 focus:outline-none focus:ring-1 focus:ring-ring sm:w-auto">
+            <option value="">All Statuses</option>
+            <option value="ready">Ready</option>
+            <option value="accepted">Accepted</option>
+            <option value="in_progress">In Progress</option>
+            <option value="blocked">Blocked</option>
+            <option value="waiting_for_approval">Needs Approval</option>
           </select>
+          <select aria-label="Filter tasks by priority" value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="w-full rounded-lg border border-border-default bg-bg-surface px-2.5 py-2 text-xs text-text-primary transition-colors hover:border-accent-brain/30 focus:outline-none focus:ring-1 focus:ring-ring sm:w-auto">
+            <option value="">All Priorities</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+            <ArrowUpDown size={12} />
+            <select value={sortMode} onChange={e => setSortMode(e.target.value as SortMode)} className="rounded-lg border border-border-default bg-bg-surface px-2 py-2 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-ring">
+              <option value="urgency">Urgency</option>
+              <option value="priority">Priority</option>
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="confidence">Confidence</option>
+            </select>
+          </div>
+          {(statusFilter || priorityFilter || searchQuery) && <Button variant="ghost" size="sm" onClick={() => { setStatusFilter(""); setPriorityFilter(""); setSearchQuery(""); }} className="h-8 text-xs">Clear</Button>}
         </div>
-        {(statusFilter || priorityFilter || searchQuery) && <Button variant="ghost" size="sm" onClick={() => { setStatusFilter(""); setPriorityFilter(""); setSearchQuery(""); }} className="text-xs h-7">Clear</Button>}
-        <span className="ml-auto text-xs text-text-tertiary font-mono">
+        <span className="text-xs text-text-tertiary font-mono lg:ml-auto">
           {processed.length}/{items.length}
         </span>
       </div>

@@ -83,8 +83,21 @@ if grep -q "url:" "${VALUES_FILE}" && ! grep -Eq 'url:\s*""' "${VALUES_FILE}"; t
 fi
 
 if grep -Eq 'provider:\s*vertex' "${VALUES_FILE}"; then
-  if [[ -f "${PINKY_VERTEX_CREDENTIALS:-secrets/vertex-credentials.json}" ]]; then
-    pass "Vertex credentials source available"
+  VERTEX_CREDS="${PINKY_VERTEX_CREDENTIALS:-secrets/vertex-credentials.json}"
+  if [[ -f "${VERTEX_CREDS}" ]]; then
+    VERTEX_CRED_TYPE="$(python3 - "${VERTEX_CREDS}" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1]) as handle:
+    print(json.load(handle).get("type", "unknown"))
+PY
+)"
+    if [[ "${VERTEX_CRED_TYPE}" == "service_account" ]]; then
+      pass "Vertex service account credential source available"
+    else
+      fail "Vertex credential type '${VERTEX_CRED_TYPE}' is not allowed for cluster deploy; use a service account key"
+    fi
   else
     warn "Vertex credentials not found — LLM features may be disabled"
   fi

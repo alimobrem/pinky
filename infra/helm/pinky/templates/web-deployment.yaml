@@ -14,6 +14,11 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: pinky-web
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.global.deployId }}
+        pinky.openshiftpulse.io/deploy-id: {{ .Values.global.deployId | quote }}
+        {{- end }}
     spec:
       securityContext:
         runAsNonRoot: true

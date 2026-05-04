@@ -38,7 +38,7 @@ export default function AlertsPage() {
         <h1 className="text-lg font-semibold tracking-tight">Alerts</h1>
       </div>
 
-      <div className="flex gap-3 mb-4 items-center">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
         <Filter size={14} className="text-text-tertiary" />
         <select aria-label="Filter alerts by severity" value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
           <option value="">All Severities</option>
@@ -68,12 +68,12 @@ export default function AlertsPage() {
       )}
 
       {filtered.length > 0 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {filtered.map(a => {
             const isExpanded = expandedId === a.id;
             return (
               <div key={a.id} onClick={() => setExpandedId(isExpanded ? null : a.id)}
-                className={`bg-bg-surface border border-border-default rounded-xl p-3 px-5 border-l-3 shadow-card transition-all duration-200 ${SEVERITY_BORDER[a.severity] || "border-l-border-default"} cursor-pointer transition-colors hover:bg-bg-hover`}>
+                className={`bg-bg-surface border border-border-default rounded-xl border-l-[3px] p-4 sm:px-5 shadow-card transition-all duration-200 ${SEVERITY_BORDER[a.severity] || "border-l-border-default"} cursor-pointer transition-colors hover:bg-bg-hover`}>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     {isExpanded ? <ChevronDown size={14} className="text-text-tertiary" /> : <ChevronRight size={14} className="text-text-tertiary" />}

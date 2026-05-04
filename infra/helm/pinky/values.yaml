@@ -1,6 +1,7 @@
 global:
   imageRegistry: ""
   imagePullSecrets: []
+  deployId: ""
 
 web:
   replicas: 2

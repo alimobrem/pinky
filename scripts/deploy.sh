@@ -7,11 +7,23 @@ VALUES_FILE="${1:-infra/helm/values-dev.yaml}"
 KUBE="${PINKY_KUBE_CLI:-$(command -v oc 2>/dev/null || command -v kubectl 2>/dev/null || echo kubectl)}"
 AUTH_SECRET_NAME="${PINKY_AUTH_SECRET_NAME:-${RELEASE}-auth}"
 VERTEX_SECRET_NAME="${PINKY_VERTEX_SECRET_NAME:-${RELEASE}-vertex-credentials}"
+BUILD_ENABLED="${PINKY_BUILD:-false}"
+
+if [[ "${BUILD_ENABLED}" == "true" && -z "${PINKY_TAG:-}" ]]; then
+  GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo local)"
+  export PINKY_TAG="$(date -u +%Y%m%d%H%M%S)-${GIT_SHA}"
+fi
+
+DEPLOY_ID="${PINKY_DEPLOY_ID:-${PINKY_TAG:-$(date -u +%Y%m%d%H%M%S)}}"
 
 echo "==> Deploying Pinky to namespace ${NAMESPACE}"
 echo "    Release: ${RELEASE}"
 echo "    Values:  ${VALUES_FILE}"
 echo "    CLI:     ${KUBE}"
+if [[ -n "${PINKY_TAG:-}" ]]; then
+  echo "    Image tag: ${PINKY_TAG}"
+fi
+echo "    Deploy ID: ${DEPLOY_ID}"
 echo ""
 
 # Pre-flight
@@ -73,6 +85,19 @@ fi
 # Vertex AI credentials
 VERTEX_CREDS="${PINKY_VERTEX_CREDENTIALS:-secrets/vertex-credentials.json}"
 if [[ -f "${VERTEX_CREDS}" ]]; then
+  VERTEX_CRED_TYPE="$(python3 - "${VERTEX_CREDS}" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1]) as handle:
+    print(json.load(handle).get("type", "unknown"))
+PY
+)"
+  if [[ "${VERTEX_CRED_TYPE}" != "service_account" ]]; then
+    echo "    Vertex credentials: refusing insecure credential type '${VERTEX_CRED_TYPE}'"
+    echo "    Provide a dedicated service account JSON key for cluster deployment."
+    exit 1
+  fi
   ${KUBE} create secret generic "${VERTEX_SECRET_NAME}" \
     --namespace "${NAMESPACE}" \
     --from-file=credentials.json="${VERTEX_CREDS}" \
@@ -83,19 +108,32 @@ else
 fi
 
 # Build + push (if requested)
-if [[ "${PINKY_BUILD:-false}" == "true" ]]; then
+if [[ "${BUILD_ENABLED}" == "true" ]]; then
   echo "==> Building images..."
-  make docker-build REGISTRY="${PINKY_REGISTRY:-quay.io/amobrem}"
+  make docker-build REGISTRY="${PINKY_REGISTRY:-quay.io/amobrem}" TAG="${PINKY_TAG}"
   echo "==> Pushing images..."
-  make docker-push REGISTRY="${PINKY_REGISTRY:-quay.io/amobrem}"
+  make docker-push REGISTRY="${PINKY_REGISTRY:-quay.io/amobrem}" TAG="${PINKY_TAG}"
 fi
 
 # Helm install/upgrade
 echo "==> Running helm upgrade --install..."
-helm upgrade --install "${RELEASE}" infra/helm/pinky \
-  --namespace "${NAMESPACE}" \
-  --values "${VALUES_FILE}" \
+HELM_ARGS=(
+  upgrade --install "${RELEASE}" infra/helm/pinky
+  --namespace "${NAMESPACE}"
+  --values "${VALUES_FILE}"
   --timeout 10m
+  --set-string "global.deployId=${DEPLOY_ID}"
+)
+
+if [[ -n "${PINKY_TAG:-}" ]]; then
+  HELM_ARGS+=(
+    --set-string "api.image.tag=${PINKY_TAG}"
+    --set-string "web.image.tag=${PINKY_TAG}"
+    --set-string "worker.image.tag=${PINKY_TAG}"
+  )
+fi
+
+helm "${HELM_ARGS[@]}"
 
 echo ""
 

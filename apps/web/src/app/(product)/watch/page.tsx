@@ -55,12 +55,12 @@ export default function WatchPage() {
 
   return (
     <div className="animate-fade-in">
-      <div className="flex items-center gap-3 mb-5">
+      <div className="mb-5 flex items-center gap-3">
         <Eye size={20} className="text-text-tertiary" />
         <h1 className="text-lg font-semibold tracking-tight">Watch</h1>
       </div>
 
-      <div className="flex items-center gap-2 mb-6 text-xs text-text-tertiary">
+      <div className="mb-6 flex items-center gap-2 text-xs text-text-tertiary">
         <span className={`w-2 h-2 rounded-full inline-block ${connected ? "bg-status-done animate-brain-pulse" : "bg-status-blocked"}`} />
         {connected ? `Live — updated ${lastUpdated ? relativeTime(lastUpdated.toISOString()) : ""}` : sseState === "reconnecting" ? "Reconnecting..." : "Connecting..."}
       </div>
@@ -77,9 +77,9 @@ export default function WatchPage() {
           <Link href="/settings" className="text-accent-brand text-sm mt-4 font-medium no-underline hover:underline">Configure scanners →</Link>
         </div>
       ) : issues.length > 0 ? (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {issues.map(issue => (
-            <div key={issue.id} className={`bg-bg-surface border border-border-default rounded-xl p-4 px-5 border-l-3 shadow-card hover:shadow-card-hover transition-all duration-200 ${SEVERITY_BORDER[issue.severity] || "border-l-border-default"} transition-colors`}>
+            <div key={issue.id} className={`bg-bg-surface border border-border-default rounded-xl border-l-[3px] p-5 shadow-card transition-all duration-200 hover:shadow-card-hover ${SEVERITY_BORDER[issue.severity] || "border-l-border-default"} transition-colors`}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2 flex-1">
                   <Brain size={14} className="text-accent-brain" />

@@ -61,85 +61,85 @@ export function TopBar() {
   }));
 
   return (
-    <header className="flex items-center justify-between h-12 px-5 border-b border-border-subtle bg-bg-primary">
-      <div className="flex items-center gap-4">
-        {/* Breadcrumb */}
-        {breadcrumbs.length > 0 && (
-          <Breadcrumb>
-            <BreadcrumbList>
-              {breadcrumbs.map((bc, i) => (
-                <BreadcrumbItem key={bc.href}>
-                  {i > 0 && <BreadcrumbSeparator />}
-                  {bc.isLast ? (
-                    <BreadcrumbPage>{bc.label}</BreadcrumbPage>
-                  ) : (
-                    <BreadcrumbLink asChild>
-                      <Link href={bc.href}>{bc.label}</Link>
-                    </BreadcrumbLink>
-                  )}
-                </BreadcrumbItem>
-              ))}
-            </BreadcrumbList>
-          </Breadcrumb>
-        )}
+    <header className="border-b border-border-subtle bg-bg-primary/95 backdrop-blur supports-[backdrop-filter]:bg-bg-primary/90">
+      <div className="flex flex-col gap-3 px-4 py-3 lg:px-5 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:gap-4">
+          {breadcrumbs.length > 0 && (
+            <Breadcrumb>
+              <BreadcrumbList>
+                {breadcrumbs.map((bc, i) => (
+                  <BreadcrumbItem key={bc.href}>
+                    {i > 0 && <BreadcrumbSeparator />}
+                    {bc.isLast ? (
+                      <BreadcrumbPage>{bc.label}</BreadcrumbPage>
+                    ) : (
+                      <BreadcrumbLink asChild>
+                        <Link href={bc.href}>{bc.label}</Link>
+                      </BreadcrumbLink>
+                    )}
+                  </BreadcrumbItem>
+                ))}
+              </BreadcrumbList>
+            </Breadcrumb>
+          )}
 
-        {/* Divider */}
-        <div className="w-px h-4 bg-border-subtle" />
+          <div className="hidden h-4 w-px bg-border-subtle lg:block" />
 
-        {/* Cluster selector */}
-        <div className="relative">
-          <select
-            aria-label="Cluster selector"
-            value={selectedCluster}
-            onChange={e => handleClusterChange(e.target.value)}
-            className="appearance-none bg-bg-surface text-text-primary border border-border-default rounded-lg pl-3 pr-8 py-1.5 text-xs font-medium cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="all">All Clusters ({clusters.length})</option>
-            {clusters.map(c => <option key={c.id} value={c.id}>{c.display_name}</option>)}
-          </select>
-          <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
-        </div>
-
-        {/* Search */}
-        <button
-          onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-          className="flex items-center gap-2 px-3 py-1.5 bg-bg-surface border border-border-default rounded-lg text-text-tertiary text-xs cursor-pointer hover:border-accent-brain/30 transition-colors"
-        >
-          <Search size={13} />
-          <span>Search...</span>
-          <kbd className="font-mono text-xs px-1.5 py-0.5 rounded bg-bg-active text-text-tertiary ml-4 border border-border-default">⌘K</kbd>
-        </button>
-      </div>
-
-      <div className="flex items-center gap-5 text-xs">
-        <div className="flex items-center gap-2 text-text-tertiary">
-          <Brain size={13} className="text-accent-brain" />
-          <span className="w-1.5 h-1.5 rounded-full bg-status-done animate-brain-pulse" />
-          <span className="font-medium">Brain active</span>
-        </div>
-        {session?.authenticated ? (
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-text-secondary font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-status-done" />
-              <span>{session.principal?.display_name || "Connected"}</span>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative">
+              <select
+                aria-label="Cluster selector"
+                value={selectedCluster}
+                onChange={e => handleClusterChange(e.target.value)}
+                className="w-full appearance-none rounded-lg border border-border-default bg-bg-surface py-2 pl-3 pr-8 text-xs font-medium text-text-primary transition-colors hover:border-accent-brain/30 focus:outline-none focus:ring-1 focus:ring-ring sm:w-auto"
+              >
+                <option value="all">All Clusters ({clusters.length})</option>
+                {clusters.map(c => <option key={c.id} value={c.id}>{c.display_name}</option>)}
+              </select>
+              <ChevronDown size={12} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
             </div>
+
             <button
-              onClick={async () => {
-                await fetch("/api/v1/auth/logout", { method: "POST", credentials: "include" });
-                window.location.href = "/login";
-              }}
-              className="text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer bg-transparent border-none p-1"
-              title="Sign out"
+              onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+              className="flex w-full items-center gap-2 rounded-lg border border-border-default bg-bg-surface px-3 py-2 text-xs text-text-tertiary transition-colors hover:border-accent-brain/30 sm:w-auto"
             >
-              <LogOut size={13} />
+              <Search size={13} />
+              <span>Search...</span>
+              <kbd className="ml-auto rounded border border-border-default bg-bg-active px-1.5 py-0.5 font-mono text-xs text-text-tertiary sm:ml-4">⌘K</kbd>
             </button>
           </div>
-        ) : session !== null ? (
-          <Link href="/login" className={cn("flex items-center gap-2 no-underline font-medium", "text-status-blocked")}>
-            <span className="w-1.5 h-1.5 rounded-full bg-status-blocked" />
-            <span>Session expired</span>
-          </Link>
-        ) : null}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-xs sm:gap-5 xl:justify-end">
+          <div className="flex items-center gap-2 text-text-tertiary">
+            <Brain size={13} className="text-accent-brain" />
+            <span className="h-1.5 w-1.5 rounded-full bg-status-done animate-brain-pulse" />
+            <span className="font-medium">Brain active</span>
+          </div>
+          {session?.authenticated ? (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 font-medium text-text-secondary">
+                <span className="h-1.5 w-1.5 rounded-full bg-status-done" />
+                <span>{session.principal?.display_name || "Connected"}</span>
+              </div>
+              <button
+                onClick={async () => {
+                  await fetch("/api/v1/auth/logout", { method: "POST", credentials: "include" });
+                  window.location.href = "/login";
+                }}
+                className="cursor-pointer border-none bg-transparent p-1 text-text-tertiary transition-colors hover:text-text-secondary"
+                title="Sign out"
+              >
+                <LogOut size={13} />
+              </button>
+            </div>
+          ) : session !== null ? (
+            <Link href="/login" className={cn("flex items-center gap-2 no-underline font-medium", "text-status-blocked")}>
+              <span className="h-1.5 w-1.5 rounded-full bg-status-blocked" />
+              <span>Session expired</span>
+            </Link>
+          ) : null}
+        </div>
       </div>
     </header>
   );

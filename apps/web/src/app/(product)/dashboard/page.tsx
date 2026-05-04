@@ -47,7 +47,7 @@ export default function DashboardPage() {
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="mb-8 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-text-primary">Dashboard</h1>
           <p className="text-sm text-text-secondary mt-1">{totalActive} active tasks across {clusters.length} clusters</p>
@@ -59,7 +59,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 xl:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
 
         {/* Card 1: Task Summary */}
         <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card">
@@ -72,7 +72,7 @@ export default function DashboardPage() {
               View all <ArrowRight size={11} />
             </Link>
           </div>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               { label: "Ready", count: counts.ready, color: "text-status-ready" },
               { label: "Active", count: counts.in_progress, color: "text-status-in-progress" },

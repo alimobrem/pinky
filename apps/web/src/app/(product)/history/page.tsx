@@ -67,7 +67,7 @@ export default function HistoryPage() {
         <h1 className="text-lg font-semibold tracking-tight">History</h1>
       </div>
 
-      <div className="flex gap-3 mb-4 items-center">
+      <div className="mb-5 flex flex-wrap items-center gap-3">
         <Filter size={14} className="text-text-tertiary" />
         <select aria-label="Filter history by type" value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
           <option value="">All Types</option>
@@ -103,15 +103,15 @@ export default function HistoryPage() {
                 <div
                   onClick={() => handleRowClick(e)}
                   className={cn(
-                    "grid grid-cols-[10px_140px_120px_1fr] gap-3 p-3 px-4 items-center transition-colors",
+                    "grid grid-cols-[10px_1fr] gap-x-3 gap-y-1 p-3 px-4 transition-colors sm:grid-cols-[10px_140px_120px_1fr] sm:gap-3 sm:items-center",
                     navTarget && "cursor-pointer hover:bg-bg-hover",
                     i < filtered.length - 1 && !isExpanded && "border-b border-border-subtle"
                   )}
                 >
                   <div className={`w-2 h-2 rounded-full ${TYPE_COLORS[e.aggregate_type] || "bg-text-tertiary"}`} />
-                  <span className="font-mono text-xs text-text-tertiary tabular">{relativeTime(e.occurred_at)}</span>
-                  <span className={`text-[11px] font-semibold uppercase tracking-wider ${TYPE_TEXT[e.aggregate_type] || "text-text-secondary"}`}>{e.event_type}</span>
-                  <span className={navTarget ? "text-sm text-accent-brand" : "text-sm text-text-secondary"}>
+                  <span className="col-start-2 font-mono text-xs text-text-tertiary tabular sm:col-start-auto">{relativeTime(e.occurred_at)}</span>
+                  <span className={`col-start-2 text-[11px] font-semibold uppercase tracking-wider ${TYPE_TEXT[e.aggregate_type] || "text-text-secondary"} sm:col-start-auto`}>{e.event_type}</span>
+                  <span className={cn(navTarget ? "text-sm text-accent-brand" : "text-sm text-text-secondary", "col-start-2 sm:col-start-auto")}>
                     {e.aggregate_type}/{e.aggregate_id.slice(0, 8)}
                   </span>
                 </div>

@@ -82,7 +82,7 @@ export function CommandPalette() {
       role="dialog"
       aria-modal="true"
       aria-label="Command palette"
-      className="fixed inset-0 z-100 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-[120px]"
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/60 px-4 pt-8 backdrop-blur-sm sm:pt-16 lg:pt-[120px]"
       onClick={() => setOpen(false)}
     >
       <div
@@ -96,7 +96,7 @@ export function CommandPalette() {
           if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
           else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
         }}
-        className="w-[560px] max-h-[480px] bg-bg-elevated border border-border-default rounded-xl shadow-dropdown overflow-hidden flex flex-col"
+        className="flex max-h-[min(70vh,560px)] w-[min(640px,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-border-default bg-bg-elevated shadow-dropdown"
       >
         <div className="flex items-center gap-3 p-4 border-b border-border-subtle">
           <Search size={18} className="text-text-tertiary shrink-0" />

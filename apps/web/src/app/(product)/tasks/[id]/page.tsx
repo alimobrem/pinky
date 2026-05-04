@@ -195,7 +195,7 @@ export default function TaskDetailPage() {
   return (
     <div>
       {/* Back + Actions */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <button onClick={() => router.push("/tasks")} className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary bg-transparent border-none cursor-pointer">
           <ArrowLeft size={16} /> Back to Tasks
         </button>
@@ -220,7 +220,7 @@ export default function TaskDetailPage() {
       </div>
 
       {/* Title + badges */}
-      <div className="mb-6">
+      <div className="mb-8">
         <h1 className="text-lg font-semibold tracking-tight mb-3 leading-snug">{item.title}</h1>
         <div className="flex gap-3 items-center flex-wrap">
           <span className={cn("text-[11px] px-2 py-0.5 rounded-sm font-semibold text-white uppercase", PRIORITY_BG[item.priority])}>{item.priority}</span>
@@ -240,7 +240,7 @@ export default function TaskDetailPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-5 mb-6">
+      <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex flex-col gap-4">
           <section className="bg-bg-surface border border-border-default rounded-lg p-5">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-text-tertiary mb-3 pb-2 border-b border-border-subtle">Summary</h2>
@@ -274,7 +274,7 @@ export default function TaskDetailPage() {
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="bg-[var(--accent-brain-bg)] border border-border-brain border-l-3 border-l-accent-brain rounded-lg p-5 shadow-brain-glow">
+          <div className="bg-[var(--accent-brain-bg)] border border-border-brain border-l-[3px] border-l-accent-brain rounded-lg p-5 shadow-brain-glow">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-accent-brain"><Brain size={16} /> The Brain recommends</div>
               {(inv?.confidence ?? item.confidence) != null && (
