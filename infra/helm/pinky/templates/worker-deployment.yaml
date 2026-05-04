@@ -69,14 +69,14 @@ spec:
                 secretKeyRef:
                   name: {{ include "pinky.encryptionSecretName" . }}
                   key: key
-          {{- if .Values.llm.vertexServiceAccountKey }}
+          {{- if .Values.llm.existingCredentialsSecret }}
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: /etc/vertex/credentials.json
           {{- end }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
-            {{- if .Values.llm.vertexServiceAccountKey }}
+            {{- if .Values.llm.existingCredentialsSecret }}
             - name: vertex-credentials
               mountPath: /etc/vertex
               readOnly: true
@@ -93,8 +93,8 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
-        {{- if .Values.llm.vertexServiceAccountKey }}
+        {{- if .Values.llm.existingCredentialsSecret }}
         - name: vertex-credentials
           secret:
-            secretName: {{ include "pinky.fullname" . }}-vertex-credentials
+            secretName: {{ .Values.llm.existingCredentialsSecret }}
         {{- end }}

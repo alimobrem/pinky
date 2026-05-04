@@ -105,7 +105,7 @@ Dev cluster: `aws-jb-acsacm-1.dev05.red-chesterfield.com`
 # Required env vars for OAuth login
 PINKY_AUTH__OPENSHIFT_ISSUER_URL=https://oauth-openshift.apps.aws-jb-acsacm-1.dev05.red-chesterfield.com
 PINKY_AUTH__OPENSHIFT_CLIENT_ID=pinky
-PINKY_AUTH__OPENSHIFT_CLIENT_SECRET=REDACTED_ROTATE_THIS_SECRET
+PINKY_AUTH__OPENSHIFT_CLIENT_SECRET=<from secrets/oauth-client-secret>
 PINKY_AUTH__OPENSHIFT_API_URL=https://api.aws-jb-acsacm-1.dev05.red-chesterfield.com:6443
 PINKY_AUTH__CALLBACK_BASE_URL=http://localhost:8000
 PINKY_AUTH__COOKIE_DOMAIN=localhost

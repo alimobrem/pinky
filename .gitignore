@@ -63,3 +63,4 @@ infra/docker/data/
 # Misc
 *.log
 tmp/
+secrets/

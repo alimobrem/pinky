@@ -22,13 +22,19 @@ auth:
   openshift:
     issuerUrl: https://oauth-openshift.apps.aws-jb-acsacm-1.dev05.red-chesterfield.com
     clientId: pinky
-    clientSecret: REDACTED_ROTATE_THIS_SECRET
+    clientSecret: ""  # Set via: oc create secret generic pinky-auth --from-literal=openshift-client-secret=YOUR_SECRET
     apiUrl: https://api.aws-jb-acsacm-1.dev05.red-chesterfield.com:6443
   callbackBaseUrl: https://pinky.apps.aws-jb-acsacm-1.dev05.red-chesterfield.com
   appUrl: https://pinky.apps.aws-jb-acsacm-1.dev05.red-chesterfield.com
 
 networkPolicy:
   enabled: true
+
+llm:
+  provider: vertex
+  vertexProjectId: ""
+  vertexRegion: "us-east5"
+  existingCredentialsSecret: "pinky-vertex-credentials"
 
 debug: false
 logLevel: INFO

@@ -118,7 +118,7 @@ llm:
   provider: vertex
   vertexProjectId: ""
   vertexRegion: "us-east5"
-  vertexServiceAccountKey: ""
+  existingCredentialsSecret: ""
 
 debug: false
 logLevel: INFO
