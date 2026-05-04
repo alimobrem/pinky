@@ -142,7 +142,7 @@ spec:
             - name: POSTGRES_SEEDS
               value: {{ include "pinky.fullname" . }}-temporal-db
             - name: VISIBILITY_DBNAME
-              value: temporal
+              value: temporal_visibility
             - name: VISIBILITY_DB_PORT
               value: "5432"
             - name: DEFAULT_NAMESPACE
