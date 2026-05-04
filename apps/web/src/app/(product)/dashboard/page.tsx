@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Brain, CheckSquare, Eye, Clock, AlertTriangle, Shield, ArrowRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { WorkItem, Issue, HistoryEvent, ClusterRegistryEntry, PaginatedResponse } from "@pinky/contracts";
+import { EmptyState } from "@/components/empty-state";
+import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { relativeTime } from "@/lib/format-date";
@@ -46,23 +48,23 @@ export default function DashboardPage() {
 
   return (
     <div className="animate-fade-in">
-      {/* Header */}
-      <div className="mb-8 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-text-primary">Dashboard</h1>
-          <p className="text-sm text-text-secondary mt-1">{totalActive} active tasks across {clusters.length} clusters</p>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-text-tertiary">
-          <Brain size={14} className="text-accent-brain" />
-          <span className="w-1.5 h-1.5 rounded-full bg-status-done animate-brain-pulse" />
-          <span className="font-medium">Brain monitoring</span>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Operations overview"
+        title="Dashboard"
+        description="See what needs attention, where it is happening, and whether The Brain is surfacing work that still needs a decision."
+        meta={
+          <>
+            <span>{totalActive} active tasks</span>
+            <span>{issues.length} open issues</span>
+            <span>{clusters.length} registered clusters</span>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-12">
 
         {/* Card 1: Task Summary */}
-        <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card">
+        <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card xl:col-span-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
               <CheckSquare size={15} className="text-accent-brand" />
@@ -88,7 +90,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Card 2: Cluster Health */}
-        <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card">
+        <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card xl:col-span-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
               <Eye size={15} className="text-accent-brain" />
@@ -99,10 +101,13 @@ export default function DashboardPage() {
             </Link>
           </div>
           {clusters.length === 0 ? (
-            <div className="text-sm text-text-tertiary py-4 text-center">
-              No clusters registered.
-              <Link href="/settings" className="text-accent-brand ml-1">Add one →</Link>
-            </div>
+            <EmptyState
+              title="No clusters registered."
+              description="Add a cluster to start watching live operational data here."
+              icon={<Eye size={18} />}
+              className="border-none bg-transparent px-0 py-6 shadow-none"
+              action={<Link href="/settings">Add one →</Link>}
+            />
           ) : (
             <div className="flex flex-col gap-2.5">
               {clusters.map(c => {
@@ -125,7 +130,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Card 3: Pending Approvals */}
-        <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card">
+        <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card xl:col-span-3">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
               <Shield size={15} className="text-status-approval" />
@@ -148,7 +153,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Card 4: Active Issues */}
-        <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card">
+        <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card xl:col-span-7">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
               <AlertTriangle size={15} className="text-status-blocked" />
@@ -174,7 +179,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Card 5: Recent Activity */}
-        <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card">
+        <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card xl:col-span-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
               <Clock size={15} className="text-text-tertiary" />
@@ -199,7 +204,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Card 6: Brain Status */}
-        <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card border-l-[3px] border-l-accent-brain">
+        <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card border-l-[3px] border-l-accent-brain xl:col-span-12 2xl:col-span-3">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-accent-brain">
               <Brain size={15} />

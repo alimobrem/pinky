@@ -3,86 +3,303 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Brain, ChevronRight, Search, Check, Play, ArrowUpDown } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowUpDown,
+  Ban,
+  Brain,
+  Check,
+  CheckSquare,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  Link2,
+  Play,
+  Search,
+  Shield,
+} from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { WorkItem } from "@pinky/contracts";
-import type { PaginatedResponse } from "@pinky/contracts";
+import type { ClusterRegistryEntry, PaginatedResponse, WorkItem } from "@pinky/contracts";
+import { EmptyState } from "@/components/empty-state";
+import { PageHeader } from "@/components/page-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSSE } from "@/hooks/use-sse";
 import { api } from "@/lib/api";
+import { relativeTime } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
-import { STATUS_BG, STATUS_BORDER, PRIORITY_BG, confColor } from "@/lib/status-colors";
+import { PRIORITY_BG, STATUS_BG, confColor } from "@/lib/status-colors";
 
 const PRIORITY_WEIGHT: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
-const STATUS_WEIGHT: Record<string, number> = { ready: 3, waiting_for_approval: 2.5, blocked: 2, in_progress: 1.5, accepted: 1, done: 0 };
+const STATUS_WEIGHT: Record<string, number> = {
+  ready: 3,
+  waiting_for_approval: 2.5,
+  blocked: 2,
+  in_progress: 1.5,
+  accepted: 1,
+  done: 0,
+};
 const EMPTY_ITEMS: WorkItem[] = [];
+const QUEUES = [
+  {
+    id: "all",
+    label: "All tasks",
+    description: "Everything The Brain surfaced for review.",
+    status: "",
+  },
+  {
+    id: "ready",
+    label: "Ready to triage",
+    description: "Fresh work that needs a human read.",
+    status: "ready",
+  },
+  {
+    id: "active",
+    label: "In progress",
+    description: "Accepted or actively being worked.",
+    status: "accepted,in_progress",
+  },
+  {
+    id: "blocked",
+    label: "Blocked",
+    description: "Needs an unblock before it can move.",
+    status: "blocked",
+  },
+  {
+    id: "approval",
+    label: "Needs approval",
+    description: "Waiting on a human decision to continue.",
+    status: "waiting_for_approval",
+  },
+] as const;
 
 function urgencyScore(item: WorkItem): number {
   return (PRIORITY_WEIGHT[item.priority] ?? 1) * (STATUS_WEIGHT[item.status] ?? 1);
 }
 
+function countForStatus(items: WorkItem[], status: string): number {
+  if (!status) return items.length;
+  const statuses = status.split(",");
+  return items.filter((item) => statuses.includes(item.status)).length;
+}
+
+function getQueueId(statusFilter: string): string {
+  const match = QUEUES.find((queue) => queue.status === statusFilter);
+  return match?.id ?? "all";
+}
+
 type SortMode = "urgency" | "newest" | "oldest" | "priority" | "confidence";
+
+function getTaskExcerpt(item: WorkItem): string {
+  const source = item.why_now || item.recommended_next_step || "Awaiting a fuller investigation summary.";
+  if (source.length <= 180) return source;
+  return `${source.slice(0, 177).trimEnd()}...`;
+}
+
+function getVisibleLabels(item: WorkItem): Array<[string, string]> {
+  return Object.entries(item.labels).slice(0, 2);
+}
+
+interface TaskPreviewPanelProps {
+  task: WorkItem;
+  clusterName: string;
+  acting: boolean;
+  onAccept: () => void;
+  onStart: () => void;
+  onComplete: () => void;
+  onOpen: () => void;
+}
+
+function TaskPreviewPanel({
+  task,
+  clusterName,
+  acting,
+  onAccept,
+  onStart,
+  onComplete,
+  onOpen,
+}: TaskPreviewPanelProps) {
+  return (
+    <section className="rounded-2xl border border-accent-brain/25 bg-[linear-gradient(135deg,rgba(15,14,23,0.98),rgba(28,24,44,0.96))] p-5 shadow-[0_0_30px_rgba(167,139,250,0.06)]">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-accent-brain">
+          Selected task
+        </div>
+        <Badge variant="outline" className="rounded-full border-border-subtle bg-bg-elevated text-text-secondary">
+          {clusterName}
+        </Badge>
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold leading-tight text-text-primary">{task.title}</h2>
+          <p className="text-sm leading-relaxed text-text-secondary">{task.why_now || "No short triage summary is available yet."}</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-3 py-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Priority</div>
+            <div className="mt-2 text-sm font-semibold text-text-primary">{task.priority}</div>
+          </div>
+          <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-3 py-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Status</div>
+            <div className="mt-2 text-sm font-semibold text-text-primary">{task.status.replace(/_/g, " ")}</div>
+          </div>
+          <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-3 py-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Confidence</div>
+            <div className={cn("mt-2 text-sm font-semibold", task.confidence != null ? confColor(task.confidence) : "text-text-primary")}>
+              {task.confidence != null ? `${Math.round(task.confidence * 100)}%` : "Unknown"}
+            </div>
+          </div>
+          <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-3 py-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Created</div>
+            <div className="mt-2 text-sm font-semibold text-text-primary">
+              {task.created_at ? new Date(task.created_at).toLocaleDateString() : "Recent"}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border-subtle bg-bg-elevated/50 px-4 py-4">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-accent-brain">
+            <Brain size={12} />
+            Next best move
+          </div>
+          <p className="text-sm leading-relaxed text-text-secondary">
+            {task.recommended_next_step || "The Brain has not proposed a next step for this task yet."}
+          </p>
+        </div>
+
+        {task.blocked_reason ? (
+          <div className="rounded-xl border border-status-blocked/25 bg-status-blocked/10 px-4 py-4 text-sm text-status-blocked">
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em]">
+              <Ban size={12} />
+              Current blocker
+            </div>
+            {task.blocked_reason}
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap gap-2">
+          {task.status === "ready" ? (
+            <Button size="sm" onClick={onAccept} disabled={acting}>
+              <Check size={14} />
+              Accept
+            </Button>
+          ) : null}
+          {(task.status === "accepted" || task.status === "blocked") ? (
+            <Button size="sm" onClick={onStart} disabled={acting}>
+              <Play size={14} />
+              Start
+            </Button>
+          ) : null}
+          {task.status === "in_progress" ? (
+            <Button size="sm" variant="secondary" onClick={onComplete} disabled={acting}>
+              <Check size={14} />
+              Complete
+            </Button>
+          ) : null}
+          {task.status === "waiting_for_approval" ? (
+            <Button size="sm" variant="outline" onClick={onOpen}>
+              <Shield size={14} />
+              Review approvals
+            </Button>
+          ) : null}
+          <Button size="sm" variant="ghost" onClick={onOpen}>
+            Open task
+            <ChevronRight size={14} />
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("urgency");
-  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const router = useRouter();
   const searchParams = useSearchParams();
   const cluster = searchParams.get("cluster");
   const queryClient = useQueryClient();
 
-  const queryKey = ["work-items", cluster, statusFilter, priorityFilter] as const;
   const { data, isLoading, error } = useQuery({
-    queryKey,
+    queryKey: ["work-items", cluster, statusFilter, priorityFilter],
     queryFn: () => {
       const params = new URLSearchParams();
       if (cluster && cluster !== "all") params.set("cluster_id", cluster);
       if (statusFilter) params.set("status", statusFilter);
       if (priorityFilter) params.set("priority", priorityFilter);
       params.set("limit", "100");
-      const url = `/api/v1/work-items?${params.toString()}`;
-      return api.get<PaginatedResponse<WorkItem>>(url);
+      return api.get<PaginatedResponse<WorkItem>>(`/api/v1/work-items?${params.toString()}`);
     },
+  });
+  const { data: allTasksData } = useQuery({
+    queryKey: ["work-items-overview", cluster],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (cluster && cluster !== "all") params.set("cluster_id", cluster);
+      params.set("limit", "100");
+      return api.get<PaginatedResponse<WorkItem>>(`/api/v1/work-items?${params.toString()}`);
+    },
+  });
+  const { data: clustersData } = useQuery({
+    queryKey: ["task-clusters"],
+    queryFn: () => api.get<PaginatedResponse<ClusterRegistryEntry>>("/api/v1/clusters?limit=100"),
   });
 
   const items = data?.items ?? EMPTY_ITEMS;
+  const allTasks = allTasksData?.items ?? EMPTY_ITEMS;
+  const activeQueue = getQueueId(statusFilter);
+  const clusterMap = useMemo(
+    () => new Map((clustersData?.items ?? []).map((entry) => [entry.id, entry.display_name])),
+    [clustersData],
+  );
 
-  const sseHandlers = useMemo(() => ({
-    update: () => queryClient.invalidateQueries({ queryKey: ["work-items"] }),
-  }), [queryClient]);
+  const sseHandlers = useMemo(
+    () => ({
+      update: () => queryClient.invalidateQueries({ queryKey: ["work-items"] }),
+    }),
+    [queryClient],
+  );
 
   useSSE("/api/v1/streams/work-items", { onEvent: sseHandlers });
 
-  // Inline action mutation
   const actionMutation = useMutation({
     mutationFn: ({ id, action }: { id: string; action: string }) =>
       api.post<WorkItem>(`/api/v1/work-items/${id}/${action}`),
     onSuccess: (_, { action }) => {
       toast.success(`Task ${action}ed`);
       queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      queryClient.invalidateQueries({ queryKey: ["work-items-overview"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const bulkMutation = useMutation({
-    mutationFn: (action: string) => api.post<{ results: { id: string; status: string }[] }>("/api/v1/work-items/bulk", { ids: [...selectedIds], action }),
-    onSuccess: (data, action) => {
-      const ok = data.results.filter(r => r.status === "ok").length;
-      toast.success(`${ok} tasks ${action === "accepted" ? "accepted" : action === "done" ? "completed" : action}`);
+    mutationFn: (action: string) =>
+      api.post<{ results: { id: string; status: string }[] }>("/api/v1/work-items/bulk", {
+        ids: [...selectedIds],
+        action,
+      }),
+    onSuccess: (result, action) => {
+      const ok = result.results.filter((entry) => entry.status === "ok").length;
+      toast.success(
+        `${ok} tasks ${action === "accepted" ? "accepted" : action === "done" ? "completed" : action}`,
+      );
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ["work-items"] });
+      queryClient.invalidateQueries({ queryKey: ["work-items-overview"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -90,12 +307,21 @@ export default function TasksPage() {
     });
   };
 
-  // Filter + search + sort
   const processed = useMemo(() => {
-    const result = items.filter(i => {
+    const result = items.filter((item) => {
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        const searchable = [i.title, i.why_now, i.recommended_next_step, ...Object.entries(i.labels).map(([k, v]) => `${k}=${v}`)].filter(Boolean).join(" ").toLowerCase();
+        const searchable = [
+          item.title,
+          item.why_now,
+          item.recommended_next_step,
+          item.blocked_reason,
+          clusterMap.get(item.cluster_id),
+          ...Object.entries(item.labels).map(([k, v]) => `${k}=${v}`),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
         if (!searchable.includes(q)) return false;
       }
       return true;
@@ -103,220 +329,414 @@ export default function TasksPage() {
 
     result.sort((a, b) => {
       switch (sortMode) {
-        case "urgency": return urgencyScore(b) - urgencyScore(a);
-        case "priority": return (PRIORITY_WEIGHT[b.priority] ?? 0) - (PRIORITY_WEIGHT[a.priority] ?? 0);
-        case "newest": return b.created_at.localeCompare(a.created_at);
-        case "oldest": return a.created_at.localeCompare(b.created_at);
-        case "confidence": return (b.confidence ?? 0) - (a.confidence ?? 0);
-        default: return 0;
+        case "urgency":
+          return urgencyScore(b) - urgencyScore(a);
+        case "priority":
+          return (PRIORITY_WEIGHT[b.priority] ?? 0) - (PRIORITY_WEIGHT[a.priority] ?? 0);
+        case "newest":
+          return b.created_at.localeCompare(a.created_at);
+        case "oldest":
+          return a.created_at.localeCompare(b.created_at);
+        case "confidence":
+          return (b.confidence ?? 0) - (a.confidence ?? 0);
+        default:
+          return 0;
       }
     });
 
     return result;
-  }, [items, searchQuery, sortMode]);
+  }, [items, searchQuery, sortMode, clusterMap]);
 
-  const counts = {
-    ready: items.filter(i => i.status === "ready").length,
-    in_progress: items.filter(i => i.status === "in_progress" || i.status === "accepted").length,
-    blocked: items.filter(i => i.status === "blocked").length,
-    approval: items.filter(i => i.status === "waiting_for_approval").length,
-  };
+  const queueCounts = useMemo(
+    () => Object.fromEntries(QUEUES.map((queue) => [queue.id, countForStatus(allTasks, queue.status)])),
+    [allTasks],
+  );
 
-  // Keyboard shortcuts
+  useEffect(() => {
+    if (processed.length === 0) {
+      setActiveTaskId(null);
+      return;
+    }
+    if (!activeTaskId || !processed.some((item) => item.id === activeTaskId)) {
+      setActiveTaskId(processed[0].id);
+    }
+  }, [processed, activeTaskId]);
+
+  const activeTask = processed.find((item) => item.id === activeTaskId) ?? null;
+  const selectedClusterName =
+    cluster && cluster !== "all" ? clusterMap.get(cluster) ?? "Selected cluster" : "All clusters";
+  const activeTaskClusterName = activeTask ? clusterMap.get(activeTask.cluster_id) ?? activeTask.cluster_id.slice(0, 8) : "";
+  const activeQueueConfig = QUEUES.find((queue) => queue.id === activeQueue) ?? QUEUES[0];
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === "j") setFocusedIndex(i => Math.min(i + 1, processed.length - 1));
-      if (e.key === "k") setFocusedIndex(i => Math.max(i - 1, 0));
-      if (e.key === "Enter" && focusedIndex >= 0 && processed[focusedIndex]) router.push(`/tasks/${processed[focusedIndex].id}`);
-      if (e.key === "x" && focusedIndex >= 0 && processed[focusedIndex]) toggleSelect(processed[focusedIndex].id);
-      if (e.key === "/" ) { e.preventDefault(); document.getElementById("task-search")?.focus(); }
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLSelectElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
 
-      // Inline actions on focused task
-      if (focusedIndex >= 0 && processed[focusedIndex]) {
-        const task = processed[focusedIndex];
-        if (e.key === "a" && task.status === "ready") actionMutation.mutate({ id: task.id, action: "accept" });
-        if (e.key === "s" && (task.status === "accepted" || task.status === "blocked")) actionMutation.mutate({ id: task.id, action: "start" });
-        if (e.key === "c" && task.status === "in_progress") actionMutation.mutate({ id: task.id, action: "complete" });
+      const currentIndex = processed.findIndex((item) => item.id === activeTaskId);
+      if (e.key === "j" && processed.length > 0) {
+        const nextIndex = Math.min(currentIndex < 0 ? 0 : currentIndex + 1, processed.length - 1);
+        setActiveTaskId(processed[nextIndex].id);
+      }
+      if (e.key === "k" && processed.length > 0) {
+        const nextIndex = Math.max(currentIndex < 0 ? 0 : currentIndex - 1, 0);
+        setActiveTaskId(processed[nextIndex].id);
+      }
+      if (e.key === "Enter" && activeTask) router.push(`/tasks/${activeTask.id}`);
+      if (e.key === "x" && activeTask) toggleSelect(activeTask.id);
+      if (e.key === "/") {
+        e.preventDefault();
+        document.getElementById("task-search")?.focus();
+      }
+
+      if (activeTask) {
+        if (e.key === "a" && activeTask.status === "ready") {
+          actionMutation.mutate({ id: activeTask.id, action: "accept" });
+        }
+        if (e.key === "s" && (activeTask.status === "accepted" || activeTask.status === "blocked")) {
+          actionMutation.mutate({ id: activeTask.id, action: "start" });
+        }
+        if (e.key === "c" && activeTask.status === "in_progress") {
+          actionMutation.mutate({ id: activeTask.id, action: "complete" });
+        }
       }
     };
+
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [processed, focusedIndex, router, actionMutation]);
+  }, [processed, activeTaskId, router, actionMutation, activeTask]);
 
   return (
     <div className="animate-fade-in">
-      <h1 className="text-lg font-semibold tracking-tight mb-5 text-text-primary">Tasks</h1>
+      <PageHeader
+        eyebrow="Investigation inbox"
+        title="Tasks"
+        description="Triage what surfaced, decide what to act on, and keep the highest-signal operational work visible."
+        meta={
+          <>
+            <Badge variant="outline">{selectedClusterName}</Badge>
+            <span>{queueCounts.all ?? allTasks.length} tasks in scope</span>
+            <span>{queueCounts.ready ?? 0} ready to triage</span>
+            <span>{queueCounts.approval ?? 0} waiting on approval</span>
+          </>
+        }
+      />
 
-      {/* Stat strip */}
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: "READY", count: counts.ready, color: "bg-status-ready", glow: "shadow-[0_0_12px_rgba(111,168,247,0.1)]" },
-          { label: "IN PROGRESS", count: counts.in_progress, color: "bg-status-in-progress", glow: "shadow-[0_0_12px_rgba(232,190,60,0.1)]" },
-          { label: "BLOCKED", count: counts.blocked, color: "bg-status-blocked", glow: "shadow-[0_0_12px_rgba(239,107,107,0.1)]" },
-          { label: "NEEDS APPROVAL", count: counts.approval, color: "bg-status-approval", glow: "shadow-[0_0_12px_rgba(232,144,64,0.1)]" },
-        ].map(s => (
-          <div key={s.label} className={cn("bg-bg-surface border border-border-default rounded-xl p-4 shadow-card", s.count > 0 && s.glow)}>
-            <div className={cn("h-1 rounded-full mb-3 w-10", s.color, s.count > 0 ? "opacity-100" : "opacity-30")} />
-            <div className="tabular text-[28px] font-bold font-mono leading-none">{s.count}</div>
-            <div className="text-xs text-text-tertiary font-medium uppercase tracking-[0.1em] mt-2">{s.label}</div>
+      <div className="mt-6 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-border-default bg-bg-surface p-4 shadow-card">
+            <div className="flex flex-wrap gap-2">
+            {QUEUES.map((queue) => {
+              const active = activeQueue === queue.id;
+              const count = queueCounts[queue.id] ?? 0;
+              return (
+                <button
+                  key={queue.id}
+                  type="button"
+                  onClick={() => setStatusFilter(queue.status)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-colors",
+                    active
+                      ? "border-accent-brand/45 bg-[linear-gradient(135deg,rgba(244,114,182,0.12),rgba(167,139,250,0.08))] text-text-primary"
+                      : "border-border-default bg-bg-elevated/70 text-text-secondary hover:border-accent-brand/25 hover:text-text-primary",
+                  )}
+                >
+                  <span className="font-medium">{queue.label}</span>
+                  <span className={cn("rounded-full px-2 py-0.5 font-mono text-xs tabular", active ? "bg-bg-primary/60 text-text-primary" : "bg-bg-primary/50 text-text-tertiary")}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+            </div>
+            <div className="mt-3 text-sm text-text-secondary">
+              <span className="font-medium text-text-primary">{activeQueueConfig.label}:</span>{" "}
+              {activeQueueConfig.description}
+            </div>
           </div>
-        ))}
-      </div>
 
-      {/* Search + Filters + Sort */}
-      <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="relative w-full lg:max-w-[280px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-          <Input
-            id="task-search"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search tasks..."
-            className="pl-9 h-8 text-xs bg-bg-surface"
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <select aria-label="Filter tasks by status" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full rounded-lg border border-border-default bg-bg-surface px-2.5 py-2 text-xs text-text-primary transition-colors hover:border-accent-brain/30 focus:outline-none focus:ring-1 focus:ring-ring sm:w-auto">
-            <option value="">All Statuses</option>
-            <option value="ready">Ready</option>
-            <option value="accepted">Accepted</option>
-            <option value="in_progress">In Progress</option>
-            <option value="blocked">Blocked</option>
-            <option value="waiting_for_approval">Needs Approval</option>
-          </select>
-          <select aria-label="Filter tasks by priority" value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="w-full rounded-lg border border-border-default bg-bg-surface px-2.5 py-2 text-xs text-text-primary transition-colors hover:border-accent-brain/30 focus:outline-none focus:ring-1 focus:ring-ring sm:w-auto">
-            <option value="">All Priorities</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
-          <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
-            <ArrowUpDown size={12} />
-            <select value={sortMode} onChange={e => setSortMode(e.target.value as SortMode)} className="rounded-lg border border-border-default bg-bg-surface px-2 py-2 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-ring">
-              <option value="urgency">Urgency</option>
-              <option value="priority">Priority</option>
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="confidence">Confidence</option>
-            </select>
-          </div>
-          {(statusFilter || priorityFilter || searchQuery) && <Button variant="ghost" size="sm" onClick={() => { setStatusFilter(""); setPriorityFilter(""); setSearchQuery(""); }} className="h-8 text-xs">Clear</Button>}
-        </div>
-        <span className="text-xs text-text-tertiary font-mono lg:ml-auto">
-          {processed.length}/{items.length}
-        </span>
-      </div>
+          <div className="rounded-2xl border border-border-default bg-bg-surface/90 p-4 shadow-card">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="relative w-full lg:max-w-[320px]">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                <Input
+                  id="task-search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search titles, reasons, labels, blocked context..."
+                  className="h-10 bg-bg-elevated pl-9 text-sm"
+                />
+              </div>
 
-      {isLoading && (
-        <div className="flex flex-col gap-3">
-          {[1, 2, 3].map(i => <div key={i} className="skeleton h-[100px] rounded-lg" />)}
-        </div>
-      )}
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  aria-label="Filter tasks by priority"
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value)}
+                  className="w-full rounded-lg border border-border-default bg-bg-elevated px-3 py-2 text-sm text-text-primary transition-colors hover:border-accent-brain/30 focus:outline-none focus:ring-1 focus:ring-ring sm:w-auto"
+                >
+                  <option value="">All priorities</option>
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
 
-      {error && <div className="p-3 px-4 rounded-lg bg-status-blocked/10 border border-status-blocked/30 text-status-blocked text-sm">Failed to load tasks: {error.message}</div>}
-
-      {!isLoading && !error && processed.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-          <div className="font-mono text-2xl text-text-tertiary mb-4 select-none">( . _ . )</div>
-          <div className="text-base font-semibold text-text-primary mb-2">
-            {searchQuery ? "No tasks match your search." : "Nothing needs your attention."}
-          </div>
-          <div className="text-sm text-text-secondary leading-relaxed max-w-[360px]">
-            {searchQuery
-              ? "Try different search terms or clear your filters."
-              : "The Brain is watching your clusters. Tasks appear here when issues are detected."}
-          </div>
-          {!searchQuery && items.length === 0 && (
-            <Link href="/settings" className="text-accent-brand text-sm mt-4 font-medium">
-              Configure clusters →
-            </Link>
-          )}
-        </div>
-      )}
-
-      {/* Bulk action bar */}
-      {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 mb-4 p-3 px-4 bg-bg-elevated border border-border-default rounded-xl">
-          <span className="text-sm font-semibold">{selectedIds.size} selected</span>
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => bulkMutation.mutate("accepted")} disabled={bulkMutation.isPending}>Accept All</Button>
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => bulkMutation.mutate("done")} disabled={bulkMutation.isPending}>Complete All</Button>
-          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelectedIds(new Set())}>Clear</Button>
-        </div>
-      )}
-
-      {!isLoading && processed.length > 0 && (
-        <div className="flex flex-col gap-2.5">
-          {processed.map((item, idx) => (
-            <div key={item.id} className="group flex items-start gap-2">
-              <input
-                type="checkbox"
-                checked={selectedIds.has(item.id)}
-                onChange={() => toggleSelect(item.id)}
-                className="mt-5 ml-0.5 accent-accent-brand shrink-0 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-              />
-              <div
-                className={cn(
-                  "flex-1 bg-bg-surface border border-border-default rounded-xl p-4 px-5 border-l-[3px] transition-all duration-200",
-                  STATUS_BORDER[item.status] || "border-l-border-default",
-                  idx === focusedIndex && "ring-1 ring-accent-brain/40 shadow-card-hover",
-                  "hover:shadow-card-hover"
-                )}
-              >
-                <div className="flex justify-between items-start gap-4">
-                  {/* Left: title + details */}
-                  <Link href={`/tasks/${item.id}`} className="flex-1 no-underline min-w-0">
-                    <div className="font-medium text-[13px] text-text-primary leading-snug">{item.title}</div>
-                    {item.why_now && <div className="text-xs text-text-secondary mt-1.5 leading-relaxed truncate">{item.why_now}</div>}
-                  </Link>
-
-                  {/* Right: badges + inline actions */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={cn("text-xs px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider text-white/90", PRIORITY_BG[item.priority])}>{item.priority}</span>
-                    <span className={cn("text-xs px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider text-white/90", STATUS_BG[item.status])}>{item.status.replace(/_/g, " ")}</span>
-
-                    {/* Inline action buttons */}
-                    {item.status === "ready" && (
-                      <Button size="xs" variant="outline" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => actionMutation.mutate({ id: item.id, action: "accept" })} disabled={actionMutation.isPending}>
-                        <Check size={12} /> Accept
-                      </Button>
-                    )}
-                    {(item.status === "accepted" || item.status === "blocked") && (
-                      <Button size="xs" variant="outline" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => actionMutation.mutate({ id: item.id, action: "start" })} disabled={actionMutation.isPending}>
-                        <Play size={12} /> Start
-                      </Button>
-                    )}
-                    {item.status === "in_progress" && (
-                      <Button size="xs" variant="outline" className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => actionMutation.mutate({ id: item.id, action: "complete" })} disabled={actionMutation.isPending}>
-                        <Check size={12} /> Complete
-                      </Button>
-                    )}
-
-                    <Link href={`/tasks/${item.id}`} className="text-text-tertiary hover:text-text-secondary no-underline">
-                      <ChevronRight size={14} />
-                    </Link>
-                  </div>
+                <div className="flex items-center gap-2 text-sm text-text-tertiary">
+                  <ArrowUpDown size={14} />
+                  <select
+                    value={sortMode}
+                    onChange={(e) => setSortMode(e.target.value as SortMode)}
+                    className="rounded-lg border border-border-default bg-bg-elevated px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="urgency">Sort by urgency</option>
+                    <option value="priority">Sort by priority</option>
+                    <option value="newest">Newest first</option>
+                    <option value="oldest">Oldest first</option>
+                    <option value="confidence">Highest confidence</option>
+                  </select>
                 </div>
 
-                {/* Brain recommendation */}
-                {item.recommended_next_step && (
-                  <div className="flex items-start gap-2 mt-2.5 text-xs text-accent-brain/90 bg-[var(--accent-brain-bg)] rounded-lg px-3 py-2">
-                    <Brain size={13} className="mt-0.5 shrink-0 text-accent-brain" />
-                    <span className="leading-relaxed">{item.recommended_next_step}</span>
-                  </div>
-                )}
+                {(statusFilter || priorityFilter || searchQuery) ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setStatusFilter("");
+                      setPriorityFilter("");
+                      setSearchQuery("");
+                    }}
+                    className="h-9 text-xs"
+                  >
+                    Reset filters
+                  </Button>
+                ) : null}
+              </div>
 
-                {/* Meta row */}
-                <div className="flex items-center gap-3 mt-2.5">
-                  {item.confidence != null && <span className={cn("tabular text-xs font-mono font-semibold", confColor(item.confidence))}>{Math.round(item.confidence * 100)}%</span>}
-                  {Object.entries(item.labels).map(([k, v]) => <span key={k} className="text-xs font-mono px-1.5 py-0.5 bg-bg-elevated/80 rounded text-text-tertiary border border-border-subtle">{k}={v}</span>)}
+              <div className="text-xs font-mono text-text-tertiary lg:ml-auto">
+                {processed.length} visible / {allTasks.length} total
+              </div>
+            </div>
+          </div>
+
+          {selectedIds.size > 0 ? (
+            <div className="rounded-2xl border border-border-default bg-bg-elevated px-4 py-3 shadow-card">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="text-sm font-semibold text-text-primary">
+                  {selectedIds.size} selected
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="outline" onClick={() => bulkMutation.mutate("accepted")} disabled={bulkMutation.isPending}>
+                    Accept all
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => bulkMutation.mutate("done")} disabled={bulkMutation.isPending}>
+                    Complete all
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                    Clear
+                  </Button>
                 </div>
               </div>
             </div>
-          ))}
+          ) : null}
+
+          {isLoading ? (
+            <div className="flex flex-col gap-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="skeleton h-[150px] rounded-2xl" />
+              ))}
+            </div>
+          ) : null}
+
+          {error ? (
+            <div className="rounded-2xl border border-status-blocked/30 bg-status-blocked/10 px-4 py-3 text-sm text-status-blocked">
+              Failed to load tasks: {error.message}
+            </div>
+          ) : null}
+
+          {!isLoading && !error && processed.length === 0 ? (
+            <EmptyState
+              eyebrow="Queue is clear"
+              icon={<CheckSquare size={20} />}
+              title={searchQuery ? "No tasks match this search." : "Nothing needs your attention."}
+              description={
+                searchQuery
+                  ? "Try a different phrase or reset the active filters to widen the queue."
+                  : "The Brain is watching your clusters. When issues need triage, they will appear here."
+              }
+              action={!searchQuery && items.length === 0 ? <Link href="/settings">Configure clusters</Link> : undefined}
+            />
+          ) : null}
+
+          {!isLoading && !error && processed.length > 0 ? (
+            <div className="space-y-3">
+              {processed.map((item) => {
+                const active = item.id === activeTaskId;
+                const clusterName = clusterMap.get(item.cluster_id) ?? item.cluster_id.slice(0, 8);
+                const visibleLabels = getVisibleLabels(item);
+                const extraLabelCount = Math.max(0, Object.keys(item.labels).length - visibleLabels.length);
+                return (
+                  <article
+                    key={item.id}
+                    className={cn(
+                      "group rounded-2xl border border-border-default bg-bg-surface p-4 shadow-card transition-all duration-150",
+                      active
+                        ? "border-accent-brand/35 bg-bg-elevated shadow-[0_0_22px_rgba(244,114,182,0.04)]"
+                        : "hover:border-accent-brand/20 hover:bg-bg-elevated",
+                    )}
+                    onClick={() => setActiveTaskId(item.id)}
+                    onMouseEnter={() => setActiveTaskId(item.id)}
+                  >
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={selectedIds.has(item.id)}
+                        aria-label={`Select task: ${item.title}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSelect(item.id);
+                        }}
+                        className={cn(
+                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+                          selectedIds.has(item.id)
+                            ? "border-accent-brand bg-accent-brand text-text-inverse"
+                            : "border-border-default bg-bg-elevated hover:border-accent-brand/50",
+                        )}
+                      >
+                        {selectedIds.has(item.id) ? <Check size={12} /> : null}
+                      </button>
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                          <div className="min-w-0 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
+                              <Badge variant="outline" className="rounded-full border-border-subtle bg-bg-elevated/80 text-xs text-text-secondary">
+                                {clusterName}
+                              </Badge>
+                              <span className="flex items-center gap-1">
+                                <Clock size={12} />
+                                {item.created_at ? relativeTime(item.created_at) : "recent"}
+                              </span>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Link href={`/tasks/${item.id}`} className="block text-[15px] font-semibold leading-snug text-text-primary no-underline hover:text-accent-brand">
+                                {item.title}
+                              </Link>
+                              <p className="text-sm leading-relaxed text-text-secondary">
+                                {getTaskExcerpt(item)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-white/90", PRIORITY_BG[item.priority])}>
+                              {item.priority}
+                            </span>
+                            <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-white/90", STATUS_BG[item.status])}>
+                              {item.status.replace(/_/g, " ")}
+                            </span>
+                            {item.confidence != null ? (
+                              <span className={cn("rounded-full border border-border-subtle bg-bg-elevated px-2.5 py-1 font-mono text-xs font-semibold tabular", confColor(item.confidence))}>
+                                {Math.round(item.confidence * 100)}%
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          {item.blocked_reason ? (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full border border-status-blocked/20 bg-status-blocked/10 px-2 py-1 text-status-blocked"
+                            >
+                              <Ban size={12} />
+                              {item.blocked_reason}
+                            </span>
+                          ) : null}
+                          {item.recommended_next_step ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-accent-brain/20 bg-[var(--accent-brain-bg)] px-2 py-1 text-text-secondary">
+                              <Brain size={12} className="text-accent-brain" />
+                              Brain recommendation
+                            </span>
+                          ) : null}
+                          {visibleLabels.map(([k, v]) => (
+                            <span
+                              key={k}
+                              className="rounded-full border border-border-subtle bg-bg-elevated/80 px-2 py-1 font-mono text-xs text-text-tertiary"
+                            >
+                              {k}={v}
+                            </span>
+                          ))}
+                          {extraLabelCount > 0 ? (
+                            <span className="rounded-full border border-border-subtle bg-bg-elevated/80 px-2 py-1 text-xs text-text-tertiary">
+                              +{extraLabelCount} more
+                            </span>
+                          ) : null}
+                          {item.annotations?.ticket_url ? (
+                            <a
+                              href={item.annotations.ticket_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-full border border-border-subtle bg-bg-elevated px-2 py-1 text-xs text-text-secondary no-underline hover:text-accent-brand"
+                            >
+                              <Link2 size={12} />
+                              Ticket linked
+                            </a>
+                          ) : null}
+                          {item.runbook_url ? (
+                            <a
+                              href={item.runbook_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-full border border-border-subtle bg-bg-elevated px-2 py-1 text-xs text-text-secondary no-underline hover:text-accent-brand"
+                            >
+                              <ExternalLink size={12} />
+                              Runbook
+                            </a>
+                          ) : null}
+                          <Button size="xs" variant="ghost" className="ml-auto" asChild>
+                            <Link href={`/tasks/${item.id}`}>
+                              Open
+                              <ChevronRight size={12} />
+                            </Link>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
-      )}
+
+        <aside className="hidden 2xl:block">
+          <div className="sticky top-6 space-y-4">
+            {activeTask ? (
+              <TaskPreviewPanel
+                task={activeTask}
+                clusterName={activeTaskClusterName}
+                acting={actionMutation.isPending}
+                onAccept={() => actionMutation.mutate({ id: activeTask.id, action: "accept" })}
+                onStart={() => actionMutation.mutate({ id: activeTask.id, action: "start" })}
+                onComplete={() => actionMutation.mutate({ id: activeTask.id, action: "complete" })}
+                onOpen={() => router.push(`/tasks/${activeTask.id}`)}
+              />
+            ) : (
+              <EmptyState
+                eyebrow="Inbox preview"
+                icon={<Brain size={20} />}
+                title="Select a task to inspect it."
+                description="Use the queue on the left to triage work, then keep the detail page for deeper investigation."
+              />
+            )}
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }

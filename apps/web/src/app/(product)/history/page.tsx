@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Clock, Filter } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { HistoryEvent, PaginatedResponse } from "@pinky/contracts";
+import { EmptyState } from "@/components/empty-state";
+import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api";
 import { useCluster } from "@/hooks/use-cluster";
 import { relativeTime } from "@/lib/format-date";
@@ -30,6 +32,10 @@ function getNavTarget(e: HistoryEvent): string | null {
     }
     default: return null;
   }
+}
+
+function getHistoryHeadline(e: HistoryEvent): string {
+  return e.event_type.replace(/[._]/g, " ");
 }
 
 export default function HistoryPage() {
@@ -62,12 +68,14 @@ export default function HistoryPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-5">
-        <Clock size={20} className="text-text-tertiary" />
-        <h1 className="text-lg font-semibold tracking-tight">History</h1>
-      </div>
+      <PageHeader
+        eyebrow="Operational memory"
+        title="History"
+        description="Trace what changed across tasks, executions, approvals, and cluster activity without losing the thread."
+        meta={<span>{filtered.length} events in view</span>}
+      />
 
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+      <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-4 py-3 shadow-card">
         <Filter size={14} className="text-text-tertiary" />
         <select aria-label="Filter history by type" value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
           <option value="">All Types</option>
@@ -85,16 +93,18 @@ export default function HistoryPage() {
       )}
 
       {!isLoading && filtered.length === 0 && (
-        <div className="flex flex-col items-center py-16 px-6 text-center">
-          <div className="font-mono text-xl text-text-tertiary mb-6">(empty)</div>
-          <div className="text-[15px] font-semibold mb-2">No operational history yet.</div>
-          <div className="text-sm text-text-secondary leading-relaxed">Completed tasks, remediations, and approvals will appear here over time.</div>
-          <Link href="/tasks" className="text-accent-brand text-sm mt-4 font-medium no-underline hover:underline">Review tasks →</Link>
-        </div>
+        <EmptyState
+          className="mt-6"
+          eyebrow="No history yet"
+          icon={<Clock size={20} />}
+          title="No operational history yet."
+          description="Completed tasks, remediations, approvals, and system events will start building a narrative here over time."
+          action={<Link href="/tasks">Review tasks →</Link>}
+        />
       )}
 
       {filtered.length > 0 && (
-        <div className="flex flex-col">
+        <div className="mt-6 rounded-2xl border border-border-default bg-bg-surface shadow-card">
           {filtered.map((e, i) => {
             const navTarget = getNavTarget(e);
             const isExpanded = expandedId === e.id;
@@ -103,20 +113,25 @@ export default function HistoryPage() {
                 <div
                   onClick={() => handleRowClick(e)}
                   className={cn(
-                    "grid grid-cols-[10px_1fr] gap-x-3 gap-y-1 p-3 px-4 transition-colors sm:grid-cols-[10px_140px_120px_1fr] sm:gap-3 sm:items-center",
+                    "grid grid-cols-[10px_1fr] gap-x-3 gap-y-1 p-4 transition-colors sm:grid-cols-[10px_120px_1fr] sm:items-start",
                     navTarget && "cursor-pointer hover:bg-bg-hover",
                     i < filtered.length - 1 && !isExpanded && "border-b border-border-subtle"
                   )}
                 >
                   <div className={`w-2 h-2 rounded-full ${TYPE_COLORS[e.aggregate_type] || "bg-text-tertiary"}`} />
                   <span className="col-start-2 font-mono text-xs text-text-tertiary tabular sm:col-start-auto">{relativeTime(e.occurred_at)}</span>
-                  <span className={`col-start-2 text-[11px] font-semibold uppercase tracking-wider ${TYPE_TEXT[e.aggregate_type] || "text-text-secondary"} sm:col-start-auto`}>{e.event_type}</span>
-                  <span className={cn(navTarget ? "text-sm text-accent-brand" : "text-sm text-text-secondary", "col-start-2 sm:col-start-auto")}>
-                    {e.aggregate_type}/{e.aggregate_id.slice(0, 8)}
-                  </span>
+                  <div className="col-start-2 space-y-1 sm:col-start-auto">
+                    <div className={cn(navTarget ? "text-sm text-accent-brand" : "text-sm text-text-primary")}>
+                      {getHistoryHeadline(e)}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-text-tertiary">
+                      <span className={TYPE_TEXT[e.aggregate_type] || "text-text-secondary"}>{e.aggregate_type}</span>
+                      <span>{e.aggregate_id.slice(0, 8)}</span>
+                    </div>
+                  </div>
                 </div>
                 {isExpanded && !navTarget && e.payload && Object.keys(e.payload).length > 0 && (
-                  <div className={cn("px-4 pb-3 pl-10", i < filtered.length - 1 && "border-b border-border-subtle")}>
+                  <div className={cn("px-4 pb-4 pl-10", i < filtered.length - 1 && "border-b border-border-subtle")}>
                     <pre className="text-xs font-mono text-text-secondary bg-bg-elevated p-3 rounded-md overflow-auto max-h-[200px] whitespace-pre-wrap break-words">
                       {JSON.stringify(e.payload, null, 2)}
                     </pre>

@@ -62,8 +62,8 @@ export function TopBar() {
 
   return (
     <header className="border-b border-border-subtle bg-bg-primary/95 backdrop-blur supports-[backdrop-filter]:bg-bg-primary/90">
-      <div className="flex flex-col gap-3 px-4 py-3 lg:px-5 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:gap-4">
+      <div className="flex flex-col gap-3 px-4 py-3 lg:px-5 min-[1440px]:flex-row min-[1440px]:items-center min-[1440px]:justify-between">
+        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:gap-4 min-[1440px]:flex-nowrap">
           {breadcrumbs.length > 0 && (
             <Breadcrumb>
               <BreadcrumbList>
@@ -85,8 +85,8 @@ export function TopBar() {
 
           <div className="hidden h-4 w-px bg-border-subtle lg:block" />
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-            <div className="relative">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative sm:min-w-[180px]">
               <select
                 aria-label="Cluster selector"
                 value={selectedCluster}
@@ -101,7 +101,7 @@ export function TopBar() {
 
             <button
               onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-              className="flex w-full items-center gap-2 rounded-lg border border-border-default bg-bg-surface px-3 py-2 text-xs text-text-tertiary transition-colors hover:border-accent-brain/30 sm:w-auto"
+              className="flex w-full items-center gap-2 rounded-lg border border-border-default bg-bg-surface px-3 py-2 text-xs text-text-tertiary transition-colors hover:border-accent-brain/30 sm:w-auto sm:min-w-[220px]"
             >
               <Search size={13} />
               <span>Search...</span>
@@ -110,7 +110,7 @@ export function TopBar() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-xs sm:gap-5 xl:justify-end">
+        <div className="flex flex-wrap items-center gap-3 text-xs sm:gap-5 min-[1440px]:justify-end">
           <div className="flex items-center gap-2 text-text-tertiary">
             <Brain size={13} className="text-accent-brain" />
             <span className="h-1.5 w-1.5 rounded-full bg-status-done animate-brain-pulse" />

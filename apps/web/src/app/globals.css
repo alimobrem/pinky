@@ -101,7 +101,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  @apply bg-background text-foreground text-[13px] leading-relaxed antialiased;
+  @apply bg-background text-foreground text-[14px] leading-relaxed antialiased;
 }
 
 a { @apply text-accent-brand no-underline; }
