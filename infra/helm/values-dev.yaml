@@ -22,13 +22,19 @@ auth:
   openshift:
     issuerUrl: https://oauth-openshift.apps.your-cluster.example.com
     clientId: pinky
-    clientSecret: REDACTED_ROTATE_THIS_SECRET
+    clientSecret: ""  # Set via: oc create secret generic pinky-auth --from-literal=openshift-client-secret=YOUR_SECRET
     apiUrl: https://api.your-cluster.example.com:6443
   callbackBaseUrl: https://pinky.apps.your-cluster.example.com
   appUrl: https://pinky.apps.your-cluster.example.com
 
 networkPolicy:
   enabled: true
+
+llm:
+  provider: vertex
+  vertexProjectId: ""
+  vertexRegion: "us-east5"
+  existingCredentialsSecret: "pinky-vertex-credentials"
 
 debug: false
 logLevel: INFO

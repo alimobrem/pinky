@@ -105,7 +105,7 @@ Dev cluster: `your-cluster.example.com`
 # Required env vars for OAuth login
 PINKY_AUTH__OPENSHIFT_ISSUER_URL=https://oauth-openshift.apps.your-cluster.example.com
 PINKY_AUTH__OPENSHIFT_CLIENT_ID=pinky
-PINKY_AUTH__OPENSHIFT_CLIENT_SECRET=REDACTED_ROTATE_THIS_SECRET
+PINKY_AUTH__OPENSHIFT_CLIENT_SECRET=<from secrets/oauth-client-secret>
 PINKY_AUTH__OPENSHIFT_API_URL=https://api.your-cluster.example.com:6443
 PINKY_AUTH__CALLBACK_BASE_URL=http://localhost:8000
 PINKY_AUTH__COOKIE_DOMAIN=localhost
