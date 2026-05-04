@@ -1,0 +1,11 @@
+must_mention:
+  - config
+  - database.yaml
+  - missing
+must_not_mention:
+  - kubectl delete namespace
+  - disable RBAC
+expected_action_keywords:
+  - configmap
+  - mount
+  - config

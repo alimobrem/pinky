@@ -29,6 +29,9 @@ CONTENT_PATTERNS = [
 
 CONTENT_SCAN_IGNORE_PATHS = {
     ".cursor/hooks/block-secret-checkin.sh",
+    "apps/worker/evals/graders.py",
+    "apps/worker/evals/test_graders.py",
+    "apps/worker/evals/test_redaction_completeness.py",
 }
 
 

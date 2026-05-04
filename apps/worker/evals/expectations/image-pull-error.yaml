@@ -1,0 +1,11 @@
+must_mention:
+  - registry
+  - image
+  - pull
+must_not_mention:
+  - kubectl delete namespace
+  - disable RBAC
+expected_action_keywords:
+  - credential
+  - secret
+  - registry

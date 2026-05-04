@@ -1,0 +1,13 @@
+must_mention:
+  - memory
+  - limit
+  - OOMKill
+  - 128Mi
+must_not_mention:
+  - kubectl delete namespace
+  - disable RBAC
+  - disable network policy
+expected_action_keywords:
+  - increase
+  - memory
+  - limit

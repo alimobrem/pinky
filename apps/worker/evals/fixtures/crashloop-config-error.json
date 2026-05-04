@@ -1,0 +1,13 @@
+{
+  "issue_id": "issue-crash-001",
+  "cluster_id": "cluster-eval-001",
+  "fingerprint": "pod-health::payments/api-server-xyz789",
+  "evidence_hash": "eval-hash-crash-config",
+  "sections": {
+    "pods": "[\n  {\n    \"name\": \"api-server-xyz789\",\n    \"namespace\": \"payments\",\n    \"status\": \"CrashLoopBackOff\",\n    \"containers\": [\n      {\n        \"name\": \"api\",\n        \"state\": {\"type\": \"waiting\", \"reason\": \"CrashLoopBackOff\"},\n        \"last_state\": {\"type\": \"terminated\", \"reason\": \"Error\", \"exit_code\": 1, \"message\": \"Error: Cannot find module '/app/config/database.yaml'\"},\n        \"restart_count\": 8,\n        \"resources\": {\"limits\": {\"memory\": \"512Mi\"}, \"requests\": {\"memory\": \"256Mi\"}}\n      }\n    ],\n    \"node\": \"ip-10-0-2-15.ec2.internal\"\n  }\n]",
+    "events": "[\n  {\"type\": \"Warning\", \"reason\": \"BackOff\", \"message\": \"Back-off restarting failed container api in pod api-server-xyz789\", \"count\": 8, \"last_timestamp\": \"2026-05-04T10:30:00Z\"},\n  {\"type\": \"Warning\", \"reason\": \"Failed\", \"message\": \"Error: Cannot find module '/app/config/database.yaml'\", \"count\": 8, \"last_timestamp\": \"2026-05-04T10:28:00Z\"}\n]",
+    "cluster_id": "cluster-eval-001",
+    "issue_id": "issue-crash-001"
+  },
+  "gathered_at": "2026-05-04T10:35:00Z"
+}

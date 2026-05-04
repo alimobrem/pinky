@@ -1,0 +1,13 @@
+{
+  "issue_id": "issue-oom-001",
+  "cluster_id": "cluster-eval-001",
+  "fingerprint": "pod-health::default/web-frontend-abc123",
+  "evidence_hash": "eval-hash-oom-simple",
+  "sections": {
+    "pods": "[\n  {\n    \"name\": \"web-frontend-abc123\",\n    \"namespace\": \"default\",\n    \"status\": \"CrashLoopBackOff\",\n    \"containers\": [\n      {\n        \"name\": \"web\",\n        \"state\": {\"type\": \"waiting\", \"reason\": \"CrashLoopBackOff\"},\n        \"last_state\": {\"type\": \"terminated\", \"reason\": \"OOMKilled\", \"exit_code\": 137},\n        \"restart_count\": 12,\n        \"resources\": {\"limits\": {\"memory\": \"128Mi\"}, \"requests\": {\"memory\": \"64Mi\"}}\n      }\n    ],\n    \"node\": \"ip-10-0-1-42.ec2.internal\"\n  }\n]",
+    "events": "[\n  {\"type\": \"Warning\", \"reason\": \"OOMKilling\", \"message\": \"Memory cgroup out of memory: Killed process 12345 (node) total-vm:524288kB, anon-rss:131072kB\", \"count\": 12, \"last_timestamp\": \"2026-05-04T10:30:00Z\"},\n  {\"type\": \"Warning\", \"reason\": \"BackOff\", \"message\": \"Back-off restarting failed container web in pod web-frontend-abc123\", \"count\": 12, \"last_timestamp\": \"2026-05-04T10:32:00Z\"}\n]",
+    "cluster_id": "cluster-eval-001",
+    "issue_id": "issue-oom-001"
+  },
+  "gathered_at": "2026-05-04T10:35:00Z"
+}

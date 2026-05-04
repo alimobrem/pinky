@@ -1,0 +1,13 @@
+{
+  "issue_id": "issue-pull-001",
+  "cluster_id": "cluster-eval-001",
+  "fingerprint": "pod-health::staging/worker-deploy-qrs456",
+  "evidence_hash": "eval-hash-image-pull",
+  "sections": {
+    "pods": "[\n  {\n    \"name\": \"worker-deploy-qrs456\",\n    \"namespace\": \"staging\",\n    \"status\": \"ImagePullBackOff\",\n    \"containers\": [\n      {\n        \"name\": \"worker\",\n        \"state\": {\"type\": \"waiting\", \"reason\": \"ImagePullBackOff\"},\n        \"image\": \"registry.internal.corp/staging/worker:v2.3.1\",\n        \"restart_count\": 0,\n        \"resources\": {\"limits\": {\"memory\": \"1Gi\"}, \"requests\": {\"memory\": \"512Mi\"}}\n      }\n    ],\n    \"node\": \"ip-10-0-3-88.ec2.internal\"\n  }\n]",
+    "events": "[\n  {\"type\": \"Warning\", \"reason\": \"Failed\", \"message\": \"Failed to pull image 'registry.internal.corp/staging/worker:v2.3.1': rpc error: code = Unknown desc = Error response from daemon: pull access denied for registry.internal.corp/staging/worker, repository does not exist or may require 'docker login'\", \"count\": 5, \"last_timestamp\": \"2026-05-04T10:30:00Z\"},\n  {\"type\": \"Normal\", \"reason\": \"Pulling\", \"message\": \"Pulling image 'registry.internal.corp/staging/worker:v2.3.1'\", \"count\": 5, \"last_timestamp\": \"2026-05-04T10:29:00Z\"}\n]",
+    "cluster_id": "cluster-eval-001",
+    "issue_id": "issue-pull-001"
+  },
+  "gathered_at": "2026-05-04T10:35:00Z"
+}
