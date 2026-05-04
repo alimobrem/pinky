@@ -45,6 +45,79 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+        - name: wait-redis
+          image: {{ include "pinky.image" (dict "global" .Values.global "image" .Values.api.image) }}
+          env:
+            {{- if .Values.redis.external.existingSecret }}
+            - name: PINKY_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pinky.redisSecretName" . }}
+                  key: {{ .Values.redis.external.existingSecretKey }}
+            {{- else }}
+            - name: PINKY_REDIS_URL
+              value: {{ include "pinky.redisUrl" . | quote }}
+            {{- end }}
+          command:
+            - python3
+            - -c
+            - |
+              import os, socket, time
+              from urllib.parse import urlparse
+
+              parsed = urlparse(os.environ["PINKY_REDIS_URL"])
+              host = parsed.hostname or "localhost"
+              port = parsed.port or 6379
+
+              while True:
+                  try:
+                      socket.create_connection((host, port), timeout=2).close()
+                      print(f"connected to {host}:{port}")
+                      break
+                  except Exception:
+                      print(f"waiting for {host}:{port}...")
+                      time.sleep(2)
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+        - name: wait-migrations
+          image: {{ include "pinky.image" (dict "global" .Values.global "image" .Values.api.image) }}
+          env:
+            - name: PINKY_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pinky.dbSecretName" . }}
+                  key: url-plain
+          command:
+            - python3
+            - -c
+            - |
+              import asyncio, os
+              import asyncpg
+
+              async def main() -> None:
+                  dsn = os.environ["PINKY_DATABASE_URL"]
+                  while True:
+                      try:
+                          conn = await asyncpg.connect(dsn)
+                          ready = await conn.fetchval(
+                              "SELECT to_regclass('public.alembic_version') IS NOT NULL"
+                          )
+                          await conn.close()
+                          if ready:
+                              print("migrations applied")
+                              break
+                      except Exception:
+                          pass
+                      print("waiting for migrations...")
+                      await asyncio.sleep(2)
+
+              asyncio.run(main())
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: api
           image: {{ include "pinky.image" (dict "global" .Values.global "image" .Values.api.image) }}
@@ -60,26 +133,36 @@ spec:
                 secretKeyRef:
                   name: {{ include "pinky.dbSecretName" . }}
                   key: url
+            {{- if .Values.redis.external.existingSecret }}
+            - name: PINKY_REDIS__URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pinky.redisSecretName" . }}
+                  key: {{ .Values.redis.external.existingSecretKey }}
+            {{- else }}
             - name: PINKY_REDIS__URL
               value: {{ include "pinky.redisUrl" . | quote }}
+            {{- end }}
             - name: PINKY_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "pinky.encryptionSecretName" . }}
                   key: key
-            {{- if .Values.auth.openshift.clientSecret }}
+            {{- if .Values.auth.openshift.clientId }}
             - name: PINKY_AUTH__OPENSHIFT_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "pinky.fullname" . }}-auth
+                  name: {{ include "pinky.authSecretName" . }}
                   key: openshift-client-secret
+                  optional: true
             {{- end }}
-            {{- if .Values.auth.oidc.clientSecret }}
+            {{- if .Values.auth.oidc.clientId }}
             - name: PINKY_AUTH__OIDC_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "pinky.fullname" . }}-auth
+                  name: {{ include "pinky.authSecretName" . }}
                   key: oidc-client-secret
+                  optional: true
             {{- end }}
           volumeMounts:
             - name: tmp
@@ -107,6 +190,12 @@ spec:
               path: /api/v1/healthz
               port: 8000
             initialDelaySeconds: 5
+            periodSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /api/v1/healthz
+              port: 8000
+            failureThreshold: 30
             periodSeconds: 5
       volumes:
         - name: tmp

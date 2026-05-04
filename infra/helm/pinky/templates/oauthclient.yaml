@@ -1,4 +1,4 @@
-{{- if and .Values.route.enabled .Values.auth.openshift.clientId }}
+{{- if and .Values.route.enabled .Values.auth.openshift.clientId .Values.auth.openshift.clientSecret }}
 apiVersion: oauth.openshift.io/v1
 kind: OAuthClient
 metadata:

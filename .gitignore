@@ -64,3 +64,5 @@ infra/docker/data/
 *.log
 tmp/
 secrets/
+vertex-credentials*.json
+oauth-client-secret

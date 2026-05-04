@@ -25,53 +25,57 @@ logger = structlog.get_logger()
 
 async def run_temporal_workers() -> None:
     settings = get_settings()
-    try:
-        from temporalio.client import Client
-        from temporalio.worker import Worker
+    retry_seconds = int(os.environ.get("PINKY_TEMPORAL_RETRY_SECONDS", "10"))
 
-        from pinky_worker.execution.activities import (
-            apply_change,
-            check_artifact_cache,
-            emit_execution_event,
-            gather_evidence,
-            project_to_postgres,
-            run_investigation,
-            store_artifact,
-            validate_approval,
-            verify_state,
-        )
-        from pinky_worker.workflows.approval import ApprovalWorkflow
-        from pinky_worker.workflows.investigation import InvestigationWorkflow
-        from pinky_worker.workflows.remediation import RemediationWorkflow
-        from pinky_worker.workflows.verification import VerificationWorkflow
+    while True:
+        try:
+            from temporalio.client import Client
+            from temporalio.worker import Worker
 
-        client = await Client.connect(settings.temporal.address, namespace=settings.temporal.namespace)
-        logger.info("temporal connected", address=settings.temporal.address)
+            from pinky_worker.execution.activities import (
+                apply_change,
+                check_artifact_cache,
+                emit_execution_event,
+                gather_evidence,
+                project_to_postgres,
+                run_investigation,
+                store_artifact,
+                validate_approval,
+                verify_state,
+            )
+            from pinky_worker.workflows.approval import ApprovalWorkflow
+            from pinky_worker.workflows.investigation import InvestigationWorkflow
+            from pinky_worker.workflows.remediation import RemediationWorkflow
+            from pinky_worker.workflows.verification import VerificationWorkflow
 
-        activities = [
-            gather_evidence, check_artifact_cache, run_investigation,
-            store_artifact, emit_execution_event, validate_approval,
-            apply_change, verify_state, project_to_postgres,
-        ]
+            client = await Client.connect(settings.temporal.address, namespace=settings.temporal.namespace)
+            logger.info("temporal connected", address=settings.temporal.address)
 
-        workers = [
-            Worker(
-                client, task_queue=INVESTIGATION_QUEUE,
-                workflows=[InvestigationWorkflow], activities=activities,
-            ),
-            Worker(
-                client, task_queue="remediation",
-                workflows=[RemediationWorkflow, ApprovalWorkflow, VerificationWorkflow],
-                activities=activities,
-            ),
-        ]
+            activities = [
+                gather_evidence, check_artifact_cache, run_investigation,
+                store_artifact, emit_execution_event, validate_approval,
+                apply_change, verify_state, project_to_postgres,
+            ]
 
-        logger.info("starting temporal workers", count=len(workers))
-        await asyncio.gather(*[w.run() for w in workers])
+            workers = [
+                Worker(
+                    client, task_queue=INVESTIGATION_QUEUE,
+                    workflows=[InvestigationWorkflow], activities=activities,
+                ),
+                Worker(
+                    client, task_queue="remediation",
+                    workflows=[RemediationWorkflow, ApprovalWorkflow, VerificationWorkflow],
+                    activities=activities,
+                ),
+            ]
 
-    except Exception:
-        logger.exception("temporal workers failed — running observer-only mode")
-        await asyncio.Event().wait()
+            logger.info("starting temporal workers", count=len(workers))
+            await asyncio.gather(*[w.run() for w in workers])
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("temporal workers failed — retrying", retry_seconds=retry_seconds)
+            await asyncio.sleep(retry_seconds)
 
 
 async def run_observer(registry: DefinitionRegistry, correlator: DbIssueCorrelator) -> None:

@@ -46,6 +46,43 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+        - name: wait-migrations
+          image: {{ include "pinky.image" (dict "global" .Values.global "image" .Values.worker.image) }}
+          env:
+            - name: PINKY_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pinky.dbSecretName" . }}
+                  key: url-plain
+          command:
+            - python3
+            - -c
+            - |
+              import asyncio, os
+              import asyncpg
+
+              async def main() -> None:
+                  dsn = os.environ["PINKY_DATABASE_URL"]
+                  while True:
+                      try:
+                          conn = await asyncpg.connect(dsn)
+                          ready = await conn.fetchval(
+                              "SELECT to_regclass('public.alembic_version') IS NOT NULL"
+                          )
+                          await conn.close()
+                          if ready:
+                              print("migrations applied")
+                              break
+                      except Exception:
+                          pass
+                      print("waiting for migrations...")
+                      await asyncio.sleep(2)
+
+              asyncio.run(main())
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: worker
           image: {{ include "pinky.image" (dict "global" .Values.global "image" .Values.worker.image) }}
@@ -69,14 +106,14 @@ spec:
                 secretKeyRef:
                   name: {{ include "pinky.encryptionSecretName" . }}
                   key: key
-          {{- if .Values.llm.existingCredentialsSecret }}
+          {{- if eq .Values.llm.provider "vertex" }}
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: /etc/vertex/credentials.json
           {{- end }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
-            {{- if .Values.llm.existingCredentialsSecret }}
+            {{- if eq .Values.llm.provider "vertex" }}
             - name: vertex-credentials
               mountPath: /etc/vertex
               readOnly: true
@@ -93,8 +130,9 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
-        {{- if .Values.llm.existingCredentialsSecret }}
+        {{- if eq .Values.llm.provider "vertex" }}
         - name: vertex-credentials
           secret:
-            secretName: {{ .Values.llm.existingCredentialsSecret }}
+            secretName: {{ include "pinky.vertexCredentialsSecretName" . }}
+            optional: true
         {{- end }}

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "bash .cursor/hooks/block-secret-checkin.sh",
+        "matcher": "^git\\s+(add|commit|push)\\b",
+        "failClosed": true
+      }
+    ]
+  }
+}
