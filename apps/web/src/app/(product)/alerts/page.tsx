@@ -36,7 +36,7 @@ export default function AlertsPage() {
 
       <div className="flex gap-3 mb-4 items-center">
         <Filter size={14} className="text-text-tertiary" />
-        <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} className="bg-bg-elevated text-text-primary border border-border-default rounded-md px-2 py-1 text-xs">
+        <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
           <option value="">All Severities</option>
           <option value="critical">Critical</option>
           <option value="high">High</option>

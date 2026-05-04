@@ -44,7 +44,7 @@ export function TopBar() {
   };
 
   return (
-    <header className="flex items-center justify-between h-12 px-5 border-b border-border-subtle bg-bg-primary/80 backdrop-blur-sm">
+    <header className="flex items-center justify-between h-12 px-5 border-b border-border-subtle bg-bg-primary">
       <div className="flex items-center gap-4">
         <div className="relative">
           <select
@@ -64,7 +64,7 @@ export function TopBar() {
         >
           <Search size={13} />
           <span className="text-text-tertiary">Search...</span>
-          <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-bg-active text-text-tertiary ml-4 border border-border-default">⌘K</kbd>
+          <kbd className="font-mono text-xs px-1.5 py-0.5 rounded bg-bg-active text-text-tertiary ml-4 border border-border-default">⌘K</kbd>
         </button>
       </div>
       <div className="flex items-center gap-5 text-xs">

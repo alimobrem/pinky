@@ -35,8 +35,8 @@
   --color-priority-low:      #6b7280;
 
   /* ── Borders ── */
-  --color-border-default:    #352f4d;
-  --color-border-subtle:     #252240;
+  --color-border-default:    #3d3660;
+  --color-border-subtle:     #2d2848;
   --color-border-focus:      #a78bfa;
   --color-border-brain:      rgba(167, 139, 250, 0.25);
 
@@ -56,8 +56,8 @@
   --color-accent:            #1f1d2e;
   --color-accent-foreground: #eae8f0;
   --color-destructive:       #ef6b6b;
-  --color-border:            #352f4d;
-  --color-input:             #352f4d;
+  --color-border:            #3d3660;
+  --color-input:             #3d3660;
   --color-ring:              #a78bfa;
   --color-sidebar:           #0b0a12;
   --color-sidebar-foreground:#eae8f0;
