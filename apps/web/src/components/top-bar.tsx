@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Search, Brain, ChevronDown } from "lucide-react";
+import { Search, Brain, ChevronDown, LogOut } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -74,9 +74,21 @@ export function TopBar() {
           <span className="font-medium">Brain active</span>
         </div>
         {session?.authenticated ? (
-          <div className="flex items-center gap-2 text-text-secondary font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-status-done" />
-            <span>{session.principal?.display_name || "Connected"}</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-text-secondary font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-status-done" />
+              <span>{session.principal?.display_name || "Connected"}</span>
+            </div>
+            <button
+              onClick={async () => {
+                await fetch("/api/v1/auth/logout", { method: "POST", credentials: "include" });
+                window.location.href = "/login";
+              }}
+              className="text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer bg-transparent border-none p-1"
+              title="Sign out"
+            >
+              <LogOut size={13} />
+            </button>
           </div>
         ) : session !== null ? (
           <Link href="/login" className={cn("flex items-center gap-2 no-underline font-medium", "text-status-blocked")}>

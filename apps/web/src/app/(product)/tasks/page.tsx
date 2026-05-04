@@ -140,10 +140,10 @@ export default function TasksPage() {
       {error && <div className="p-3 px-4 rounded-md bg-status-blocked/10 border border-status-blocked/30 text-status-blocked text-sm">Failed to load tasks: {error.message}</div>}
 
       {!isLoading && !error && filtered.length === 0 && (
-        <div className="flex flex-col items-center py-16 px-6 text-center max-w-[360px] mx-auto">
-          <div className="font-mono text-xl text-text-tertiary mb-6 select-none">( . _ . )</div>
-          <div className="text-[15px] font-semibold text-text-primary mb-2">Nothing needs your attention.</div>
-          <div className="text-sm text-text-secondary leading-relaxed">The Brain is watching your clusters. If something comes up, it will appear here.</div>
+        <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+          <div className="font-mono text-2xl text-text-tertiary mb-4 select-none">( . _ . )</div>
+          <div className="text-base font-semibold text-text-primary mb-2">Nothing needs your attention.</div>
+          <div className="text-sm text-text-secondary leading-relaxed max-w-[340px]">The Brain is watching your clusters. If something comes up, it will appear here.</div>
         </div>
       )}
 
