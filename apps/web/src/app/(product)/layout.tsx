@@ -5,6 +5,7 @@ import { NavRail } from "@/components/nav-rail";
 import { TopBar } from "@/components/top-bar";
 import { CommandPalette } from "@/components/command-palette";
 import { KeyboardHelp } from "@/components/keyboard-help";
+import { GlobalKeys } from "@/components/global-keys";
 
 export default function ProductLayout({ children }: { children: ReactNode }) {
   return (
@@ -18,6 +19,7 @@ export default function ProductLayout({ children }: { children: ReactNode }) {
       </div>
       <CommandPalette />
       <KeyboardHelp />
+      <GlobalKeys />
     </div>
   );
 }

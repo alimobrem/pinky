@@ -3,13 +3,37 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
-const SHORTCUTS = [
-  { keys: "⌘K", description: "Open command palette" },
-  { keys: "j / k", description: "Navigate list items" },
-  { keys: "Enter", description: "Open selected item" },
-  { keys: "a / s / b / c", description: "Accept / Start / Block / Complete task" },
-  { keys: "Escape", description: "Close dialog / go back" },
-  { keys: "?", description: "Show keyboard shortcuts" },
+const SHORTCUT_GROUPS = [
+  {
+    title: "Navigation",
+    shortcuts: [
+      { keys: "g d", description: "Go to Dashboard" },
+      { keys: "g t", description: "Go to Tasks" },
+      { keys: "g w", description: "Go to Watch" },
+      { keys: "g s", description: "Go to Settings" },
+    ],
+  },
+  {
+    title: "Tasks",
+    shortcuts: [
+      { keys: "j / k", description: "Navigate task list" },
+      { keys: "Enter", description: "Open focused task" },
+      { keys: "a", description: "Accept focused task" },
+      { keys: "s", description: "Start focused task" },
+      { keys: "c", description: "Complete focused task" },
+      { keys: "b", description: "Block focused task" },
+      { keys: "x", description: "Toggle select" },
+      { keys: "/", description: "Focus search" },
+    ],
+  },
+  {
+    title: "Global",
+    shortcuts: [
+      { keys: "⌘K", description: "Command palette" },
+      { keys: "?", description: "Keyboard shortcuts" },
+      { keys: "Escape", description: "Close dialog" },
+    ],
+  },
 ];
 
 export function KeyboardHelp() {
@@ -32,22 +56,29 @@ export function KeyboardHelp() {
       role="dialog"
       aria-modal="true"
       aria-label="Keyboard shortcuts"
-      className="fixed inset-0 z-150 bg-black/60 backdrop-blur-sm flex items-center justify-center"
+      className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex items-center justify-center"
       onClick={() => setOpen(false)}
     >
-      <div onClick={e => e.stopPropagation()} className="w-[400px] bg-bg-elevated border border-border-default rounded-xl shadow-dropdown p-6">
-        <div className="flex justify-between items-center mb-5">
+      <div onClick={e => e.stopPropagation()} className="w-[480px] bg-popover border border-border rounded-xl shadow-dropdown p-6">
+        <div className="flex justify-between items-center mb-6">
           <h2 className="text-base font-semibold">Keyboard Shortcuts</h2>
           <button onClick={() => setOpen(false)} aria-label="Close" className="text-text-tertiary hover:text-text-primary bg-transparent border-none cursor-pointer">
             <X size={18} />
           </button>
         </div>
 
-        <div className="flex flex-col gap-3">
-          {SHORTCUTS.map(s => (
-            <div key={s.keys} className="flex justify-between items-center">
-              <span className="text-sm text-text-secondary">{s.description}</span>
-              <kbd className="bg-bg-active rounded-sm px-2 py-0.5 text-xs font-semibold font-mono text-text-primary border border-border-default">{s.keys}</kbd>
+        <div className="space-y-6">
+          {SHORTCUT_GROUPS.map(group => (
+            <div key={group.title}>
+              <div className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">{group.title}</div>
+              <div className="flex flex-col gap-2.5">
+                {group.shortcuts.map(s => (
+                  <div key={s.keys} className="flex justify-between items-center">
+                    <span className="text-sm text-text-secondary">{s.description}</span>
+                    <kbd className="bg-bg-active rounded px-2 py-0.5 text-xs font-semibold font-mono text-text-primary border border-border-default min-w-[40px] text-center">{s.keys}</kbd>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
