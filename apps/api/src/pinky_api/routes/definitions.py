@@ -39,7 +39,11 @@ def _serialize(d: Any) -> dict:
 async def list_definitions(kind: str | None = None, db: AsyncSession = Depends(get_db)) -> dict:
     repo = DefinitionRepository(db)
     result = await repo.list(kind=kind)
-    return {"items": [_serialize(d) for d in result["items"]], "next_cursor": result["next_cursor"], "has_more": result["has_more"]}
+    return {
+        "items": [_serialize(d) for d in result["items"]],
+        "next_cursor": result["next_cursor"],
+        "has_more": result["has_more"],
+    }
 
 
 @router.get("/{kind}/{name}")
@@ -52,15 +56,21 @@ async def get_definition(kind: str, name: str, db: AsyncSession = Depends(get_db
 
 
 @router.post("", status_code=201)
-async def create_definition(req: DefinitionCreateRequest, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> dict:
+async def create_definition(
+    req: DefinitionCreateRequest, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin),
+) -> dict:
     repo = DefinitionRepository(db)
-    d = await repo.upsert(kind=req.kind, name=req.name, version=req.version, frontmatter=req.frontmatter, body=req.body)
+    d = await repo.upsert(
+        kind=req.kind, name=req.name, version=req.version, frontmatter=req.frontmatter, body=req.body,
+    )
     await db.commit()
     return _serialize(d)
 
 
 @router.delete("/{kind}/{name}", status_code=204)
-async def delete_definition(kind: str, name: str, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> None:
+async def delete_definition(
+    kind: str, name: str, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin),
+) -> None:
     repo = DefinitionRepository(db)
     deleted = await repo.delete(kind, name)
     if not deleted:
