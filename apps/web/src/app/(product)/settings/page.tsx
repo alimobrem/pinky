@@ -169,7 +169,7 @@ export default function SettingsPage() {
           ) : (
             <div className="flex flex-col gap-2">
               {clusters.map(c => (
-                <Card key={c.id} className="flex justify-between items-center p-3 px-5">
+                <Card key={c.id} className="flex justify-between items-center !py-0 !gap-0 p-3 px-5">
                   <div>
                     <div className="font-semibold text-sm">{c.display_name}</div>
                     <div className="text-xs text-text-tertiary font-mono">{c.api_endpoint}</div>
@@ -225,7 +225,7 @@ export default function SettingsPage() {
           ) : (
             <div className="flex flex-col gap-2">
               {definitions.map(d => (
-                <Card key={d.id} className="flex justify-between items-center p-3 px-5">
+                <Card key={d.id} className="flex justify-between items-center !py-0 !gap-0 p-3 px-5">
                   <div className="flex items-center gap-3">
                     <Badge variant="outline" className="uppercase text-[11px]">{d.kind}</Badge>
                     <span className="font-semibold">{d.name}</span>
@@ -279,7 +279,7 @@ export default function SettingsPage() {
           ) : (
             <div className="flex flex-col gap-2">
               {webhooks.map(w => (
-                <Card key={w.id} className="flex justify-between items-center p-3 px-5">
+                <Card key={w.id} className="flex justify-between items-center !py-0 !gap-0 p-3 px-5">
                   <div>
                     <div className="font-semibold text-sm">{w.name}</div>
                     <div className="text-xs text-text-tertiary font-mono">{w.url}</div>
@@ -323,7 +323,7 @@ export default function SettingsPage() {
           ) : (
             <div className="flex flex-col gap-2">
               {rules.map(r => (
-                <Card key={r.id} className="flex justify-between items-center p-3 px-5">
+                <Card key={r.id} className="flex justify-between items-center !py-0 !gap-0 p-3 px-5">
                   <div className="flex items-center gap-3">
                     <span className="tabular text-xs text-text-tertiary font-semibold min-w-[30px]">#{r.priority}</span>
                     <span className="font-semibold">{r.name}</span>
@@ -356,7 +356,7 @@ export default function SettingsPage() {
                 };
                 const cluster = clusters.find(c => c.id === b.cluster_id);
                 return (
-                  <Card key={b.id} className="flex justify-between items-center p-3 px-5">
+                  <Card key={b.id} className="flex justify-between items-center !py-0 !gap-0 p-3 px-5">
                     <div>
                       <div className="font-semibold text-sm">{cluster?.display_name ?? b.cluster_id}</div>
                       <div className="text-xs text-text-tertiary">
