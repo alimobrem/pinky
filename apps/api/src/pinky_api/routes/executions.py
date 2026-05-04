@@ -63,7 +63,7 @@ async def get_execution(execution_id: str, db: AsyncSession = Depends(get_db)) -
 
 @router.post("")
 async def start_execution(work_item_id: str, execution_type: str = "investigation", db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated)) -> dict:
-    import pinky_api.temporal_state as temporal_state
+    from pinky_api.temporal_state import get_client
 
     repo = ExecutionRepository(db)
 
@@ -74,49 +74,52 @@ async def start_execution(work_item_id: str, execution_type: str = "investigatio
     if wi is None:
         raise HTTPException(status_code=404, detail="Work item not found")
 
+    try:
+        temporal_client = await get_client()
+    except Exception:
+        logger.exception("cannot connect to Temporal")
+        raise HTTPException(status_code=503, detail="Workflow engine unavailable — please try again in a moment")
+
     ex = await repo.create(work_item_id=wi_id, cluster_id=wi.cluster_id, execution_type=execution_type)
     await emit(db, "execution.started", "execution", ex.id, {"type": execution_type, "work_item_id": work_item_id})
     await db.commit()
 
-    if temporal_state.client is not None:
-        try:
-            workflow_input = {
-                "issue_id": str(wi.issue_id) if wi.issue_id else str(wi.id),
-                "cluster_id": str(wi.cluster_id),
-                "correlation_key": str(wi.id),
-                "evidence_hash": "",
-                "skill_body": "",
-            }
+    try:
+        workflow_input = {
+            "issue_id": str(wi.issue_id) if wi.issue_id else str(wi.id),
+            "cluster_id": str(wi.cluster_id),
+            "correlation_key": str(wi.id),
+            "evidence_hash": "",
+            "skill_body": "",
+        }
 
-            await temporal_state.client.start_workflow(
-                "InvestigationWorkflow",
-                workflow_input,
-                id=f"investigation-{ex.id}",
-                task_queue="investigation",
-            )
-            logger.info("temporal workflow started for execution %s", str(ex.id))
-        except Exception:
-            logger.exception("failed to start temporal workflow for execution %s", str(ex.id))
-            await repo.update_status(ex.id, "failed")
-            await db.commit()
-            raise HTTPException(status_code=502, detail="Failed to start investigation workflow")
-    else:
-        response = _serialize(ex)
-        response["warning"] = "Temporal not available — workflow will not execute"
-        return response
+        await temporal_client.start_workflow(
+            "InvestigationWorkflow",
+            workflow_input,
+            id=f"investigation-{ex.id}",
+            task_queue="investigation",
+        )
+        logger.info("temporal workflow started for execution %s", str(ex.id))
+    except Exception:
+        logger.exception("failed to start temporal workflow for execution %s", str(ex.id))
+        await repo.update_status(ex.id, "failed")
+        await db.commit()
+        raise HTTPException(status_code=502, detail="Failed to start investigation workflow")
 
     return _serialize(ex)
 
 
 @router.post("/{execution_id}/approve")
 async def approve_execution(execution_id: str, req: ApproveRequest, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated)) -> dict:
-    import pinky_api.temporal_state as temporal_state
-
-    if temporal_state.client is None:
-        raise HTTPException(status_code=503, detail="Temporal not available")
+    from pinky_api.temporal_state import get_client
 
     try:
-        handle = temporal_state.client.get_workflow_handle(f"investigation-{execution_id}")
+        temporal_client = await get_client()
+    except Exception:
+        raise HTTPException(status_code=503, detail="Workflow engine unavailable")
+
+    try:
+        handle = temporal_client.get_workflow_handle(f"investigation-{execution_id}")
         await handle.signal("approve", {"changeset_digest": req.changeset_digest})
         await emit(db, "approval.granted", "execution", UUID(execution_id), {"changeset_digest": req.changeset_digest})
         await db.commit()
@@ -128,13 +131,15 @@ async def approve_execution(execution_id: str, req: ApproveRequest, db: AsyncSes
 
 @router.post("/{execution_id}/reject")
 async def reject_execution(execution_id: str, req: RejectRequest, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated)) -> dict:
-    import pinky_api.temporal_state as temporal_state
-
-    if temporal_state.client is None:
-        raise HTTPException(status_code=503, detail="Temporal not available")
+    from pinky_api.temporal_state import get_client
 
     try:
-        handle = temporal_state.client.get_workflow_handle(f"investigation-{execution_id}")
+        temporal_client = await get_client()
+    except Exception:
+        raise HTTPException(status_code=503, detail="Workflow engine unavailable")
+
+    try:
+        handle = temporal_client.get_workflow_handle(f"investigation-{execution_id}")
         await handle.signal("reject", {"reason": req.reason})
         await emit(db, "approval.rejected", "execution", UUID(execution_id), {"reason": req.reason})
         await db.commit()
