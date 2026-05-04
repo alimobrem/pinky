@@ -97,7 +97,7 @@ function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badg
       <Icon size={18} strokeWidth={active ? 2 : 1.6} className={cn("shrink-0", active ? "text-accent-brand" : "text-text-tertiary group-hover:text-text-secondary")} />
       <span className="flex-1 max-xl:hidden">{item.label}</span>
       {badge != null && badge !== "0" && (
-        <span className="text-[10px] font-mono font-semibold tabular bg-accent-brand/15 text-accent-brand px-1.5 py-0.5 rounded min-w-[20px] text-center max-xl:hidden">{badge}</span>
+        <span className="text-xs font-mono font-semibold tabular bg-accent-brand/15 text-accent-brand px-1.5 py-0.5 rounded min-w-[20px] text-center max-xl:hidden">{badge}</span>
       )}
     </Link>
   );

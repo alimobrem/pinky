@@ -65,7 +65,7 @@ export default function HistoryPage() {
 
       <div className="flex gap-3 mb-4 items-center">
         <Filter size={14} className="text-text-tertiary" />
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="bg-bg-elevated text-text-primary border border-border-default rounded-md px-2 py-1 text-xs">
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
           <option value="">All Types</option>
           {types.map(t => <option key={t} value={t}>{t}</option>)}
         </select>

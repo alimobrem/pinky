@@ -92,7 +92,7 @@ export default function TasksPage() {
       <h1 className="text-lg font-semibold tracking-tight mb-5 text-text-primary">Tasks</h1>
 
       {/* Stat strip */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-8">
         {[
           { label: "READY", count: counts.ready, color: "bg-status-ready", glow: "shadow-[0_0_12px_rgba(124,172,248,0.08)]" },
           { label: "IN PROGRESS", count: counts.in_progress, color: "bg-status-in-progress", glow: "shadow-[0_0_12px_rgba(240,199,75,0.08)]" },
@@ -102,13 +102,13 @@ export default function TasksPage() {
           <div key={s.label} className={cn("bg-bg-surface border border-border-default rounded-xl p-4 shadow-card", s.count > 0 && s.glow)}>
             <div className={cn("h-1 rounded-full mb-3 w-10", s.color, s.count > 0 ? "opacity-100" : "opacity-30")} />
             <div className="tabular text-[28px] font-bold font-mono leading-none">{s.count}</div>
-            <div className="text-[10px] text-text-tertiary font-medium uppercase tracking-[0.1em] mt-2">{s.label}</div>
+            <div className="text-xs text-text-tertiary font-medium uppercase tracking-[0.1em] mt-2">{s.label}</div>
           </div>
         ))}
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 mb-4 items-center">
+      <div className="flex gap-3 mb-6 items-center">
         <Filter size={13} className="text-text-tertiary" />
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
           <option value="">All Statuses</option>
@@ -127,7 +127,7 @@ export default function TasksPage() {
         </select>
         {(statusFilter || priorityFilter) && <Button variant="ghost" size="sm" onClick={() => { setStatusFilter(""); setPriorityFilter(""); }} className="text-xs h-7">Clear</Button>}
         <span className="ml-auto text-xs text-text-tertiary font-mono">
-          {filtered.length}/{items.length} · <kbd className="text-[10px] px-1 py-0.5 rounded border border-border-default bg-bg-surface">j</kbd>/<kbd className="text-[10px] px-1 py-0.5 rounded border border-border-default bg-bg-surface">k</kbd>
+          {filtered.length}/{items.length} · <kbd className="text-xs px-1 py-0.5 rounded border border-border-default bg-bg-surface">j</kbd>/<kbd className="text-xs px-1 py-0.5 rounded border border-border-default bg-bg-surface">k</kbd>
         </span>
       </div>
 
@@ -178,8 +178,8 @@ export default function TasksPage() {
               <div className="flex justify-between items-start">
                 <div className="font-medium text-[13px] text-text-primary leading-snug pr-4">{item.title}</div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider", PRIORITY_BG[item.priority], "text-white/90")}>{item.priority}</span>
-                  <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider", STATUS_BG[item.status], "text-white/90")}>{item.status.replace(/_/g, " ")}</span>
+                  <span className={cn("text-xs px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider", PRIORITY_BG[item.priority], "text-white/90")}>{item.priority}</span>
+                  <span className={cn("text-xs px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider", STATUS_BG[item.status], "text-white/90")}>{item.status.replace(/_/g, " ")}</span>
                   <ChevronRight size={14} className="text-text-tertiary ml-1 group-hover:text-text-secondary transition-colors" />
                 </div>
               </div>
@@ -192,7 +192,7 @@ export default function TasksPage() {
               )}
               <div className="flex items-center gap-3 mt-2.5">
                 {item.confidence != null && <span className={cn("tabular text-xs font-mono font-semibold", confColor(item.confidence))}>{Math.round(item.confidence * 100)}%</span>}
-                {Object.entries(item.labels).map(([k, v]) => <span key={k} className="text-[10px] font-mono px-1.5 py-0.5 bg-bg-elevated/80 rounded text-text-tertiary border border-border-subtle">{k}={v}</span>)}
+                {Object.entries(item.labels).map(([k, v]) => <span key={k} className="text-xs font-mono px-1.5 py-0.5 bg-bg-elevated/80 rounded text-text-tertiary border border-border-subtle">{k}={v}</span>)}
               </div>
             </Link>
             </div>
