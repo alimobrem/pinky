@@ -4,5 +4,5 @@ import { redirect } from "next/navigation";
 export default async function Home() {
   const cookieStore = await cookies();
   const session = cookieStore.get("pinky_session");
-  redirect(session ? "/tasks" : "/login");
+  redirect(session ? "/dashboard" : "/login");
 }

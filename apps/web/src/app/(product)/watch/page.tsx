@@ -74,6 +74,7 @@ export default function WatchPage() {
           <div className="font-mono text-xl text-text-tertiary mb-6">~ ~ ~</div>
           <div className="text-[15px] font-semibold text-text-primary mb-2">All quiet on the western cluster.</div>
           <div className="text-sm text-text-secondary leading-relaxed">The Brain is monitoring but has nothing to escalate right now.</div>
+          <Link href="/settings" className="text-accent-brand text-sm mt-4 font-medium no-underline hover:underline">Configure scanners →</Link>
         </div>
       ) : issues.length > 0 ? (
         <div className="flex flex-col gap-2">
