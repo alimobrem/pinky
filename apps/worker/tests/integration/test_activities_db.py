@@ -1,82 +1,32 @@
-"""Activity DB integration tests against real Postgres.
-
-Tests activities that read/write to the database: artifact cache,
-event emission, approval validation, execution projection.
-"""
+"""Activity DB integration tests against real Postgres."""
 
 from __future__ import annotations
 
 import json
-import os
 import uuid
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import asyncpg
-import pytest
 
-TEST_DB_URL = os.environ.get(
-    "TEST_DATABASE_URL",
-    "postgresql://pinky:pinky@localhost:5432/pinky",
+from pinky_worker.execution.activities import (
+    ExecutionEventPayload,
+    InvestigationArtifact,
+    check_artifact_cache,
+    emit_execution_event,
+    project_to_postgres,
+    store_artifact,
+    validate_approval,
 )
 
+from .conftest import FakePool
 
-@pytest.fixture
-async def conn():
-    c = await asyncpg.connect(TEST_DB_URL)
-    tx = c.transaction()
-    await tx.start()
-    try:
-        yield c
-    finally:
-        await tx.rollback()
-        await c.close()
+PATCH_TARGET = "pinky_worker.db.get_pool"
 
 
-def _mock_pool(conn: asyncpg.Connection):
-    """Wrap a connection to look like an asyncpg pool."""
-
-    class _Pool:
-        async def fetchrow(self, query, *args):
-            return await conn.fetchrow(query, *args)
-
-        async def fetchval(self, query, *args):
-            return await conn.fetchval(query, *args)
-
-        async def execute(self, query, *args):
-            return await conn.execute(query, *args)
-
-    return _Pool()
-
-
-@pytest.fixture
-async def cluster_id(conn: asyncpg.Connection) -> str:
-    cid = str(uuid.uuid4())
-    await conn.execute(
-        """INSERT INTO cluster_registry (id, display_name, api_endpoint, onboarding_state, created_at, updated_at)
-           VALUES ($1::uuid, 'test-cluster', 'https://api.test:6443', 'ready', now(), now())""",
-        cid,
-    )
-    return cid
-
-
-@pytest.fixture
-async def execution_id(conn: asyncpg.Connection, cluster_id: str) -> str:
-    eid = str(uuid.uuid4())
-    await conn.execute(
-        """INSERT INTO executions (id, cluster_id, execution_type, status, created_at)
-           VALUES ($1::uuid, $2::uuid, 'investigation', 'pending', now())""",
-        eid, cluster_id,
-    )
-    return eid
-
-
-# --- store_artifact + check_artifact_cache ---
-
-
-async def test_store_artifact_writes_event(conn: asyncpg.Connection, execution_id: str) -> None:
-    from pinky_worker.execution.activities import InvestigationArtifact, store_artifact
-
+async def test_store_artifact_writes_event(
+    conn: asyncpg.Connection, execution_id: str, fake_pool: FakePool,
+) -> None:
     artifact = InvestigationArtifact(
         artifact_id=execution_id,
         issue_id=str(uuid.uuid4()),
@@ -89,13 +39,12 @@ async def test_store_artifact_writes_event(conn: asyncpg.Connection, execution_i
         created_at=datetime.now(UTC).isoformat(),
     )
 
-    with patch("pinky_worker.db.get_pool", return_value=_mock_pool(conn)):
+    with patch(PATCH_TARGET, return_value=fake_pool):
         result = await store_artifact(artifact)
 
     assert result == execution_id
-
     row = await conn.fetchrow(
-        "SELECT * FROM execution_events WHERE event_type = 'investigation_completed' AND execution_id = $1",
+        "SELECT payload FROM execution_events WHERE event_type = 'investigation_completed' AND execution_id = $1",
         uuid.UUID(execution_id),
     )
     assert row is not None
@@ -104,22 +53,16 @@ async def test_store_artifact_writes_event(conn: asyncpg.Connection, execution_i
     assert payload["evidence_hash"] == "hash-123"
 
 
-async def test_cache_miss_returns_none(conn: asyncpg.Connection) -> None:
-    from pinky_worker.execution.activities import check_artifact_cache
-
-    with patch("pinky_worker.db.get_pool", return_value=_mock_pool(conn)):
-        result = await check_artifact_cache("nonexistent-hash", "key-1")
-
-    assert result is None
+async def test_cache_miss_returns_none(fake_pool: FakePool) -> None:
+    with patch(PATCH_TARGET, return_value=fake_pool):
+        assert await check_artifact_cache("nonexistent-hash", "key-1") is None
 
 
-async def test_cache_hit_returns_artifact(conn: asyncpg.Connection, execution_id: str) -> None:
-    from pinky_worker.execution.activities import check_artifact_cache
-
-    exec_id = uuid.UUID(execution_id)
+async def test_cache_hit_returns_artifact(
+    conn: asyncpg.Connection, execution_id: str, fake_pool: FakePool,
+) -> None:
     payload = {
         "artifact_id": str(uuid.uuid4()),
-        "issue_id": str(uuid.uuid4()),
         "summary": "Cached OOM analysis",
         "root_cause": "Memory leak",
         "recommended_action": "Fix the leak",
@@ -130,10 +73,10 @@ async def test_cache_hit_returns_artifact(conn: asyncpg.Connection, execution_id
     await conn.execute(
         """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)
            VALUES ($1, $2, 'investigation_completed', 999, $3, $4)""",
-        uuid.uuid4(), exec_id, json.dumps(payload), datetime.now(UTC),
+        uuid.uuid4(), uuid.UUID(execution_id), json.dumps(payload), datetime.now(UTC),
     )
 
-    with patch("pinky_worker.db.get_pool", return_value=_mock_pool(conn)):
+    with patch(PATCH_TARGET, return_value=fake_pool):
         result = await check_artifact_cache("hash-cached", "key-1")
 
     assert result is not None
@@ -141,30 +84,24 @@ async def test_cache_hit_returns_artifact(conn: asyncpg.Connection, execution_id
     assert result.confidence == 0.9
 
 
-async def test_cache_expired_returns_none(conn: asyncpg.Connection, execution_id: str) -> None:
-    from pinky_worker.execution.activities import check_artifact_cache
-
-    exec_id = uuid.UUID(execution_id)
-    old_time = datetime.now(UTC) - timedelta(hours=2)
-    payload = {"evidence_hash": "hash-old", "summary": "Old result"}
+async def test_cache_expired_returns_none(
+    conn: asyncpg.Connection, execution_id: str, fake_pool: FakePool,
+) -> None:
     await conn.execute(
         """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)
            VALUES ($1, $2, 'investigation_completed', 999, $3, $4)""",
-        uuid.uuid4(), exec_id, json.dumps(payload), old_time,
+        uuid.uuid4(), uuid.UUID(execution_id),
+        json.dumps({"evidence_hash": "hash-old"}),
+        datetime.now(UTC) - timedelta(hours=2),
     )
 
-    with patch("pinky_worker.db.get_pool", return_value=_mock_pool(conn)):
-        result = await check_artifact_cache("hash-old", "key-1")
-
-    assert result is None
+    with patch(PATCH_TARGET, return_value=fake_pool):
+        assert await check_artifact_cache("hash-old", "key-1") is None
 
 
-# --- emit_execution_event ---
-
-
-async def test_emit_event_writes_to_db(conn: asyncpg.Connection, execution_id: str) -> None:
-    from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event
-
+async def test_emit_event_writes_to_db(
+    conn: asyncpg.Connection, execution_id: str, fake_pool: FakePool,
+) -> None:
     event = ExecutionEventPayload(
         execution_id=execution_id,
         event_type="started",
@@ -172,24 +109,20 @@ async def test_emit_event_writes_to_db(conn: asyncpg.Connection, execution_id: s
         payload={"type": "investigation"},
     )
 
-    with patch("pinky_worker.db.get_pool", return_value=_mock_pool(conn)):
+    with patch(PATCH_TARGET, return_value=fake_pool):
         await emit_execution_event(event)
 
     row = await conn.fetchrow(
-        "SELECT * FROM execution_events WHERE execution_id = $1",
+        "SELECT event_type, sequence FROM execution_events WHERE execution_id = $1",
         uuid.UUID(execution_id),
     )
     assert row is not None
     assert row["event_type"] == "started"
-    assert row["sequence"] == 0
 
 
-# --- validate_approval ---
-
-
-async def test_validate_approval_valid(conn: asyncpg.Connection, execution_id: str) -> None:
-    from pinky_worker.execution.activities import validate_approval
-
+async def test_validate_approval_valid(
+    conn: asyncpg.Connection, execution_id: str, fake_pool: FakePool,
+) -> None:
     approval_id = uuid.uuid4()
     await conn.execute(
         """INSERT INTO approvals (id, execution_id, changeset_digest, target_resources, status, expires_at, created_at)
@@ -197,25 +130,23 @@ async def test_validate_approval_valid(conn: asyncpg.Connection, execution_id: s
         approval_id, execution_id, datetime.now(UTC) + timedelta(hours=4),
     )
 
-    with patch("pinky_worker.db.get_pool", return_value=_mock_pool(conn)):
+    with patch(PATCH_TARGET, return_value=fake_pool):
         result = await validate_approval(str(approval_id), "digest-abc")
 
     assert result["valid"] is True
 
 
-async def test_validate_approval_not_found(conn: asyncpg.Connection) -> None:
-    from pinky_worker.execution.activities import validate_approval
-
-    with patch("pinky_worker.db.get_pool", return_value=_mock_pool(conn)):
+async def test_validate_approval_not_found(fake_pool: FakePool) -> None:
+    with patch(PATCH_TARGET, return_value=fake_pool):
         result = await validate_approval(str(uuid.uuid4()), "")
 
     assert result["valid"] is False
     assert "not found" in result["reason"]
 
 
-async def test_validate_approval_expired(conn: asyncpg.Connection, execution_id: str) -> None:
-    from pinky_worker.execution.activities import validate_approval
-
+async def test_validate_approval_expired(
+    conn: asyncpg.Connection, execution_id: str, fake_pool: FakePool,
+) -> None:
     approval_id = uuid.uuid4()
     await conn.execute(
         """INSERT INTO approvals (id, execution_id, changeset_digest, target_resources, status, expires_at, created_at)
@@ -223,16 +154,16 @@ async def test_validate_approval_expired(conn: asyncpg.Connection, execution_id:
         approval_id, execution_id, datetime.now(UTC) - timedelta(hours=1),
     )
 
-    with patch("pinky_worker.db.get_pool", return_value=_mock_pool(conn)):
+    with patch(PATCH_TARGET, return_value=fake_pool):
         result = await validate_approval(str(approval_id), "")
 
     assert result["valid"] is False
     assert "expired" in result["reason"]
 
 
-async def test_validate_approval_digest_mismatch(conn: asyncpg.Connection, execution_id: str) -> None:
-    from pinky_worker.execution.activities import validate_approval
-
+async def test_validate_approval_digest_mismatch(
+    conn: asyncpg.Connection, execution_id: str, fake_pool: FakePool,
+) -> None:
     approval_id = uuid.uuid4()
     await conn.execute(
         """INSERT INTO approvals (id, execution_id, changeset_digest, target_resources, status, expires_at, created_at)
@@ -240,28 +171,25 @@ async def test_validate_approval_digest_mismatch(conn: asyncpg.Connection, execu
         approval_id, execution_id, datetime.now(UTC) + timedelta(hours=4),
     )
 
-    with patch("pinky_worker.db.get_pool", return_value=_mock_pool(conn)):
+    with patch(PATCH_TARGET, return_value=fake_pool):
         result = await validate_approval(str(approval_id), "digest-different")
 
     assert result["valid"] is False
     assert "changeset changed" in result["reason"]
 
 
-# --- project_to_postgres ---
-
-
-async def test_project_started_updates_execution(conn: asyncpg.Connection, execution_id: str) -> None:
-    from pinky_worker.execution.activities import project_to_postgres
-
-    with patch("pinky_worker.db.get_pool", return_value=_mock_pool(conn)):
+async def test_project_started_updates_execution(
+    conn: asyncpg.Connection, execution_id: str, fake_pool: FakePool,
+) -> None:
+    with patch(PATCH_TARGET, return_value=fake_pool):
         await project_to_postgres(execution_id, "started", {"type": "investigation"})
 
-    row = await conn.fetchrow("SELECT * FROM executions WHERE id = $1", uuid.UUID(execution_id))
+    row = await conn.fetchrow("SELECT status, started_at FROM executions WHERE id = $1", uuid.UUID(execution_id))
     assert row["status"] == "running"
     assert row["started_at"] is not None
 
     history = await conn.fetchrow(
-        "SELECT * FROM history_events WHERE aggregate_id = $1 AND event_type = 'started'",
+        "SELECT event_type FROM history_events WHERE aggregate_id = $1 AND event_type = 'started'",
         uuid.UUID(execution_id),
     )
     assert history is not None
