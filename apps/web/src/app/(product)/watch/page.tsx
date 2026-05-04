@@ -7,6 +7,8 @@ import { Brain, Eye, EyeOff, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Issue, PaginatedResponse } from "@pinky/contracts";
+import { EmptyState } from "@/components/empty-state";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useSSE } from "@/hooks/use-sse";
@@ -55,29 +57,39 @@ export default function WatchPage() {
 
   return (
     <div className="animate-fade-in">
-      <div className="mb-5 flex items-center gap-3">
-        <Eye size={20} className="text-text-tertiary" />
-        <h1 className="text-lg font-semibold tracking-tight">Watch</h1>
-      </div>
-
-      <div className="mb-6 flex items-center gap-2 text-xs text-text-tertiary">
-        <span className={`w-2 h-2 rounded-full inline-block ${connected ? "bg-status-done animate-brain-pulse" : "bg-status-blocked"}`} />
-        {connected ? `Live — updated ${lastUpdated ? relativeTime(lastUpdated.toISOString()) : ""}` : sseState === "reconnecting" ? "Reconnecting..." : "Connecting..."}
-      </div>
+      <PageHeader
+        eyebrow="Live watch"
+        title="Watch"
+        description="A high-signal stream of issues The Brain thinks deserve attention right now."
+        meta={
+          <>
+            <span className={`inline-block h-2 w-2 rounded-full ${connected ? "bg-status-done animate-brain-pulse" : "bg-status-blocked"}`} />
+            <span>
+              {connected
+                ? `Live — updated ${lastUpdated ? relativeTime(lastUpdated.toISOString()) : "just now"}`
+                : sseState === "reconnecting"
+                  ? "Reconnecting..."
+                  : "Connecting..."}
+            </span>
+          </>
+        }
+      />
 
       {fetchError && (
-        <div className="p-3 px-4 mb-4 rounded-md bg-status-blocked/10 border border-status-blocked/30 text-status-blocked text-sm">{fetchError.message}</div>
+        <div className="mt-6 p-3 px-4 rounded-md bg-status-blocked/10 border border-status-blocked/30 text-status-blocked text-sm">{fetchError.message}</div>
       )}
 
       {issues.length === 0 && !fetchError ? (
-        <div className="flex flex-col items-center py-16 px-6 text-center">
-          <div className="font-mono text-xl text-text-tertiary mb-6">~ ~ ~</div>
-          <div className="text-[15px] font-semibold text-text-primary mb-2">All quiet on the western cluster.</div>
-          <div className="text-sm text-text-secondary leading-relaxed">The Brain is monitoring but has nothing to escalate right now.</div>
-          <Link href="/settings" className="text-accent-brand text-sm mt-4 font-medium no-underline hover:underline">Configure scanners →</Link>
-        </div>
+        <EmptyState
+          className="mt-6"
+          eyebrow="Everything is calm"
+          icon={<Eye size={20} />}
+          title="No active issues are bubbling up right now."
+          description="The Brain is still monitoring your clusters. This view will fill as soon as live operational work needs triage."
+          action={<Link href="/settings">Configure scanners →</Link>}
+        />
       ) : issues.length > 0 ? (
-        <div className="flex flex-col gap-3">
+        <div className="mt-6 flex flex-col gap-3">
           {issues.map(issue => (
             <div key={issue.id} className={`bg-bg-surface border border-border-default rounded-xl border-l-[3px] p-5 shadow-card transition-all duration-200 hover:shadow-card-hover ${SEVERITY_BORDER[issue.severity] || "border-l-border-default"} transition-colors`}>
               <div className="flex justify-between items-center">

@@ -3,7 +3,10 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 COPY packages/ ./packages/
 COPY apps/web/ ./apps/web/
-RUN corepack enable && pnpm install --frozen-lockfile && pnpm --filter @pinky/contracts build && pnpm --filter @pinky/web build
+RUN corepack enable \
+  && pnpm install --frozen-lockfile --filter @pinky/web... \
+  && pnpm --filter @pinky/contracts build \
+  && pnpm --filter @pinky/web build
 
 FROM registry.access.redhat.com/ubi9/nodejs-20-minimal:latest
 WORKDIR /opt/app-root/src

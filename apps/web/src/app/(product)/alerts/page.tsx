@@ -5,6 +5,8 @@ import Link from "next/link";
 import { AlertTriangle, ChevronDown, ChevronRight, Filter } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { Observation, PaginatedResponse } from "@pinky/contracts";
+import { EmptyState } from "@/components/empty-state";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import { useCluster } from "@/hooks/use-cluster";
@@ -33,12 +35,14 @@ export default function AlertsPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-5">
-        <AlertTriangle size={20} className="text-text-tertiary" />
-        <h1 className="text-lg font-semibold tracking-tight">Alerts</h1>
-      </div>
+      <PageHeader
+        eyebrow="Raw signal feed"
+        title="Alerts"
+        description="See the lower-level observations and scanner payloads that inform the higher-signal task inbox."
+        meta={<span>{filtered.length} alerts in view</span>}
+      />
 
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+      <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-4 py-3 shadow-card">
         <Filter size={14} className="text-text-tertiary" />
         <select aria-label="Filter alerts by severity" value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
           <option value="">All Severities</option>
@@ -59,16 +63,18 @@ export default function AlertsPage() {
       )}
 
       {!isLoading && filtered.length === 0 && (
-        <div className="flex flex-col items-center py-16 px-6 text-center">
-          <div className="font-mono text-xl text-text-tertiary mb-6">(clear)</div>
-          <div className="text-[15px] font-semibold mb-2">No active alerts.</div>
-          <div className="text-sm text-text-secondary leading-relaxed">Raw signals from your observability stack will appear here when detected.</div>
-          <Link href="/settings" className="text-accent-brand text-sm mt-4 font-medium no-underline hover:underline">Connect a cluster →</Link>
-        </div>
+        <EmptyState
+          className="mt-6"
+          eyebrow="Raw feed is clear"
+          icon={<AlertTriangle size={20} />}
+          title="No active alerts."
+          description="Lower-level observation signals from your scanners will appear here as soon as they are detected."
+          action={<Link href="/settings">Connect a cluster →</Link>}
+        />
       )}
 
       {filtered.length > 0 && (
-        <div className="flex flex-col gap-3">
+        <div className="mt-6 flex flex-col gap-3">
           {filtered.map(a => {
             const isExpanded = expandedId === a.id;
             return (
