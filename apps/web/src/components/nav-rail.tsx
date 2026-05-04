@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CheckSquare, Eye, Clock, AlertTriangle, Settings, Brain } from "lucide-react";
+import { LayoutDashboard, CheckSquare, Eye, Clock, AlertTriangle, Settings, Brain } from "lucide-react";
 import type { ComponentType } from "react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -17,6 +17,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { id: "dashboard", label: "Dashboard", path: "/dashboard", icon: LayoutDashboard, section: "primary" },
   { id: "tasks", label: "Tasks", path: "/tasks", icon: CheckSquare, section: "primary" },
   { id: "watch", label: "Watch", path: "/watch", icon: Eye, section: "primary" },
   { id: "history", label: "History", path: "/history", icon: Clock, section: "primary" },

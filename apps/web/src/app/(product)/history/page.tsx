@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Clock, Filter } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -85,6 +86,7 @@ export default function HistoryPage() {
           <div className="font-mono text-xl text-text-tertiary mb-6">(empty)</div>
           <div className="text-[15px] font-semibold mb-2">No operational history yet.</div>
           <div className="text-sm text-text-secondary leading-relaxed">Completed tasks, remediations, and approvals will appear here over time.</div>
+          <Link href="/tasks" className="text-accent-brand text-sm mt-4 font-medium no-underline hover:underline">Review tasks →</Link>
         </div>
       )}
 

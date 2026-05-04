@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { AlertTriangle, ChevronDown, ChevronRight, Filter } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { Observation, PaginatedResponse } from "@pinky/contracts";
@@ -59,6 +60,7 @@ export default function AlertsPage() {
           <div className="font-mono text-xl text-text-tertiary mb-6">(clear)</div>
           <div className="text-[15px] font-semibold mb-2">No active alerts.</div>
           <div className="text-sm text-text-secondary leading-relaxed">Raw signals from your observability stack will appear here when detected.</div>
+          <Link href="/settings" className="text-accent-brand text-sm mt-4 font-medium no-underline hover:underline">Connect a cluster →</Link>
         </div>
       )}
 
