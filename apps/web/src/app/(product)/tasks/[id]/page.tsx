@@ -176,32 +176,34 @@ export default function TaskDetailPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
+      {/* Back + Actions */}
+      <div className="flex items-center justify-between mb-4">
         <button onClick={() => router.push("/tasks")} className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary bg-transparent border-none cursor-pointer">
           <ArrowLeft size={16} /> Back to Tasks
         </button>
-        <div className="flex gap-2">
-          {item.status === "ready" && <Button onClick={() => actionMutation.mutate("accept")} disabled={acting}>Accept <kbd className="ml-1 font-mono text-[10px] px-1 py-0.5 rounded bg-white/15">a</kbd></Button>}
-          {(item.status === "accepted" || item.status === "blocked") && <Button onClick={() => actionMutation.mutate("start")} disabled={acting}><Play size={14} /> Start <kbd className="ml-1 font-mono text-[10px] px-1 py-0.5 rounded bg-white/15">s</kbd></Button>}
+        <div className="flex gap-1.5 flex-wrap justify-end">
+          {item.status === "ready" && <Button size="sm" onClick={() => actionMutation.mutate("accept")} disabled={acting}>Accept</Button>}
+          {(item.status === "accepted" || item.status === "blocked") && <Button size="sm" onClick={() => actionMutation.mutate("start")} disabled={acting}><Play size={13} /> Start</Button>}
           {item.status === "in_progress" && (
             <>
-              <Button variant="destructive" onClick={() => setBlockOpen(true)} disabled={acting}><Ban size={14} /> Block <kbd className="ml-1 font-mono text-[10px] px-1 py-0.5 rounded bg-white/15">b</kbd></Button>
-              <Button variant="secondary" onClick={() => actionMutation.mutate("complete")} disabled={acting}><CheckCircle size={14} /> Complete <kbd className="ml-1 font-mono text-[10px] px-1 py-0.5 rounded bg-white/15">c</kbd></Button>
+              <Button size="sm" variant="destructive" onClick={() => setBlockOpen(true)} disabled={acting}><Ban size={13} /> Block</Button>
+              <Button size="sm" variant="secondary" onClick={() => actionMutation.mutate("complete")} disabled={acting}><CheckCircle size={13} /> Complete</Button>
             </>
           )}
           {item.status === "waiting_for_approval" && pendingExecution && (
             <>
-              <Button onClick={() => setApproveOpen(true)} disabled={acting}><Shield size={14} /> Approve</Button>
-              <Button variant="destructive" onClick={() => setRejectOpen(true)} disabled={acting}><ShieldOff size={14} /> Reject</Button>
+              <Button size="sm" onClick={() => setApproveOpen(true)} disabled={acting}><Shield size={13} /> Approve</Button>
+              <Button size="sm" variant="destructive" onClick={() => setRejectOpen(true)} disabled={acting}><ShieldOff size={13} /> Reject</Button>
             </>
           )}
-          {!isDone && <Button variant="outline" onClick={() => setReassignOpen(true)} disabled={acting}><UserPlus size={14} /> Reassign</Button>}
-          {!isDone && <Button variant="outline" onClick={() => setTicketOpen(true)}><Link2 size={14} /> Link Ticket</Button>}
+          {!isDone && <Button size="sm" variant="outline" onClick={() => setReassignOpen(true)} disabled={acting}><UserPlus size={13} /></Button>}
+          {!isDone && <Button size="sm" variant="outline" onClick={() => setTicketOpen(true)}><Link2 size={13} /></Button>}
         </div>
       </div>
 
+      {/* Title + badges */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight mb-3 leading-tight">{item.title}</h1>
+        <h1 className="text-lg font-semibold tracking-tight mb-3 leading-snug">{item.title}</h1>
         <div className="flex gap-3 items-center flex-wrap">
           <span className={cn("text-[11px] px-2 py-0.5 rounded-sm font-semibold text-white uppercase", PRIORITY_BG[item.priority])}>{item.priority}</span>
           <span className={cn("text-[11px] px-2 py-0.5 rounded-sm font-semibold text-white uppercase", STATUS_BG[item.status])}>{item.status.replace(/_/g, " ")}</span>
@@ -220,7 +222,7 @@ export default function TaskDetailPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-5 mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-5 mb-6">
         <div className="flex flex-col gap-4">
           <section className="bg-bg-surface border border-border-default rounded-lg p-5">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-text-tertiary mb-3 pb-2 border-b border-border-subtle">Summary</h2>
