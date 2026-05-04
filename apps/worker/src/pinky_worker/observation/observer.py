@@ -7,12 +7,10 @@ One observer task per registered cluster. Uses observer identity
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
 
 import structlog
 
-from pinky_worker.definitions.loader import Definition, DefinitionRegistry
-from pinky_worker.issues.correlator import RawObservation
+from pinky_worker.definitions.loader import DefinitionRegistry
 from pinky_worker.issues.db_correlator import DbIssueCorrelator
 from pinky_worker.observation.k8s_client import create_client, list_pods
 from pinky_worker.observation.scanner_runner import run_pod_health_checks

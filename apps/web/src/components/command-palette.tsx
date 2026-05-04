@@ -111,7 +111,7 @@ export function CommandPalette() {
           <kbd className="bg-bg-active rounded-sm px-1.5 py-0.5 text-[11px] text-text-tertiary">ESC</kbd>
         </div>
 
-        <div className="overflow-y-auto max-h-[380px]">
+        <div className="overflow-y-auto max-h-[380px]" role="listbox" aria-label="Command palette results">
           {filtered.length === 0 && (
             <div className="p-8 text-center text-text-tertiary text-sm">
               No results for &quot;{query}&quot;
@@ -124,11 +124,14 @@ export function CommandPalette() {
               {filtered.filter(i => i.category === cat).map(item => {
                 const globalIndex = filtered.indexOf(item);
                 return (
-                  <div
+                  <button
                     key={item.id}
                     onClick={() => { item.action(); setOpen(false); }}
+                    type="button"
+                    role="option"
+                    aria-selected={globalIndex === selected}
                     className={cn(
-                      "flex items-center gap-3 px-4 py-2 cursor-pointer transition-colors",
+                      "w-full text-left flex items-center gap-3 px-4 py-2 cursor-pointer transition-colors",
                       globalIndex === selected ? "bg-bg-hover" : "bg-transparent"
                     )}
                   >
@@ -137,7 +140,7 @@ export function CommandPalette() {
                       <div className="text-sm font-medium">{item.label}</div>
                       {item.description && <div className="text-xs text-text-tertiary">{item.description}</div>}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>

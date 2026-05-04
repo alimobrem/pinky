@@ -1,7 +1,7 @@
 """Server-side session management with Redis + Postgres audit log."""
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from pinky_api.security.crypto import generate_csrf_token, generate_session_token, hash_token
 
@@ -23,7 +23,7 @@ class SessionManager:
         self.absolute_timeout = timedelta(hours=absolute_timeout_hours)
 
     def create_session(self, principal_id: str) -> tuple[str, SessionData]:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         token = generate_session_token()
         csrf = generate_csrf_token()
 
@@ -39,7 +39,7 @@ class SessionManager:
         return token, session
 
     def is_valid(self, session: SessionData) -> bool:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if now > session.absolute_expires_at:
             return False
         if now > session.idle_expires_at:
@@ -47,7 +47,7 @@ class SessionManager:
         return True
 
     def refresh_idle(self, session: SessionData) -> SessionData:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         new_idle = now + self.idle_timeout
         if new_idle > session.absolute_expires_at:
             new_idle = session.absolute_expires_at

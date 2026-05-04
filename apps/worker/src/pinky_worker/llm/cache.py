@@ -8,7 +8,7 @@ less than max_age old, return it instead of re-running LLM reasoning.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class ArtifactCache:
             self.misses += 1
             return None
 
-        age = datetime.now(timezone.utc) - artifact.created_at
+        age = datetime.now(UTC) - artifact.created_at
         if age > self.max_age:
             del self._store[key]
             self.misses += 1

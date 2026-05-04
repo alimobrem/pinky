@@ -48,7 +48,7 @@ class AuthProvider:
                 resp = await client.get(f"{self.issuer_url}/.well-known/openid-configuration")
                 resp.raise_for_status()
                 self._well_known = resp.json()
-        return self._well_known
+        return self._well_known or {}
 
     def get_authorize_url(self, redirect_uri: str, state: str) -> str:
         from urllib.parse import quote

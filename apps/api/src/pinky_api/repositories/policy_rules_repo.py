@@ -2,8 +2,8 @@
 
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy import delete as sa_delete
+from sqlalchemy import select
 
 from pinky_api.models.extensibility import PolicyRule
 from pinky_api.repositories.base import BaseRepository
@@ -25,5 +25,8 @@ class PolicyRuleRepository(BaseRepository):
         return rule
 
     async def delete(self, rule_id: UUID) -> bool:
-        result = await self.session.execute(sa_delete(PolicyRule).where(PolicyRule.id == rule_id))
-        return result.rowcount > 0
+        existing = await self.get(rule_id)
+        if existing is None:
+            return False
+        await self.session.execute(sa_delete(PolicyRule).where(PolicyRule.id == rule_id))
+        return True

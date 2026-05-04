@@ -25,6 +25,7 @@ def test_binding_status_missing(authed_client: TestClient) -> None:
     assert response.json()["status"] == "missing"
 
 
-def test_list_service_bindings_not_implemented(authed_client: TestClient) -> None:
+def test_list_service_bindings(authed_client: TestClient) -> None:
     response = authed_client.get("/api/v1/service-bindings")
-    assert response.status_code == 501
+    assert response.status_code == 200
+    assert "items" in response.json()

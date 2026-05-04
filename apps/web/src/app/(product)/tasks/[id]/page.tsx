@@ -63,15 +63,26 @@ export default function TaskDetailPage() {
     queryFn: () => api.get<{ items: TimelineEvent[] }>(`/api/v1/work-items/${taskId}/events`),
   });
 
-  const { data: pendingExecData } = useQuery({
-    queryKey: ["pending-execution", taskId],
-    queryFn: () => api.get<PaginatedResponse<Execution>>(`/api/v1/executions?work_item_id=${taskId}&status=pending`),
-    enabled: item?.status === "waiting_for_approval",
+  const { data: activeExecData } = useQuery({
+    queryKey: ["active-executions", taskId],
+    queryFn: () =>
+      api.get<PaginatedResponse<Execution>>(
+        `/api/v1/executions?work_item_id=${taskId}&status=pending,running,waiting_for_approval`,
+      ),
+    enabled: !!item,
   });
 
   const events = eventsData?.items ?? [];
   const inv = investigation?.has_investigation ? investigation : null;
-  const pendingExecution = (pendingExecData?.items ?? [])[0] ?? null;
+  const executions = activeExecData?.items ?? [];
+  const pendingExecution =
+    executions.find((e) => e.execution_type === "remediation" && e.status === "waiting_for_approval") ?? null;
+  const runningRemediation =
+    executions.find((e) => e.execution_type === "remediation" && (e.status === "running" || e.status === "pending")) ?? null;
+  const activeInvestigation =
+    executions.find((e) => e.execution_type === "investigation" && (e.status === "pending" || e.status === "running")) ?? null;
+  const remediationPlanSteps = Array.isArray(item?.artifact_refs?.plan_steps) ? item.artifact_refs.plan_steps : [];
+  const canStartRemediation = remediationPlanSteps.length > 0;
 
   const actionMutation = useMutation({
     mutationFn: (action: string) => api.post<WorkItem>(`/api/v1/work-items/${taskId}/${action}`),
@@ -112,8 +123,11 @@ export default function TaskDetailPage() {
   const triggerInvestigation = async () => {
     setInvestigating(true);
     try {
-      const existing = await api.get<PaginatedResponse<Execution>>(`/api/v1/executions?work_item_id=${taskId}&status=pending`);
-      if ((existing.items || []).length > 0) { toast.warning("Investigation already in progress"); setInvestigating(false); return; }
+      if (activeInvestigation) {
+        toast.warning("Investigation already in progress");
+        setInvestigating(false);
+        return;
+      }
       await api.post(`/api/v1/executions?work_item_id=${taskId}&execution_type=investigation`);
       toast.info("Brain investigation started...");
       let attempts = 0;
@@ -135,6 +149,10 @@ export default function TaskDetailPage() {
   };
 
   const startRemediation = async () => {
+    if (!canStartRemediation) {
+      toast.error("No remediation plan is available for this task yet.");
+      return;
+    }
     try {
       const result = await api.post<{ id: string }>(`/api/v1/executions?work_item_id=${taskId}&execution_type=remediation`);
       setActiveRemediationId(result.id);
@@ -284,17 +302,17 @@ export default function TaskDetailPage() {
             </Button>
           )}
 
-          {inv?.recommended_action && !activeRemediationId && !isDone && (
+          {inv?.recommended_action && !activeRemediationId && !runningRemediation && !pendingExecution && !isDone && canStartRemediation && (
             <Button variant="outline" className="w-full border-accent-brand-dim text-accent-brand hover:bg-accent-brand/10" onClick={startRemediation} disabled={acting}>
               <Rocket size={16} /> Start Remediation
             </Button>
           )}
 
-          {activeRemediationId && (
+          {(activeRemediationId || runningRemediation?.id || pendingExecution?.id) && (
             <div>
               <div className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-2">Live Execution</div>
-              <ExecutionMonitor executionId={activeRemediationId} onComplete={invalidateAll} />
-              <Link href={`/tasks/${taskId}/execution/${activeRemediationId}`} className="text-xs text-accent-brand block mt-2">View full execution detail</Link>
+              <ExecutionMonitor executionId={activeRemediationId || runningRemediation?.id || pendingExecution!.id} onComplete={invalidateAll} />
+              <Link href={`/tasks/${taskId}/execution/${activeRemediationId || runningRemediation?.id || pendingExecution!.id}`} className="text-xs text-accent-brand block mt-2">View full execution detail</Link>
             </div>
           )}
         </div>

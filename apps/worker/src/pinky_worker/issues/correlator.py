@@ -10,7 +10,7 @@ Rules:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 
 @dataclass
@@ -25,7 +25,7 @@ class RawObservation:
     resource_name: str
     title: str
     payload: dict = field(default_factory=dict)
-    observed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    observed_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     fingerprint: str = ""
     correlation_key: str = ""
 

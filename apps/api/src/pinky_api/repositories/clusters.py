@@ -6,7 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 
-from pinky_api.models.fleet import ClusterIdentityBinding, ClusterRegistry
+from pinky_api.models.fleet import ClusterRegistry
 from pinky_api.repositories.base import BaseRepository
 
 

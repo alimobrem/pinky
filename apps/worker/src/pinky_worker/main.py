@@ -14,11 +14,11 @@ from pathlib import Path
 import structlog
 
 from pinky_worker.config import get_settings
+from pinky_worker.db import close_pool, get_pool
 from pinky_worker.definitions.loader import DefinitionRegistry
-from pinky_worker.db import get_pool, close_pool
 from pinky_worker.issues.db_correlator import DbIssueCorrelator
 from pinky_worker.observation.observer import observe_cluster
-from pinky_worker.queues import ALL_QUEUES, INVESTIGATION_QUEUE
+from pinky_worker.queues import INVESTIGATION_QUEUE
 
 logger = structlog.get_logger()
 
@@ -28,15 +28,22 @@ async def run_temporal_workers() -> None:
     try:
         from temporalio.client import Client
         from temporalio.worker import Worker
+
+        from pinky_worker.execution.activities import (
+            apply_change,
+            check_artifact_cache,
+            emit_execution_event,
+            gather_evidence,
+            project_to_postgres,
+            run_investigation,
+            store_artifact,
+            validate_approval,
+            verify_state,
+        )
+        from pinky_worker.workflows.approval import ApprovalWorkflow
         from pinky_worker.workflows.investigation import InvestigationWorkflow
         from pinky_worker.workflows.remediation import RemediationWorkflow
-        from pinky_worker.workflows.approval import ApprovalWorkflow
         from pinky_worker.workflows.verification import VerificationWorkflow
-        from pinky_worker.execution.activities import (
-            gather_evidence, check_artifact_cache, run_investigation,
-            store_artifact, emit_execution_event, validate_approval,
-            apply_change, verify_state, project_to_postgres,
-        )
 
         client = await Client.connect(settings.temporal.address, namespace=settings.temporal.namespace)
         logger.info("temporal connected", address=settings.temporal.address)

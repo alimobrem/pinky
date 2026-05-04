@@ -9,7 +9,7 @@ stateless resume (refetch from API on reconnect).
 import asyncio
 import json
 from collections.abc import AsyncGenerator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import asyncpg
 from fastapi import APIRouter, Request
@@ -45,6 +45,7 @@ async def _sse_with_notify(request: Request, channel: str) -> AsyncGenerator[str
 
     try:
         conn = await asyncpg.connect(_raw_pg_url())
+        assert conn is not None
         await conn.add_listener(channel, lambda *_: None)
 
         queue: asyncio.Queue[str] = asyncio.Queue(maxsize=100)
@@ -71,13 +72,13 @@ async def _sse_with_notify(request: Request, channel: str) -> AsyncGenerator[str
                     "stream": channel,
                     "aggregate_id": payload_data.get("aggregate_id", ""),
                     "type": payload_data.get("event_type", "update"),
-                    "occurred_at": datetime.now(timezone.utc).isoformat(),
+                    "occurred_at": datetime.now(UTC).isoformat(),
                     "sequence": sequence,
                     "payload": payload_data,
                 }
                 yield f"id: {sequence}\nevent: update\ndata: {json.dumps(envelope)}\n\n"
-            except asyncio.TimeoutError:
-                heartbeat = json.dumps({"ts": datetime.now(timezone.utc).isoformat()})
+            except TimeoutError:
+                heartbeat = json.dumps({"ts": datetime.now(UTC).isoformat()})
                 yield f"event: heartbeat\ndata: {heartbeat}\n\n"
 
     except Exception:
@@ -93,7 +94,7 @@ async def _sse_poll(request: Request, stream_name: str) -> AsyncGenerator[str, N
     while True:
         if await request.is_disconnected():
             break
-        heartbeat = json.dumps({"ts": datetime.now(timezone.utc).isoformat()})
+        heartbeat = json.dumps({"ts": datetime.now(UTC).isoformat()})
         yield f"event: heartbeat\ndata: {heartbeat}\n\n"
         await asyncio.sleep(HEARTBEAT_INTERVAL)
 

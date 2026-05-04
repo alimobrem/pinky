@@ -11,8 +11,8 @@ import asyncio
 import fnmatch
 import json
 import logging
-from datetime import datetime, timedelta, timezone
-from uuid import UUID, uuid4
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import httpx
 
@@ -39,7 +39,7 @@ async def _deliver_one(url: str, payload: dict, timeout: float = 10) -> tuple[in
 
 async def run_delivery_loop() -> None:
     logger.info("webhook delivery worker started")
-    last_processed = datetime.now(timezone.utc) - timedelta(minutes=5)
+    last_processed = datetime.now(UTC) - timedelta(minutes=5)
 
     while True:
         try:
@@ -79,7 +79,7 @@ async def run_delivery_loop() -> None:
                         await pool.execute(
                             """INSERT INTO webhook_deliveries (id, subscription_id, domain_event_id, status, attempts, created_at)
                                VALUES ($1, $2, $3, 'pending', 0, $4)""",
-                            delivery_id, sub["id"], event["id"], datetime.now(timezone.utc),
+                            delivery_id, sub["id"], event["id"], datetime.now(UTC),
                         )
 
                         for attempt in range(MAX_RETRIES):
@@ -89,14 +89,28 @@ async def run_delivery_loop() -> None:
                                     await pool.execute(
                                         """UPDATE webhook_deliveries SET status = 'delivered', attempts = $2,
                                            last_attempt_at = $3, last_response_code = $4 WHERE id = $1""",
-                                        delivery_id, attempt + 1, datetime.now(timezone.utc), status_code,
+                                        delivery_id, attempt + 1, datetime.now(UTC), status_code,
                                     )
-                                    logger.info("webhook delivered", subscription=sub["name"], event_type=event_type, status=status_code)
+                                    logger.info(
+                                        "webhook delivered for subscription %s event %s status %s",
+                                        sub["name"],
+                                        event_type,
+                                        status_code,
+                                    )
                                     break
                                 else:
-                                    logger.warning("webhook delivery failed", subscription=sub["name"], status=status_code, attempt=attempt + 1)
+                                    logger.warning(
+                                        "webhook delivery failed for subscription %s status %s attempt %s",
+                                        sub["name"],
+                                        status_code,
+                                        attempt + 1,
+                                    )
                             except Exception:
-                                logger.warning("webhook delivery error", subscription=sub["name"], attempt=attempt + 1)
+                                logger.warning(
+                                    "webhook delivery error for subscription %s attempt %s",
+                                    sub["name"],
+                                    attempt + 1,
+                                )
 
                             backoff = min(BACKOFF_BASE * (2 ** attempt), BACKOFF_CAP)
                             await asyncio.sleep(backoff)
@@ -104,9 +118,13 @@ async def run_delivery_loop() -> None:
                             await pool.execute(
                                 """UPDATE webhook_deliveries SET status = 'exhausted', attempts = $2,
                                    last_attempt_at = $3 WHERE id = $1""",
-                                delivery_id, MAX_RETRIES, datetime.now(timezone.utc),
+                                delivery_id, MAX_RETRIES, datetime.now(UTC),
                             )
-                            logger.error("webhook delivery exhausted", subscription=sub["name"], event_type=event_type)
+                            logger.error(
+                                "webhook delivery exhausted for subscription %s event %s",
+                                sub["name"],
+                                event_type,
+                            )
 
                     last_processed = event["occurred_at"]
 

@@ -39,16 +39,19 @@ export default function HistoryPage() {
   const router = useRouter();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ["history", cluster],
+    queryKey: ["history", cluster, typeFilter],
     queryFn: () => {
-      let url = "/api/v1/history";
-      if (cluster) url += `?cluster_id=${cluster}`;
+      const params = new URLSearchParams();
+      if (cluster) params.set("cluster_id", cluster);
+      if (typeFilter) params.set("aggregate_type", typeFilter);
+      params.set("limit", "100");
+      const url = `/api/v1/history?${params.toString()}`;
       return api.get<PaginatedResponse<HistoryEvent>>(url);
     },
   });
 
   const events = data?.items ?? [];
-  const filtered = typeFilter ? events.filter(e => e.aggregate_type === typeFilter) : events;
+  const filtered = events;
   const types = [...new Set(events.map(e => e.aggregate_type))];
 
   const handleRowClick = (e: HistoryEvent) => {
@@ -66,7 +69,7 @@ export default function HistoryPage() {
 
       <div className="flex gap-3 mb-4 items-center">
         <Filter size={14} className="text-text-tertiary" />
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
+        <select aria-label="Filter history by type" value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
           <option value="">All Types</option>
           {types.map(t => <option key={t} value={t}>{t}</option>)}
         </select>

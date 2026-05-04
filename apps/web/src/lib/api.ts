@@ -1,5 +1,35 @@
 const BASE_URL = "";
 
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+export class SessionExpiredError extends ApiError {
+  constructor(message = "Session expired") {
+    super(message, 401);
+    this.name = "SessionExpiredError";
+  }
+}
+
+export class ClusterBindingError extends ApiError {
+  constructor(message: string) {
+    super(message, 401);
+    this.name = "ClusterBindingError";
+  }
+}
+
+export class ForbiddenError extends ApiError {
+  constructor(message: string) {
+    super(message, 403);
+    this.name = "ForbiddenError";
+  }
+}
+
 function getCsrfToken(): string | null {
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
@@ -23,26 +53,38 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
-  if (res.status === 401 || res.status === 403) {
-    if (typeof window !== "undefined") window.location.href = "/login";
-    throw new Error("Session expired");
+  const text = await res.text().catch(() => "");
+  let message = `${res.status} ${res.statusText}`;
+  try {
+    const err = JSON.parse(text);
+    if (err.error?.message) message = err.error.message;
+    else if (err.detail) message = err.detail;
+  } catch {
+    if (text) message = text;
+  }
+
+  if (res.status === 401) {
+    const lower = message.toLowerCase();
+    const isBindingIssue =
+      lower.includes("binding") ||
+      lower.includes("reauthentication required") ||
+      lower.includes("cluster access");
+    if (!isBindingIssue && typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    throw isBindingIssue ? new ClusterBindingError(message) : new SessionExpiredError(message);
+  }
+
+  if (res.status === 403) {
+    throw new ForbiddenError(message);
   }
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    let message = `${res.status} ${res.statusText}`;
-    try {
-      const err = JSON.parse(text);
-      if (err.error?.message) message = err.error.message;
-      else if (err.detail) message = err.detail;
-    } catch {
-      if (text) message = text;
-    }
-    throw new Error(message);
+    throw new ApiError(message, res.status);
   }
 
   if (res.status === 204) return undefined as T;
-  return res.json();
+  return text ? (JSON.parse(text) as T) : (undefined as T);
 }
 
 export const api = {

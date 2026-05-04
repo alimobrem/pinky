@@ -21,6 +21,7 @@ async def get_client() -> Client:
         return _client
 
     from temporalio.client import Client as TemporalClient
+
     from pinky_api.config import get_settings
 
     settings = get_settings()

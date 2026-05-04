@@ -1,5 +1,7 @@
 """History routes — append-only audit and narrative surface."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +11,7 @@ from pinky_api.repositories.history import HistoryRepository
 router = APIRouter(prefix="/api/v1/history", tags=["history"])
 
 
-def _serialize(event: object) -> dict:
+def _serialize(event: Any) -> dict:
     return {
         "id": str(event.id),
         "aggregate_type": event.aggregate_type,
@@ -41,4 +43,5 @@ async def list_history(
         "items": [_serialize(e) for e in result["items"]],
         "next_cursor": result["next_cursor"],
         "has_more": result["has_more"],
+        "total_count": result.get("total_count", len(result["items"])),
     }

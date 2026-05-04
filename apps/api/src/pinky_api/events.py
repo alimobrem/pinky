@@ -35,14 +35,13 @@ async def emit(
     cluster_id: UUID | None = None,
     principal_id: UUID | None = None,
 ) -> DomainEvent:
-    event = DomainEvent(
-        event_type=event_type,
-        aggregate_type=aggregate_type,
-        aggregate_id=aggregate_id,
-        payload=payload,
-        cluster_id=cluster_id,
-        principal_id=principal_id,
-    )
+    event = DomainEvent()
+    event.event_type = event_type
+    event.aggregate_type = aggregate_type
+    event.aggregate_id = aggregate_id
+    event.payload = payload
+    event.cluster_id = cluster_id
+    event.principal_id = principal_id
     db.add(event)
     await db.flush()
 
@@ -55,9 +54,14 @@ async def emit(
     })
     try:
         raw_conn = await db.connection()
-        await raw_conn.execute(text(f"SELECT pg_notify(:channel, :payload)"), {"channel": channel, "payload": notify_payload})
+        await raw_conn.execute(text("SELECT pg_notify(:channel, :payload)"), {"channel": channel, "payload": notify_payload})
     except Exception:
         logger.debug("NOTIFY skipped — not connected to Postgres or in test mode")
 
-    logger.info("domain event emitted", event_type=event_type, aggregate_type=aggregate_type, aggregate_id=str(aggregate_id))
+    logger.info(
+        "domain event emitted %s %s %s",
+        event_type,
+        aggregate_type,
+        str(aggregate_id),
+    )
     return event

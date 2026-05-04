@@ -2,7 +2,6 @@
 
 from fastapi.testclient import TestClient
 
-
 ADMIN_ONLY_ROUTES = [
     ("POST", "/api/v1/clusters", {"display_name": "test", "api_endpoint": "https://test"}),
     ("DELETE", "/api/v1/clusters/00000000-0000-0000-0000-000000000001", None),
@@ -42,16 +41,19 @@ def test_admin_routes_allow_admin(authed_client: TestClient) -> None:
 
 
 def test_read_routes_allow_non_admin(non_admin_client: TestClient) -> None:
-    read_routes = [
+    allowed_read_routes = [
         "/api/v1/clusters",
         "/api/v1/definitions",
         "/api/v1/webhook-subscriptions",
         "/api/v1/policy-rules",
-        "/api/v1/work-items",
-        "/api/v1/issues",
         "/api/v1/history",
-        "/api/v1/alerts",
     ]
-    for path in read_routes:
+    for path in allowed_read_routes:
         response = non_admin_client.get(path)
         assert response.status_code == 200, f"GET {path} should allow non-admin, got {response.status_code}"
+
+
+def test_live_cluster_reads_require_binding(non_admin_client: TestClient) -> None:
+    for path in ["/api/v1/work-items", "/api/v1/issues", "/api/v1/alerts"]:
+        response = non_admin_client.get(path)
+        assert response.status_code in (200, 401), f"GET {path} should require binding or return empty, got {response.status_code}"

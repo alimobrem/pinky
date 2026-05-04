@@ -1,11 +1,13 @@
 """Auth middleware — session validation, CSRF, principal injection."""
 
 import os
+from typing import TYPE_CHECKING
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import APIKeyCookie, APIKeyHeader
 
-from pinky_api.security.crypto import hash_token
+if TYPE_CHECKING:
+    from pinky_api.auth.session_store import SessionStore
 
 SESSION_COOKIE_NAME = "pinky_session"
 CSRF_HEADER_NAME = "x-csrf-token"
@@ -23,7 +25,6 @@ STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
 def _get_session_store() -> "SessionStore | None":
-    from pinky_api.auth.session_store import SessionStore
     import pinky_api.auth._state as state
     return state.session_store
 
@@ -38,12 +39,17 @@ async def get_current_principal(
 
     # Dev mode bypass — never enable in production
     if os.environ.get("PINKY_DEV_AUTH_BYPASS") == "true":
-        return {"id": "dev-user", "provider": "dev", "email": "dev@pinky.dev", "groups": ["pinky-admins"], "is_admin": True}
+        return {
+            "id": "dev-user",
+            "provider": "dev",
+            "email": "dev@pinky.dev",
+            "groups": ["pinky-admins"],
+            "is_admin": True,
+        }
 
     # API token auth (CLI/CI)
     if auth_header and auth_header.startswith("Bearer "):
-        api_token = auth_header[7:]
-        token_hash = hash_token(api_token)
+        _api_token = auth_header[7:]
         raise HTTPException(status_code=501, detail="API token authentication not implemented — use session auth")
 
     # Session cookie auth

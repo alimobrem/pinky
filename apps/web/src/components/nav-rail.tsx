@@ -32,14 +32,14 @@ export function NavRail() {
 
   useEffect(() => {
     const fetchBadges = () => {
-      api.get<{ items: unknown[]; has_more: boolean }>("/api/v1/work-items?status=ready")
-        .then(d => { const count = (d.items || []).length; setBadges(prev => ({ ...prev, tasks: d.has_more ? `${count}+` : `${count}` })); })
+      api.get<{ items: unknown[]; has_more: boolean; total_count?: number }>("/api/v1/work-items?status=ready&limit=1")
+        .then(d => { const count = d.total_count ?? (d.items || []).length; setBadges(prev => ({ ...prev, tasks: `${count}` })); })
         .catch(() => {});
-      api.get<{ items: unknown[]; has_more: boolean }>("/api/v1/alerts")
-        .then(d => { const count = (d.items || []).length; setBadges(prev => ({ ...prev, alerts: d.has_more ? `${count}+` : `${count}` })); })
+      api.get<{ items: unknown[]; has_more: boolean; total_count?: number }>("/api/v1/alerts?limit=1")
+        .then(d => { const count = d.total_count ?? (d.items || []).length; setBadges(prev => ({ ...prev, alerts: `${count}` })); })
         .catch(() => {});
-      api.get<{ items: unknown[] }>("/api/v1/issues?status=open")
-        .then(d => setBrainActive((d.items || []).length > 0))
+      api.get<{ items: unknown[]; total_count?: number }>("/api/v1/issues?status=open&limit=1")
+        .then(d => setBrainActive((d.total_count ?? (d.items || []).length) > 0))
         .catch(() => {});
     };
     fetchBadges();

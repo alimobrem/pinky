@@ -7,7 +7,7 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
-    from pinky_worker.execution.activities import emit_execution_event, verify_state, ExecutionEventPayload
+    from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event, verify_state
 
 
 @dataclass

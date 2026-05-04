@@ -2,15 +2,15 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
-class DatabaseConfig(BaseSettings, frozen=True):
+class DatabaseConfig(BaseSettings):
     url: str = "postgresql+asyncpg://pinky:pinky@localhost:5432/pinky"
 
 
-class RedisConfig(BaseSettings, frozen=True):
+class RedisConfig(BaseSettings):
     url: str = "redis://localhost:6379/0"
 
 
-class AuthConfig(BaseSettings, frozen=True):
+class AuthConfig(BaseSettings):
     session_idle_timeout_minutes: int = 30
     session_absolute_timeout_hours: int = 8
     csrf_enabled: bool = True
@@ -26,12 +26,12 @@ class AuthConfig(BaseSettings, frozen=True):
     app_url: str = "http://localhost:3000"
 
 
-class TemporalConfig(BaseSettings, frozen=True):
+class TemporalConfig(BaseSettings):
     address: str = "localhost:7233"
     namespace: str = "default"
 
 
-class PinkySettings(BaseSettings, frozen=True):
+class PinkySettings(BaseSettings):
     model_config = {"env_prefix": "PINKY_", "env_nested_delimiter": "__"}
 
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)

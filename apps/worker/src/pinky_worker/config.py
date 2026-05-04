@@ -2,12 +2,12 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
-class TemporalConfig(BaseSettings, frozen=True):
+class TemporalConfig(BaseSettings):
     address: str = "localhost:7233"
     namespace: str = "default"
 
 
-class WorkerConfig(BaseSettings, frozen=True):
+class WorkerConfig(BaseSettings):
     model_config = {"env_prefix": "PINKY_", "env_nested_delimiter": "__"}
 
     temporal: TemporalConfig = Field(default_factory=TemporalConfig)

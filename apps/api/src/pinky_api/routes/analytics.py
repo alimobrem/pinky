@@ -5,7 +5,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.db.deps import get_db
-from pinky_api.models.analytics import AnalyticsEvent
 from pinky_api.models.execution import Execution
 from pinky_api.models.issue import Issue
 from pinky_api.models.work_item import WorkItem

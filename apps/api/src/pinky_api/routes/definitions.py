@@ -1,5 +1,7 @@
 """Definition CRUD routes — manage scanners, tools, skills, policies via API."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +22,7 @@ class DefinitionCreateRequest(BaseModel):
     enabled: bool = True
 
 
-def _serialize(d: object) -> dict:
+def _serialize(d: Any) -> dict:
     return {
         "id": str(d.id),
         "kind": d.kind,

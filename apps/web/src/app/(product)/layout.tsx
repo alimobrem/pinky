@@ -6,8 +6,11 @@ import { TopBar } from "@/components/top-bar";
 import { CommandPalette } from "@/components/command-palette";
 import { KeyboardHelp } from "@/components/keyboard-help";
 import { GlobalKeys } from "@/components/global-keys";
+import { requireServerSession } from "@/lib/server-auth";
 
-export default function ProductLayout({ children }: { children: ReactNode }) {
+export default async function ProductLayout({ children }: { children: ReactNode }) {
+  await requireServerSession();
+
   return (
     <div className="flex min-h-screen">
       <NavRail />

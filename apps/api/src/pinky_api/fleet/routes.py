@@ -1,17 +1,20 @@
 """Fleet routes — cluster registry and binding management."""
 
 from datetime import datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from pinky_api.auth.deps import require_admin, require_authenticated
+from pinky_api.auth.deps import principal_uuid, require_admin, require_authenticated
 from pinky_api.db.deps import get_db
 from pinky_api.events import emit
 from pinky_api.repositories.bindings import BindingRepository
 from pinky_api.repositories.clusters import ClusterRepository
+from pinky_api.repositories.service_bindings import ServiceBindingRepository
+from pinky_api.security.crypto import encrypt
 
 router = APIRouter(prefix="/api/v1", tags=["fleet"])
 
@@ -26,10 +29,19 @@ class ClusterCreateRequest(BaseModel):
 
 class BindingCreateRequest(BaseModel):
     cluster_id: str
-    binding_method: str = "token"
+    binding_method: str = "oauth_login"
 
 
-def _serialize_cluster(c: object) -> dict:
+class ServiceBindingCreateRequest(BaseModel):
+    name: str
+    service_type: str
+    cluster_id: str | None = None
+    base_url: str
+    auth_method: str
+    credential: str
+
+
+def _serialize_cluster(c: Any) -> dict:
     return {
         "id": str(c.id),
         "display_name": c.display_name,
@@ -42,7 +54,7 @@ def _serialize_cluster(c: object) -> dict:
     }
 
 
-def _serialize_binding(b: object) -> dict:
+def _serialize_binding(b: Any) -> dict:
     return {
         "id": str(b.id),
         "principal_id": str(b.principal_id),
@@ -57,11 +69,27 @@ def _serialize_binding(b: object) -> dict:
     }
 
 
+def _serialize_service_binding(b: Any) -> dict:
+    return {
+        "id": str(b.id),
+        "name": b.name,
+        "service_type": b.service_type,
+        "cluster_id": str(b.cluster_id) if b.cluster_id else None,
+        "base_url": b.base_url,
+        "auth_method": b.auth_method,
+        "health_state": b.health_state,
+        "last_check_at": b.last_check_at.isoformat() if b.last_check_at else None,
+        "created_at": b.created_at.isoformat() if b.created_at else "",
+        "updated_at": b.updated_at.isoformat() if b.updated_at else "",
+    }
+
+
 @router.get("/clusters")
 async def list_clusters(
     limit: int = 50,
     cursor: str | None = None,
     db: AsyncSession = Depends(get_db),
+    _principal: dict = Depends(require_authenticated),
 ) -> dict:
     repo = ClusterRepository(db)
     result = await repo.list(limit=limit, cursor=cursor)
@@ -69,6 +97,7 @@ async def list_clusters(
         "items": [_serialize_cluster(c) for c in result["items"]],
         "next_cursor": result["next_cursor"],
         "has_more": result["has_more"],
+        "total_count": result.get("total_count", len(result["items"])),
     }
 
 
@@ -148,10 +177,9 @@ async def create_binding(
     principal: dict = Depends(require_authenticated),
 ) -> dict:
     repo = BindingRepository(db)
-    pid = _safe_uuid(principal["id"])
-    if pid is None:
-        raise HTTPException(status_code=400, detail="Invalid principal ID")
-    existing = await repo.get_for_cluster(pid, UUID(req.cluster_id))
+    pid = principal_uuid(principal)
+    cluster_uuid = UUID(req.cluster_id)
+    existing = await repo.get_for_cluster(pid, cluster_uuid)
     if existing and existing.status == "valid":
         return _serialize_binding(existing)
 
@@ -160,13 +188,13 @@ async def create_binding(
     else:
         binding = await repo.create(
             principal_id=pid,
-            cluster_id=UUID(req.cluster_id),
+            cluster_id=cluster_uuid,
             binding_method=req.binding_method,
             status="valid",
             expires_at=datetime.utcnow() + timedelta(hours=8),
         )
 
-    await emit(db, "binding.created", "cluster", UUID(req.cluster_id), {"principal_id": principal["id"]})
+    await emit(db, "binding.created", "cluster", cluster_uuid, {"principal_id": principal["id"]}, cluster_id=cluster_uuid, principal_id=pid)
     await db.commit()
     return _serialize_binding(binding)
 
@@ -175,10 +203,17 @@ async def create_binding(
 async def refresh_binding(
     binding_id: str,
     db: AsyncSession = Depends(get_db),
-    _principal: dict = Depends(require_authenticated),
+    principal: dict = Depends(require_authenticated),
 ) -> dict:
     repo = BindingRepository(db)
-    binding = await repo.refresh(UUID(binding_id))
+    binding_uuid = UUID(binding_id)
+    current = await repo.get(binding_uuid)
+    if current is None:
+        raise HTTPException(status_code=404, detail="Binding not found")
+    pid = principal_uuid(principal)
+    if current.principal_id != pid and not principal.get("is_admin", False):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    binding = await repo.refresh(binding_uuid)
     if binding is None:
         raise HTTPException(status_code=404, detail="Binding not found")
     await db.commit()
@@ -189,10 +224,17 @@ async def refresh_binding(
 async def revoke_binding(
     binding_id: str,
     db: AsyncSession = Depends(get_db),
-    _principal: dict = Depends(require_authenticated),
+    principal: dict = Depends(require_authenticated),
 ) -> None:
     repo = BindingRepository(db)
-    revoked = await repo.revoke(UUID(binding_id))
+    binding_uuid = UUID(binding_id)
+    current = await repo.get(binding_uuid)
+    if current is None:
+        raise HTTPException(status_code=404, detail="Binding not found")
+    pid = principal_uuid(principal)
+    if current.principal_id != pid and not principal.get("is_admin", False):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    revoked = await repo.revoke(binding_uuid)
     if not revoked:
         raise HTTPException(status_code=404, detail="Binding not found")
     await db.commit()
@@ -202,15 +244,47 @@ async def revoke_binding(
 
 
 @router.get("/service-bindings")
-async def list_service_bindings(db: AsyncSession = Depends(get_db)) -> dict:
-    raise HTTPException(status_code=501, detail="Service bindings not implemented")
+async def list_service_bindings(
+    db: AsyncSession = Depends(get_db),
+    _admin: dict = Depends(require_admin),
+) -> dict:
+    repo = ServiceBindingRepository(db)
+    bindings = await repo.list()
+    return {"items": [_serialize_service_binding(b) for b in bindings], "next_cursor": None, "has_more": False}
 
 
 @router.post("/service-bindings", status_code=201)
-async def create_service_binding(db: AsyncSession = Depends(get_db)) -> dict:
-    raise HTTPException(status_code=501, detail="Service binding creation not implemented")
+async def create_service_binding(
+    req: ServiceBindingCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: dict = Depends(require_admin),
+) -> dict:
+    repo = ServiceBindingRepository(db)
+    binding = await repo.create(
+        name=req.name,
+        service_type=req.service_type,
+        cluster_id=UUID(req.cluster_id) if req.cluster_id else None,
+        base_url=req.base_url,
+        auth_method=req.auth_method,
+        encrypted_credential=b"",
+        created_by=principal_uuid(admin),
+    )
+    binding.encrypted_credential = encrypt(
+        req.credential.encode(),
+        aad=f"service_binding:{binding.id}",
+    )
+    await db.commit()
+    return _serialize_service_binding(binding)
 
 
 @router.delete("/service-bindings/{binding_id}", status_code=204)
-async def remove_service_binding(binding_id: str) -> None:
-    raise HTTPException(status_code=501, detail="Service binding removal not implemented")
+async def remove_service_binding(
+    binding_id: str,
+    db: AsyncSession = Depends(get_db),
+    _admin: dict = Depends(require_admin),
+) -> None:
+    repo = ServiceBindingRepository(db)
+    deleted = await repo.delete(UUID(binding_id))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Service binding not found")
+    await db.commit()

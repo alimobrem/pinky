@@ -12,7 +12,7 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from temporalio import activity
@@ -66,8 +66,8 @@ async def gather_evidence(issue_id: str, cluster_id: str) -> EvidenceBundle:
     """Gather evidence from cluster using observer identity."""
     activity.heartbeat("gathering evidence")
 
-    from pinky_worker.observation.k8s_client import create_client, list_pods, list_events
     from pinky_worker.llm.redaction import redact_evidence_sections
+    from pinky_worker.observation.k8s_client import create_client, list_events, list_pods
 
     try:
         k8s = await create_client()
@@ -97,7 +97,7 @@ async def gather_evidence(issue_id: str, cluster_id: str) -> EvidenceBundle:
         fingerprint="",
         evidence_hash=compute_evidence_hash(redacted),
         sections=redacted,
-        gathered_at=datetime.now(timezone.utc).isoformat(),
+        gathered_at=datetime.now(UTC).isoformat(),
     )
 
 
@@ -114,7 +114,7 @@ async def check_artifact_cache(evidence_hash: str, correlation_key: str) -> Inve
            AND occurred_at > $2
            ORDER BY occurred_at DESC LIMIT 1""",
         evidence_hash,
-        datetime.now(timezone.utc) - timedelta(hours=1),
+        datetime.now(UTC) - timedelta(hours=1),
     )
 
     if row is None:
@@ -140,9 +140,9 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str) -> Invest
     """Run LLM-powered investigation using the matching skill definition."""
     activity.heartbeat("running investigation")
 
-    from pinky_worker.llm.vertex_provider import VertexProvider
     from pinky_worker.llm.provider import LLMRequest, LLMRouter, ModelTier
     from pinky_worker.llm.redaction import redact_evidence_sections
+    from pinky_worker.llm.vertex_provider import VertexProvider
 
     redacted = redact_evidence_sections(evidence.sections)
     evidence_text = "\n\n".join(f"## {k}\n{v}" for k, v in redacted.items())
@@ -182,7 +182,7 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str) -> Invest
         confidence=0.7,
         tool_calls=[],
         evidence_hash=evidence.evidence_hash,
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
     )
 
 
@@ -208,7 +208,7 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
             "tool_calls": artifact.tool_calls,
             "created_at": artifact.created_at,
         }),
-        datetime.now(timezone.utc),
+        datetime.now(UTC),
     )
     logger.info("artifact stored: %s", artifact.artifact_id)
     return artifact.artifact_id
@@ -220,7 +220,7 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
     from pinky_worker.db import get_pool
 
     pool = await get_pool()
-    occurred = datetime.now(timezone.utc)
+    occurred = datetime.now(UTC)
 
     exec_id_str = event.execution_id or ""
     try:
@@ -269,7 +269,7 @@ async def validate_approval(approval_id: str, changeset_digest: str) -> dict:
     if row["status"] != "pending":
         return {"valid": False, "reason": f"approval status is {row['status']}"}
 
-    if row["expires_at"] and row["expires_at"] < datetime.now(timezone.utc):
+    if row["expires_at"] and row["expires_at"] < datetime.now(UTC):
         return {"valid": False, "reason": "approval expired"}
 
     if changeset_digest and row["changeset_digest"] != changeset_digest:
@@ -290,7 +290,11 @@ async def apply_change(cluster_id: str, binding_id: str, step: dict) -> dict:
     activity.heartbeat(f"applying: {description}")
 
     from pinky_worker.observation.k8s_client import (
-        create_client, scale_deployment, delete_pod, patch_resource, rollback_deployment,
+        create_client,
+        delete_pod,
+        patch_resource,
+        rollback_deployment,
+        scale_deployment,
     )
 
     try:
@@ -316,7 +320,7 @@ async def apply_change(cluster_id: str, binding_id: str, step: dict) -> dict:
             logger.warning("unsupported apply_change action: %s", action)
 
         await k8s.close()
-        result["applied_at"] = datetime.now(timezone.utc).isoformat()
+        result["applied_at"] = datetime.now(UTC).isoformat()
         return result
 
     except Exception as e:
@@ -346,7 +350,7 @@ async def verify_state(cluster_id: str, expected_state: dict) -> dict:
             "details": {
                 "total_pods": len(pods),
                 "unhealthy_pods": len(unhealthy),
-                "verified_at": datetime.now(timezone.utc).isoformat(),
+                "verified_at": datetime.now(UTC).isoformat(),
             },
         }
     except Exception as e:
@@ -364,24 +368,24 @@ async def project_to_postgres(execution_id: str, event_type: str, payload: dict)
     if event_type == "started":
         await pool.execute(
             """UPDATE executions SET status = 'running', started_at = $2 WHERE id = $1""",
-            UUID(execution_id), datetime.now(timezone.utc),
+            UUID(execution_id), datetime.now(UTC),
         )
     elif event_type == "completed":
         await pool.execute(
             """UPDATE executions SET status = 'completed', completed_at = $2 WHERE id = $1""",
-            UUID(execution_id), datetime.now(timezone.utc),
+            UUID(execution_id), datetime.now(UTC),
         )
     elif event_type == "failed":
         await pool.execute(
             """UPDATE executions SET status = 'failed', completed_at = $2 WHERE id = $1""",
-            UUID(execution_id), datetime.now(timezone.utc),
+            UUID(execution_id), datetime.now(UTC),
         )
 
     await pool.execute(
         """INSERT INTO history_events (id, aggregate_type, aggregate_id, event_type, payload, occurred_at)
            VALUES ($1, $2, $3, $4, $5, $6)""",
         uuid4(), "execution", UUID(execution_id), event_type,
-        json.dumps(payload), datetime.now(timezone.utc),
+        json.dumps(payload), datetime.now(UTC),
     )
 
     logger.info("projected to postgres: %s %s", execution_id, event_type)

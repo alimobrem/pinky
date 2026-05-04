@@ -1,10 +1,12 @@
 """Approval workflow — waits for human signal or timeout."""
 
-import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import timedelta
 
 from temporalio import workflow
+
+with workflow.unsafe.imports_passed_through():
+    from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event
 
 
 @dataclass
@@ -39,14 +41,26 @@ class ApprovalWorkflow:
 
     @workflow.run
     async def run(self, input: ApprovalInput) -> ApprovalResult:
-        # TODO: emit approval_required execution event
+        await workflow.execute_activity(
+            emit_execution_event,
+            ExecutionEventPayload(
+                execution_id=input.execution_id,
+                event_type="approval_required",
+                sequence=0,
+                payload={
+                    "changeset_digest": input.changeset_digest,
+                    "target_resources": input.target_resources,
+                },
+            ),
+            start_to_close_timeout=timedelta(seconds=5),
+        )
 
         try:
             await workflow.wait_condition(
                 lambda: self._decision is not None,
                 timeout=timedelta(hours=4),
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return ApprovalResult(status="expired")
 
         return ApprovalResult(

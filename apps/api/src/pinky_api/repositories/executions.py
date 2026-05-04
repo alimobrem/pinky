@@ -1,10 +1,12 @@
 """Execution repository."""
 
+import builtins
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
 
-from pinky_api.models.execution import Approval, Execution, ExecutionEvent
+from pinky_api.models.execution import Execution, ExecutionEvent
 from pinky_api.repositories.base import BaseRepository
 
 
@@ -16,7 +18,8 @@ class ExecutionRepository(BaseRepository):
         if cluster_id:
             stmt = stmt.where(Execution.cluster_id == cluster_id)
         if status:
-            stmt = stmt.where(Execution.status == status)
+            statuses = [s.strip() for s in status.split(",")]
+            stmt = stmt.where(Execution.status.in_(statuses))
         return await self.paginate(stmt, Execution, limit=limit, cursor=cursor)
 
     async def get(self, execution_id: UUID) -> Execution | None:
@@ -36,7 +39,7 @@ class ExecutionRepository(BaseRepository):
         )
         await self.session.flush()
 
-    async def get_events_for_work_item(self, work_item_id: UUID) -> list:
+    async def get_events_for_work_item(self, work_item_id: UUID) -> builtins.list[Any]:
         executions = await self.session.execute(
             select(Execution.id).where(Execution.work_item_id == work_item_id)
         )

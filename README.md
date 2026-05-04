@@ -1,0 +1,50 @@
+# Pinky
+
+Pinky is a task-first multi-cluster Kubernetes operations platform with an embedded SRE agent, `The Brain`.
+
+## Repo Layout
+
+- `apps/web`: Next.js product UI
+- `apps/api`: FastAPI backend
+- `apps/worker`: Temporal workflows, observers, and projections
+- `packages/contracts`: shared TypeScript contracts
+- `infra/docker`: local infrastructure compose stack
+- `infra/helm/pinky`: Helm chart
+
+## Local Development
+
+```bash
+make dev-infra
+make dev-api
+make dev-worker
+make dev-web
+```
+
+Or start everything together:
+
+```bash
+make dev
+```
+
+## Verification
+
+Core verification commands:
+
+```bash
+make lint
+make typecheck
+make test
+make verify
+```
+
+Useful focused checks:
+
+```bash
+cd apps/api && .venv/bin/python -m pytest tests/ -q
+cd apps/worker && .venv/bin/python -m pytest tests/ -q
+pnpm --filter @pinky/web typecheck
+pnpm --filter @pinky/web build
+helm lint infra/helm/pinky
+helm template pinky infra/helm/pinky >/tmp/pinky-rendered.yaml
+podman compose -f infra/docker/docker-compose.yml config >/tmp/pinky-compose.yaml
+```

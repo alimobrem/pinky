@@ -1,6 +1,7 @@
 """Integration tests for session store against real Redis."""
 
 import os
+
 import pytest
 import redis.asyncio as aioredis
 

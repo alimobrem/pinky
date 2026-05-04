@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import select, update as sa_update
+from sqlalchemy import select
+from sqlalchemy import update as sa_update
 
 from pinky_api.models.work_item import WorkItem
 from pinky_api.repositories.base import BaseRepository
-
 
 VALID_TRANSITIONS: dict[str, set[str]] = {
     "ready": {"accepted"},
@@ -23,6 +23,7 @@ class WorkItemRepository(BaseRepository):
     async def list(
         self,
         cluster_id: str | None = None,
+        cluster_ids: list[UUID] | None = None,
         status: str | None = None,
         owner_id: str | None = None,
         priority: str | None = None,
@@ -33,6 +34,10 @@ class WorkItemRepository(BaseRepository):
 
         if cluster_id:
             stmt = stmt.where(WorkItem.cluster_id == cluster_id)
+        elif cluster_ids is not None:
+            if not cluster_ids:
+                return {"items": [], "next_cursor": None, "has_more": False}
+            stmt = stmt.where(WorkItem.cluster_id.in_(cluster_ids))
         if status:
             statuses = [s.strip() for s in status.split(",")]
             stmt = stmt.where(WorkItem.status.in_(statuses))
@@ -79,11 +84,12 @@ class WorkItemRepository(BaseRepository):
         return await self.get(work_item_id)
 
     async def reassign(self, work_item_id: UUID, new_owner_id: UUID) -> WorkItem | None:
-        result = await self.session.execute(
+        current = await self.get(work_item_id)
+        if current is None:
+            return None
+        await self.session.execute(
             sa_update(WorkItem).where(WorkItem.id == work_item_id).values(owner_id=new_owner_id)
         )
-        if result.rowcount == 0:
-            return None
         return await self.get(work_item_id)
 
     async def create(self, **kwargs: object) -> WorkItem:

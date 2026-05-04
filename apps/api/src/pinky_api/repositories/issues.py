@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select, update as sa_update
+from sqlalchemy import select
+from sqlalchemy import update as sa_update
 
 from pinky_api.models.issue import Issue
 from pinky_api.repositories.base import BaseRepository
@@ -15,6 +16,7 @@ class IssueRepository(BaseRepository):
     async def list(
         self,
         cluster_id: str | None = None,
+        cluster_ids: list[UUID] | None = None,
         status: str | None = None,
         severity: str | None = None,
         limit: int = 50,
@@ -24,6 +26,10 @@ class IssueRepository(BaseRepository):
 
         if cluster_id:
             stmt = stmt.where(Issue.cluster_id == cluster_id)
+        elif cluster_ids is not None:
+            if not cluster_ids:
+                return {"items": [], "next_cursor": None, "has_more": False}
+            stmt = stmt.where(Issue.cluster_id.in_(cluster_ids))
         if status:
             stmt = stmt.where(Issue.status == status)
         if severity:

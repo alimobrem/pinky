@@ -2,6 +2,7 @@ export interface PaginatedResponse<T> {
   items: T[];
   next_cursor: string | null;
   has_more: boolean;
+  total_count?: number;
 }
 
 export interface ErrorResponse {

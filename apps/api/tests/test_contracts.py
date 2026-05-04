@@ -4,9 +4,9 @@ These tests ensure the Python response schemas stay aligned with
 the TypeScript types in packages/contracts/src/.
 """
 
-from pinky_api.schemas.work_item import WorkItemResponse, WorkItemListResponse
-from pinky_api.schemas.issue import IssueResponse, IssueListResponse
-from pinky_api.schemas.cluster import ClusterResponse, ClusterListResponse
+from pinky_api.schemas.cluster import ClusterListResponse, ClusterResponse
+from pinky_api.schemas.issue import IssueListResponse, IssueResponse
+from pinky_api.schemas.work_item import WorkItemListResponse, WorkItemResponse
 
 
 def test_work_item_response_has_all_contract_fields() -> None:

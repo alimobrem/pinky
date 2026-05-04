@@ -8,12 +8,12 @@ from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
     from pinky_worker.execution.activities import (
+        ExecutionEventPayload,
         check_artifact_cache,
         emit_execution_event,
         gather_evidence,
         run_investigation,
         store_artifact,
-        ExecutionEventPayload,
     )
 
 

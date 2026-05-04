@@ -6,9 +6,9 @@ import logging
 import time
 
 logger = logging.getLogger(__name__)
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 class ModelTier(StrEnum):
@@ -50,7 +50,7 @@ class LLMResponse:
 class LLMProviderConfig:
     name: str
     base_url: str
-    model_map: dict[str, str]
+    model_map: dict[str | ModelTier, str]
     max_tokens: int = 4096
 
 
