@@ -49,9 +49,45 @@ jobs:
       - name: Lint
         working-directory: apps/worker
         run: ruff check src/
-      - name: Test
+      - name: Unit tests
         working-directory: apps/worker
-        run: pytest tests/ -v
+        run: pytest tests/ --ignore=tests/integration -v
+
+  worker-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pinky
+          POSTGRES_PASSWORD: pinky
+          POSTGRES_DB: pinky
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 3s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: pip install -e apps/worker/.[dev] -e apps/api/.[dev] pyyaml
+      - name: Run migrations
+        working-directory: apps/api
+        env:
+          PINKY_DB__URL: postgresql+asyncpg://pinky:pinky@localhost:5432/pinky
+          PINKY_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+        run: alembic upgrade head
+      - name: Install Temporal CLI
+        run: curl -sSf https://temporal.download/cli.sh | sh && echo "${HOME}/.temporalio/bin" >> "${GITHUB_PATH}"
+      - name: DB integration tests
+        working-directory: apps/worker
+        env:
+          TEST_DATABASE_URL: postgresql://pinky:pinky@localhost:5432/pinky
+        run: pytest tests/integration/test_db_correlator.py tests/integration/test_activities_db.py -v
+      - name: Workflow integration tests
+        working-directory: apps/worker
+        run: pytest tests/integration/test_workflows.py -v
 
   web-checks:
     runs-on: ubuntu-latest
