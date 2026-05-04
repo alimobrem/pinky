@@ -93,17 +93,37 @@ infra/helm/        → Helm chart
 ## Testing
 
 ```bash
-# API tests (99 tests)
-cd apps/api && .venv/bin/pytest tests/ -v
+# API tests (99 unit/integration + 10 benchmarks)
+cd apps/api && .venv/bin/pytest tests/ --ignore=tests/benchmark -v
+cd apps/api && .venv/bin/pytest tests/benchmark/ -v --benchmark-only  # perf only
 
-# Worker tests
-cd apps/worker && .venv/bin/pytest tests/ -v
+# Worker tests (72 unit + 26 integration + 36 evals)
+cd apps/worker && .venv/bin/pytest tests/ -v                          # unit + integration
+cd apps/worker && .venv/bin/pytest evals/ -v                          # LLM eval graders
+
+# CLI tests (18 tests)
+cd apps/cli && .venv/bin/pytest tests/ -v
+
+# Contracts tests (11 tests)
+pnpm --filter @pinky/contracts test
+
+# Web E2E (Playwright)
+cd apps/web && npx playwright test
 
 # Web typecheck
 pnpm --filter @pinky/web typecheck
+
+# Everything
+make verify  # lint + typecheck + test
 ```
 
-Tests use `conftest.py` fixtures: `authed_client` (auth bypassed with test principal), `unauthed_client` (no auth), `non_admin_client`. Encryption key set via `monkeypatch`. Tests run against real Postgres and Redis.
+**API fixtures:** `authed_client` (auth bypassed with test principal), `unauthed_client`, `non_admin_client`. Encryption key via `monkeypatch`. Real Postgres.
+
+**Worker integration fixtures:** `workflow_env` (session-scoped Temporal dev server), `conn` (transaction-wrapped Postgres connection with rollback), `FakePool` (unified mock for both `pool.execute()` and `pool.acquire()` patterns), `cluster_id`/`execution_id` (auto-seeded FK dependencies).
+
+**LLM eval framework:** Evidence fixtures in `evals/fixtures/` (OOM, CrashLoop, ImagePull), expectations in `evals/expectations/`. Deterministic graders: structure, safety, relevance, redaction. No LLM calls needed for deterministic evals.
+
+**CI:** 4 jobs in ci.yml (api-tests, worker-tests, worker-integration, web-checks). Weekly eval.yml and perf.yml workflows.
 
 ## OAuth (OpenShift)
 
