@@ -8,7 +8,7 @@ class TemporalConfig(BaseSettings, frozen=True):
 
 
 class WorkerConfig(BaseSettings, frozen=True):
-    model_config = {"env_prefix": "PINKY_"}
+    model_config = {"env_prefix": "PINKY_", "env_nested_delimiter": "__"}
 
     temporal: TemporalConfig = Field(default_factory=TemporalConfig)
     log_level: str = "INFO"
