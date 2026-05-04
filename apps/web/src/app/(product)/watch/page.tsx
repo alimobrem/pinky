@@ -54,10 +54,10 @@ export default function WatchPage() {
   });
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <div className="flex items-center gap-3 mb-5">
         <Eye size={20} className="text-text-tertiary" />
-        <h1 className="text-xl font-semibold tracking-tight">Watch</h1>
+        <h1 className="text-lg font-semibold tracking-tight">Watch</h1>
       </div>
 
       <div className="flex items-center gap-2 mb-6 text-xs text-text-tertiary">
@@ -78,7 +78,7 @@ export default function WatchPage() {
       ) : issues.length > 0 ? (
         <div className="flex flex-col gap-2">
           {issues.map(issue => (
-            <div key={issue.id} className={`bg-bg-surface border border-border-default rounded-lg p-4 px-5 border-l-3 ${SEVERITY_BORDER[issue.severity] || "border-l-border-default"} transition-colors`}>
+            <div key={issue.id} className={`bg-bg-surface border border-border-default rounded-xl p-4 px-5 border-l-3 shadow-card hover:shadow-card-hover transition-all duration-200 ${SEVERITY_BORDER[issue.severity] || "border-l-border-default"} transition-colors`}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2 flex-1">
                   <Brain size={14} className="text-accent-brain" />

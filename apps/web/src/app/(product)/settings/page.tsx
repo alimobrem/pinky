@@ -117,7 +117,7 @@ export default function SettingsPage() {
     <div>
       <div className="flex items-center gap-3 mb-5">
         <SettingsIcon size={20} className="text-text-tertiary" />
-        <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
+        <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
       </div>
 
       <Tabs defaultValue="clusters">

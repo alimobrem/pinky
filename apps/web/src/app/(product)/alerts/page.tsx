@@ -31,7 +31,7 @@ export default function AlertsPage() {
     <div>
       <div className="flex items-center gap-3 mb-5">
         <AlertTriangle size={20} className="text-text-tertiary" />
-        <h1 className="text-xl font-semibold tracking-tight">Alerts</h1>
+        <h1 className="text-lg font-semibold tracking-tight">Alerts</h1>
       </div>
 
       <div className="flex gap-3 mb-4 items-center">
@@ -68,7 +68,7 @@ export default function AlertsPage() {
             const isExpanded = expandedId === a.id;
             return (
               <div key={a.id} onClick={() => setExpandedId(isExpanded ? null : a.id)}
-                className={`bg-bg-surface border border-border-default rounded-lg p-3 px-5 border-l-3 ${SEVERITY_BORDER[a.severity] || "border-l-border-default"} cursor-pointer transition-colors hover:bg-bg-hover`}>
+                className={`bg-bg-surface border border-border-default rounded-xl p-3 px-5 border-l-3 shadow-card transition-all duration-200 ${SEVERITY_BORDER[a.severity] || "border-l-border-default"} cursor-pointer transition-colors hover:bg-bg-hover`}>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     {isExpanded ? <ChevronDown size={14} className="text-text-tertiary" /> : <ChevronRight size={14} className="text-text-tertiary" />}
