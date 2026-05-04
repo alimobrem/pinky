@@ -60,7 +60,7 @@ export default function HistoryPage() {
     <div>
       <div className="flex items-center gap-3 mb-5">
         <Clock size={20} className="text-text-tertiary" />
-        <h1 className="text-xl font-semibold tracking-tight">History</h1>
+        <h1 className="text-lg font-semibold tracking-tight">History</h1>
       </div>
 
       <div className="flex gap-3 mb-4 items-center">
