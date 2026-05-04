@@ -49,6 +49,8 @@ helm template pinky infra/helm/pinky >/tmp/pinky-rendered.yaml
 podman compose -f infra/docker/docker-compose.yml config >/tmp/pinky-compose.yaml
 ```
 
+The API test environment includes `pytest-timeout` in `apps/api` dev dependencies because CI runs the API suite with `pytest --timeout=30`.
+
 ## Deploying
 
 Run the preflight before deploying:
