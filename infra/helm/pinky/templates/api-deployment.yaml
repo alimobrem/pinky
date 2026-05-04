@@ -17,6 +17,9 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+        {{- if .Values.global.deployId }}
+        pinky.openshiftpulse.io/deploy-id: {{ .Values.global.deployId | quote }}
+        {{- end }}
     spec:
       securityContext:
         runAsNonRoot: true

@@ -49,6 +49,31 @@ helm template pinky infra/helm/pinky >/tmp/pinky-rendered.yaml
 podman compose -f infra/docker/docker-compose.yml config >/tmp/pinky-compose.yaml
 ```
 
+## Deploying
+
+Run the preflight before deploying:
+
+```bash
+./scripts/preflight.sh infra/helm/values-dev.yaml
+```
+
+Deploy with:
+
+```bash
+./scripts/deploy.sh infra/helm/values-dev.yaml
+```
+
+When `PINKY_BUILD=true`, the deploy script now assigns a unique image tag and deploy ID so Helm upgrades trigger real pod rollouts instead of reusing an unchanged `latest` template.
+
+### Vertex Credentials
+
+Cluster deployment only accepts a Vertex credential file whose JSON `type` is `service_account`.
+
+- accepted: dedicated Google service account key JSON
+- rejected: local `authorized_user` ADC credentials
+
+The secure default is enforced by both `scripts/preflight.sh` and `scripts/deploy.sh`.
+
 ## Secret Protection
 
 Sensitive local files should live under `secrets/`, which is gitignored.

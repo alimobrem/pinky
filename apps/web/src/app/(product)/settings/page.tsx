@@ -122,14 +122,16 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="clusters">
-        <TabsList className="mb-5">
-          <TabsTrigger value="clusters">Clusters ({clusters.length})</TabsTrigger>
-          <TabsTrigger value="definitions">Definitions ({definitions.length})</TabsTrigger>
-          <TabsTrigger value="webhooks">Webhooks ({webhooks.length})</TabsTrigger>
-          <TabsTrigger value="rules">Policy Rules ({rules.length})</TabsTrigger>
-          <TabsTrigger value="access">Cluster Access ({bindings.length})</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics / ROI</TabsTrigger>
-        </TabsList>
+        <div className="mb-6 overflow-x-auto pb-1">
+          <TabsList className="min-w-max justify-start">
+            <TabsTrigger value="clusters">Clusters ({clusters.length})</TabsTrigger>
+            <TabsTrigger value="definitions">Definitions ({definitions.length})</TabsTrigger>
+            <TabsTrigger value="webhooks">Webhooks ({webhooks.length})</TabsTrigger>
+            <TabsTrigger value="rules">Policy Rules ({rules.length})</TabsTrigger>
+            <TabsTrigger value="access">Cluster Access ({bindings.length})</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics / ROI</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Clusters */}
         <TabsContent value="clusters">
