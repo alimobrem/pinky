@@ -128,6 +128,10 @@ spec:
           env:
             - name: DB
               value: postgres12
+            - name: DB_PORT
+              value: "5432"
+            - name: DBNAME
+              value: temporal
             - name: POSTGRES_USER
               value: temporal
             - name: POSTGRES_PWD
@@ -137,6 +141,10 @@ spec:
                   key: password
             - name: POSTGRES_SEEDS
               value: {{ include "pinky.fullname" . }}-temporal-db
+            - name: VISIBILITY_DBNAME
+              value: temporal
+            - name: VISIBILITY_DB_PORT
+              value: "5432"
             - name: DEFAULT_NAMESPACE
               value: {{ .Values.temporal.namespace }}
             - name: SKIP_SCHEMA_SETUP

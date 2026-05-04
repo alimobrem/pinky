@@ -23,9 +23,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
-  if (res.status === 401) {
+  if (res.status === 401 || res.status === 403) {
     if (typeof window !== "undefined") window.location.href = "/login";
-    throw new Error("Unauthorized");
+    throw new Error("Session expired");
   }
 
   if (!res.ok) {
