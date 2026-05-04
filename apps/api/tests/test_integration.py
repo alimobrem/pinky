@@ -122,3 +122,72 @@ async def test_cluster_list(seeded) -> None:
     assert response.status_code == 200
     ids = {item["id"] for item in response.json()["items"]}
     assert cluster_id in ids
+
+
+@pytest.mark.asyncio
+async def test_block_with_reason(seeded) -> None:
+    client, _, wi1_id, _ = seeded
+    await client.post(f"/api/v1/work-items/{wi1_id}/accept")
+    await client.post(f"/api/v1/work-items/{wi1_id}/start")
+    r = await client.post(f"/api/v1/work-items/{wi1_id}/block", json={"reason": "waiting on vendor"})
+    assert r.status_code == 200
+    assert r.json()["status"] == "blocked"
+    assert r.json()["blocked_reason"] == "waiting on vendor"
+
+
+@pytest.mark.asyncio
+async def test_block_then_start_clears_reason(seeded) -> None:
+    client, _, wi1_id, _ = seeded
+    await client.post(f"/api/v1/work-items/{wi1_id}/accept")
+    await client.post(f"/api/v1/work-items/{wi1_id}/start")
+    await client.post(f"/api/v1/work-items/{wi1_id}/block", json={"reason": "blocked"})
+    r = await client.post(f"/api/v1/work-items/{wi1_id}/start")
+    assert r.json()["status"] == "in_progress"
+    assert r.json()["blocked_reason"] is None
+
+
+@pytest.mark.asyncio
+async def test_bulk_accept(seeded) -> None:
+    client, _, wi1_id, wi2_id = seeded
+    r = await client.post("/api/v1/work-items/bulk", json={"ids": [wi1_id, wi2_id], "action": "accepted"})
+    assert r.status_code == 200
+    results = r.json()["results"]
+    assert all(res["status"] == "ok" for res in results)
+
+
+@pytest.mark.asyncio
+async def test_annotations_update(seeded) -> None:
+    client, _, wi1_id, _ = seeded
+    r = await client.patch(f"/api/v1/work-items/{wi1_id}/annotations", json={"annotations": {"ticket_url": "https://jira.example.com/OPS-123"}})
+    assert r.status_code == 200
+    assert r.json()["annotations"]["ticket_url"] == "https://jira.example.com/OPS-123"
+
+
+@pytest.mark.asyncio
+async def test_issue_suppress_and_resolve(seeded) -> None:
+    from datetime import datetime
+    from pinky_api.models.issue import Issue
+    issue_id = uuid4()
+    now = datetime.utcnow()
+    async with _factory() as s:
+        client, cluster_id, *_ = seeded
+        s.add(Issue(id=issue_id, cluster_id=cluster_id, correlation_key="test-issue", title="Test Issue", severity="medium", status="open", first_seen_at=now, last_seen_at=now))
+        await s.commit()
+
+    client, cluster_id, *_ = seeded
+    r = await client.post(f"/api/v1/issues/{issue_id}/suppress", json={})
+    assert r.status_code == 200
+    assert r.json()["status"] == "suppressed"
+
+    # Cleanup
+    async with _factory() as s:
+        await s.execute(Issue.__table__.delete().where(Issue.id == issue_id))
+        await s.commit()
+
+
+@pytest.mark.asyncio
+async def test_cluster_binding_status(seeded) -> None:
+    client, cluster_id, *_ = seeded
+    r = await client.get(f"/api/v1/cluster-bindings/status?cluster_id={cluster_id}")
+    assert r.status_code == 200
+    assert r.json()["status"] == "missing"
