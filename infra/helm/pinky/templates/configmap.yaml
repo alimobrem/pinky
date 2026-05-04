@@ -24,6 +24,11 @@ data:
   {{- if .Values.auth.cookieDomain }}
   PINKY_AUTH__COOKIE_DOMAIN: {{ .Values.auth.cookieDomain | quote }}
   {{- end }}
+  {{- if .Values.llm.vertexProjectId }}
+  ANTHROPIC_VERTEX_PROJECT_ID: {{ .Values.llm.vertexProjectId | quote }}
+  CLOUD_ML_REGION: {{ .Values.llm.vertexRegion | quote }}
+  PINKY_LLM_PROVIDER: {{ .Values.llm.provider | quote }}
+  {{- end }}
   {{- if .Values.auth.openshift.issuerUrl }}
   PINKY_AUTH__OPENSHIFT_ISSUER_URL: {{ .Values.auth.openshift.issuerUrl | quote }}
   PINKY_AUTH__OPENSHIFT_CLIENT_ID: {{ .Values.auth.openshift.clientId | quote }}

@@ -114,5 +114,11 @@ networkPolicy:
   serviceNetwork: "172.30.0.0/16"
   clusterNetwork: "10.128.0.0/14"
 
+llm:
+  provider: vertex
+  vertexProjectId: ""
+  vertexRegion: "us-east5"
+  vertexServiceAccountKey: ""
+
 debug: false
 logLevel: INFO
