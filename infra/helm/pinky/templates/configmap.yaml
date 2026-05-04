@@ -8,6 +8,8 @@ data:
   PINKY_LOG_LEVEL: {{ .Values.logLevel | quote }}
   PINKY_DEBUG: {{ .Values.debug | quote }}
   PINKY_CORS_ORIGINS: {{ .Values.api.corsOrigins | quote }}
+  PINKY_SERVER_API_URL: {{ include "pinky.webApiBaseUrl" . | quote }}
+  PINKY_WEB_API_PROXY_TARGET: {{ include "pinky.webApiBaseUrl" . | quote }}
   PINKY_TEMPORAL__ADDRESS: {{ include "pinky.temporalAddress" . | quote }}
   PINKY_TEMPORAL__NAMESPACE: {{ .Values.temporal.namespace | quote }}
   PINKY_DEFINITIONS_DIR: "/opt/app-root/src/definitions"

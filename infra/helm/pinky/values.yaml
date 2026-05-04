@@ -8,6 +8,7 @@ web:
     repository: pinky-web
     tag: latest
     pullPolicy: Always
+  apiBaseUrl: ""
   resources:
     requests:
       cpu: 100m
@@ -71,6 +72,8 @@ redis:
       memory: 256Mi
   external:
     url: ""
+    existingSecret: ""
+    existingSecretKey: "url"
 
 temporal:
   deploy: true
@@ -84,6 +87,7 @@ encryption:
   existingSecret: ""
 
 auth:
+  existingSecret: ""
   openshift:
     issuerUrl: ""
     clientId: ""

@@ -60,6 +60,36 @@ else
   fail "helm template failed"
 fi
 
+# 4b. Secret sources
+echo "--- Secret sources"
+if grep -Eq 'clientSecret:\s*".+"' "${VALUES_FILE}" || grep -Eq 'clientSecret:\s*[^"[:space:]][^[:space:]]*' "${VALUES_FILE}"; then
+  fail "Inline clientSecret found in values file — move it to env or secrets/ instead of checking it into YAML"
+fi
+
+if grep -q "clientId:" "${VALUES_FILE}" && ! grep -Eq 'clientId:\s*""' "${VALUES_FILE}"; then
+  if [[ -n "${PINKY_OAUTH_CLIENT_SECRET:-}" || -f "secrets/oauth-client-secret" ]]; then
+    pass "OAuth client secret source available"
+  else
+    fail "OAuth client secret missing (set PINKY_OAUTH_CLIENT_SECRET or secrets/oauth-client-secret)"
+  fi
+fi
+
+if grep -q "url:" "${VALUES_FILE}" && ! grep -Eq 'url:\s*""' "${VALUES_FILE}"; then
+  if grep -q "existingSecret:" "${VALUES_FILE}" && ! grep -Eq 'existingSecret:\s*""' "${VALUES_FILE}"; then
+    pass "External Redis secret source configured"
+  else
+    warn "External Redis URL appears inline in values; prefer redis.external.existingSecret to avoid leaking credentials in rendered manifests"
+  fi
+fi
+
+if grep -Eq 'provider:\s*vertex' "${VALUES_FILE}"; then
+  if [[ -f "${PINKY_VERTEX_CREDENTIALS:-secrets/vertex-credentials.json}" ]]; then
+    pass "Vertex credentials source available"
+  else
+    warn "Vertex credentials not found — LLM features may be disabled"
+  fi
+fi
+
 # 5. Images
 echo "--- Images"
 ENGINE="${CONTAINER_ENGINE:-$(command -v podman 2>/dev/null || command -v docker 2>/dev/null || echo podman)}"

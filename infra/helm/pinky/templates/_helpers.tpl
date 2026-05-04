@@ -42,11 +42,47 @@ helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 {{- end -}}
 {{- end -}}
 
+{{- define "pinky.apiInternalUrl" -}}
+http://{{ include "pinky.fullname" . }}-api:8000
+{{- end -}}
+
+{{- define "pinky.webApiBaseUrl" -}}
+{{- if .Values.web.apiBaseUrl -}}
+{{ .Values.web.apiBaseUrl }}
+{{- else -}}
+{{ include "pinky.apiInternalUrl" . }}
+{{- end -}}
+{{- end -}}
+
 {{- define "pinky.redisUrl" -}}
 {{- if .Values.redis.external.url -}}
 {{ .Values.redis.external.url }}
 {{- else -}}
 redis://{{ include "pinky.fullname" . }}-redis:6379/0
+{{- end -}}
+{{- end -}}
+
+{{- define "pinky.redisSecretName" -}}
+{{- if .Values.redis.external.existingSecret -}}
+{{ .Values.redis.external.existingSecret }}
+{{- else -}}
+{{ include "pinky.fullname" . }}-redis-external
+{{- end -}}
+{{- end -}}
+
+{{- define "pinky.authSecretName" -}}
+{{- if .Values.auth.existingSecret -}}
+{{ .Values.auth.existingSecret }}
+{{- else -}}
+{{ include "pinky.fullname" . }}-auth
+{{- end -}}
+{{- end -}}
+
+{{- define "pinky.vertexCredentialsSecretName" -}}
+{{- if .Values.llm.existingCredentialsSecret -}}
+{{ .Values.llm.existingCredentialsSecret }}
+{{- else -}}
+{{ include "pinky.fullname" . }}-vertex-credentials
 {{- end -}}
 {{- end -}}
 

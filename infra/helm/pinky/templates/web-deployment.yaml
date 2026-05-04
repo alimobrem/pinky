@@ -27,6 +27,9 @@ spec:
           imagePullPolicy: {{ .Values.web.image.pullPolicy }}
           ports:
             - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: {{ include "pinky.fullname" . }}-config
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -50,6 +53,12 @@ spec:
               path: /
               port: 3000
             initialDelaySeconds: 5
+            periodSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /
+              port: 3000
+            failureThreshold: 30
             periodSeconds: 5
       volumes:
         - name: tmp

@@ -48,3 +48,15 @@ helm lint infra/helm/pinky
 helm template pinky infra/helm/pinky >/tmp/pinky-rendered.yaml
 podman compose -f infra/docker/docker-compose.yml config >/tmp/pinky-compose.yaml
 ```
+
+## Secret Protection
+
+Sensitive local files should live under `secrets/`, which is gitignored.
+
+For extra protection in this clone, install the local git hooks:
+
+```bash
+./scripts/install-git-hooks.sh
+```
+
+That installs `pre-commit` and `pre-push` hooks that block commits or pushes when they include secret-like files or high-signal credential material.

@@ -23,6 +23,10 @@ function getBaseUrl(host: string | null, proto: string | null): string {
   return `${safeProto}://${safeHost}`;
 }
 
+function getServerApiBaseUrl(baseUrl: string): string {
+  return process.env.PINKY_SERVER_API_URL?.replace(/\/$/, "") ?? baseUrl;
+}
+
 export async function fetchServerSession(): Promise<SessionResponse> {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("pinky_session");
@@ -34,9 +38,10 @@ export async function fetchServerSession(): Promise<SessionResponse> {
   const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host");
   const proto = headerStore.get("x-forwarded-proto");
   const baseUrl = getBaseUrl(host, proto);
+  const apiBaseUrl = getServerApiBaseUrl(baseUrl);
 
   try {
-    const res = await fetch(`${baseUrl}/api/v1/auth/session`, {
+    const res = await fetch(`${apiBaseUrl}/api/v1/auth/session`, {
       headers: {
         cookie: cookieStore
           .getAll()
