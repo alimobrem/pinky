@@ -12,11 +12,14 @@
     }
   },
   "scripts": {
-    "build": "tsc",
-    "typecheck": "tsc --noEmit",
+    "build": "pnpm --filter @pinky/contracts build && tsc",
+    "typecheck": "pnpm --filter @pinky/contracts build && tsc --noEmit",
     "lint": "echo 'no lint configured'",
     "test": "echo 'no tests yet'",
     "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@pinky/contracts": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.0.0",

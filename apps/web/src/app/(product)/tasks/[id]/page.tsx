@@ -180,7 +180,7 @@ export default function TaskDetailPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [item, acting, blockOpen, reassignOpen, rejectOpen, approveOpen, reinvestigateOpen]);
+  }, [item, acting, blockOpen, reassignOpen, rejectOpen, approveOpen, reinvestigateOpen, actionMutation]);
 
   if (isLoading) return (
     <div className="flex flex-col gap-4">

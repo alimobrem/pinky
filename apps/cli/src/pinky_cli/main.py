@@ -2,7 +2,6 @@
 
 import json
 import os
-import sys
 
 import httpx
 import typer
@@ -22,10 +21,10 @@ def _get(path: str, params: dict | None = None) -> dict:
         return r.json()
     except httpx.HTTPStatusError as e:
         console.print(f"[red]Error {e.response.status_code}:[/red] {e.response.text}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except httpx.ConnectError:
         console.print(f"[red]Cannot connect to {API_URL}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 def _post(path: str, data: dict | None = None) -> dict:
@@ -35,7 +34,7 @@ def _post(path: str, data: dict | None = None) -> dict:
         return r.json()
     except httpx.HTTPStatusError as e:
         console.print(f"[red]Error {e.response.status_code}:[/red] {e.response.text}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 # --- Tasks ---
@@ -144,7 +143,8 @@ def definitions_create(file: str = typer.Argument(help="Path to definition .md f
     """Create or update a definition from a markdown file."""
     import yaml
 
-    content = open(file).read()
+    with open(file) as handle:
+        content = handle.read()
     if not content.strip().startswith("---"):
         console.print("[red]File must start with YAML frontmatter (---)[/red]")
         raise typer.Exit(1)
@@ -153,7 +153,7 @@ def definitions_create(file: str = typer.Argument(help="Path to definition .md f
     fm = yaml.safe_load(content[3:end])
     body = content[end + 3:].strip()
 
-    data = _post("/api/v1/definitions", {
+    _post("/api/v1/definitions", {
         "kind": fm["kind"],
         "name": fm["name"],
         "version": fm.get("version", "1.0.0"),
@@ -170,7 +170,10 @@ app.add_typer(analytics_app, name="analytics")
 
 
 @analytics_app.command("roi")
-def analytics_roi(since: str = typer.Option("30d", help="Time period"), format: str = typer.Option("table", help="Output format")) -> None:
+def analytics_roi(
+    since: str = typer.Option("30d", help="Time period"),
+    format: str = typer.Option("table", help="Output format"),
+) -> None:
     """Show ROI metrics."""
     data = _get("/api/v1/analytics/roi", {"since": since})
     if format == "json":

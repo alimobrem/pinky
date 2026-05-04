@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, CheckSquare, Eye, Clock, AlertTriangle, Settings, Brain } from "lucide-react";
 import { api } from "@/lib/api";
@@ -24,13 +24,13 @@ export function CommandPalette() {
   const dialogRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  const baseItems: CommandItem[] = [
+  const baseItems = useMemo<CommandItem[]>(() => [
     { id: "nav-tasks", label: "Tasks", description: "View all tasks", icon: <CheckSquare size={16} />, action: () => router.push("/tasks"), category: "Navigation" },
     { id: "nav-watch", label: "Watch", description: "Live cluster monitoring", icon: <Eye size={16} />, action: () => router.push("/watch"), category: "Navigation" },
     { id: "nav-history", label: "History", description: "Operational history", icon: <Clock size={16} />, action: () => router.push("/history"), category: "Navigation" },
     { id: "nav-alerts", label: "Alerts", description: "Raw signals", icon: <AlertTriangle size={16} />, action: () => router.push("/alerts"), category: "Navigation" },
     { id: "nav-settings", label: "Settings", description: "Platform configuration", icon: <Settings size={16} />, action: () => router.push("/settings"), category: "Navigation" },
-  ];
+  ], [router]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -60,7 +60,7 @@ export function CommandPalette() {
         })
         .catch(() => setItems(baseItems));
     }
-  }, [open]);
+  }, [open, baseItems, router]);
 
   const filtered = items.filter(item =>
     item.label.toLowerCase().includes(query.toLowerCase()) ||

@@ -4,11 +4,10 @@ import Link from "next/link";
 import { Brain, CheckSquare, Eye, Clock, AlertTriangle, Shield, ArrowRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { WorkItem, Issue, HistoryEvent, ClusterRegistryEntry, PaginatedResponse } from "@pinky/contracts";
-import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { relativeTime } from "@/lib/format-date";
-import { STATUS_BG, PRIORITY_BG } from "@/lib/status-colors";
+import { PRIORITY_BG } from "@/lib/status-colors";
 
 export default function DashboardPage() {
   const { data: tasksData } = useQuery({

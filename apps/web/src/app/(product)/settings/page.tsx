@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Settings as SettingsIcon, Plus, Trash2, Brain } from "lucide-react";
 import { toast } from "sonner";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ClusterRegistryEntry, ClusterIdentityBinding, Definition, WebhookSubscription, PolicyRule, PaginatedResponse } from "@pinky/contracts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
