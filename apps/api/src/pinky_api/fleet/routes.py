@@ -102,7 +102,9 @@ async def list_clusters(
 
 
 @router.post("/clusters", status_code=201)
-async def create_cluster(req: ClusterCreateRequest, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> dict:
+async def create_cluster(
+    req: ClusterCreateRequest, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin),
+) -> dict:
     repo = ClusterRepository(db)
     count = await repo.count()
     cluster = await repo.create(
@@ -119,7 +121,9 @@ async def create_cluster(req: ClusterCreateRequest, db: AsyncSession = Depends(g
 
 
 @router.delete("/clusters/{cluster_id}", status_code=204)
-async def remove_cluster(cluster_id: str, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin)) -> None:
+async def remove_cluster(
+    cluster_id: str, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin),
+) -> None:
     repo = ClusterRepository(db)
     deleted = await repo.delete(UUID(cluster_id))
     if not deleted:
@@ -194,7 +198,10 @@ async def create_binding(
             expires_at=datetime.utcnow() + timedelta(hours=8),
         )
 
-    await emit(db, "binding.created", "cluster", cluster_uuid, {"principal_id": principal["id"]}, cluster_id=cluster_uuid, principal_id=pid)
+    await emit(
+        db, "binding.created", "cluster", cluster_uuid,
+        {"principal_id": principal["id"]}, cluster_id=cluster_uuid, principal_id=pid,
+    )
     await db.commit()
     return _serialize_binding(binding)
 

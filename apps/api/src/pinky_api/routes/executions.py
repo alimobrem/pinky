@@ -67,7 +67,9 @@ async def list_executions(
     if cluster_id:
         await require_cluster_read_access(_parse_uuid(cluster_id, "Cluster"), principal, db, require_binding=True)
     repo = ExecutionRepository(db)
-    result = await repo.list(work_item_id=work_item_id, cluster_id=cluster_id, status=status, limit=limit, cursor=cursor)
+    result = await repo.list(
+        work_item_id=work_item_id, cluster_id=cluster_id, status=status, limit=limit, cursor=cursor,
+    )
     items = result["items"]
     if not cluster_id:
         items = [e for e in items if e.cluster_id in allowed_clusters]
@@ -80,7 +82,9 @@ async def list_executions(
 
 
 @router.get("/{execution_id}")
-async def get_execution(execution_id: str, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated)) -> dict:
+async def get_execution(
+    execution_id: str, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated),
+) -> dict:
     repo = ExecutionRepository(db)
     ex = await repo.get(_parse_uuid(execution_id, "Execution"))
     if ex is None:
@@ -90,7 +94,10 @@ async def get_execution(execution_id: str, db: AsyncSession = Depends(get_db), p
 
 
 @router.post("")
-async def start_execution(work_item_id: str, execution_type: str = "investigation", db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated)) -> dict:
+async def start_execution(
+    work_item_id: str, execution_type: str = "investigation",
+    db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated),
+) -> dict:
     from pinky_api.temporal_state import get_client
 
     repo = ExecutionRepository(db)
@@ -182,7 +189,10 @@ async def start_execution(work_item_id: str, execution_type: str = "investigatio
 
 
 @router.post("/{execution_id}/approve")
-async def approve_execution(execution_id: str, req: ApproveRequest, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated)) -> dict:
+async def approve_execution(
+    execution_id: str, req: ApproveRequest,
+    db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated),
+) -> dict:
     from pinky_api.temporal_state import get_client
 
     repo = ExecutionRepository(db)
@@ -201,7 +211,10 @@ async def approve_execution(execution_id: str, req: ApproveRequest, db: AsyncSes
     try:
         handle = temporal_client.get_workflow_handle(f"remediation-{execution_id}")
         await handle.signal("approve", {"changeset_digest": req.changeset_digest})
-        await emit(db, "approval.granted", "execution", ex.id, {"changeset_digest": req.changeset_digest}, cluster_id=ex.cluster_id)
+        await emit(
+            db, "approval.granted", "execution", ex.id,
+            {"changeset_digest": req.changeset_digest}, cluster_id=ex.cluster_id,
+        )
         await db.commit()
         return {"status": "approved", "execution_id": execution_id}
     except Exception:
@@ -210,7 +223,10 @@ async def approve_execution(execution_id: str, req: ApproveRequest, db: AsyncSes
 
 
 @router.post("/{execution_id}/reject")
-async def reject_execution(execution_id: str, req: RejectRequest, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated)) -> dict:
+async def reject_execution(
+    execution_id: str, req: RejectRequest,
+    db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated),
+) -> dict:
     from pinky_api.temporal_state import get_client
 
     repo = ExecutionRepository(db)

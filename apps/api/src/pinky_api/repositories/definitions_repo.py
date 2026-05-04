@@ -21,7 +21,10 @@ class DefinitionRepository(BaseRepository):
         )
         return result.scalar_one_or_none()
 
-    async def upsert(self, kind: str, name: str, version: str, frontmatter: dict, body: str, created_by: str | None = None) -> Definition:
+    async def upsert(
+        self, kind: str, name: str, version: str, frontmatter: dict, body: str,
+        created_by: str | None = None,
+    ) -> Definition:
         existing = await self.get(kind, name)
         if existing:
             existing.version = version

@@ -32,7 +32,10 @@ class WebhookRepository(BaseRepository):
         )
         return True
 
-    async def list_deliveries(self, subscription_id: str | None = None, status: str | None = None, limit: int = 50, cursor: str | None = None) -> dict:
+    async def list_deliveries(
+        self, subscription_id: str | None = None, status: str | None = None,
+        limit: int = 50, cursor: str | None = None,
+    ) -> dict:
         stmt = select(WebhookDelivery)
         if subscription_id:
             stmt = stmt.where(WebhookDelivery.subscription_id == subscription_id)
@@ -40,7 +43,10 @@ class WebhookRepository(BaseRepository):
             stmt = stmt.where(WebhookDelivery.status == status)
         return await self.paginate(stmt, WebhookDelivery, limit=limit, cursor=cursor)
 
-    async def emit_domain_event(self, event_type: str, aggregate_type: str, aggregate_id: UUID, payload: dict, cluster_id: UUID | None = None, principal_id: UUID | None = None) -> DomainEvent:
+    async def emit_domain_event(
+        self, event_type: str, aggregate_type: str, aggregate_id: UUID, payload: dict,
+        cluster_id: UUID | None = None, principal_id: UUID | None = None,
+    ) -> DomainEvent:
         event = DomainEvent()
         event.event_type = event_type
         event.aggregate_type = aggregate_type

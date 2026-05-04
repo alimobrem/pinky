@@ -7,7 +7,10 @@ from pinky_api.repositories.base import BaseRepository
 
 
 class ObservationRepository(BaseRepository):
-    async def list(self, cluster_id: str | None = None, cluster_ids: list | None = None, severity: str | None = None, limit: int = 50, cursor: str | None = None) -> dict:
+    async def list(
+        self, cluster_id: str | None = None, cluster_ids: list | None = None,
+        severity: str | None = None, limit: int = 50, cursor: str | None = None,
+    ) -> dict:
         stmt = select(Observation)
         if cluster_id:
             stmt = stmt.where(Observation.cluster_id == cluster_id)

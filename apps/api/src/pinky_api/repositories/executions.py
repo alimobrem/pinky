@@ -11,7 +11,10 @@ from pinky_api.repositories.base import BaseRepository
 
 
 class ExecutionRepository(BaseRepository):
-    async def list(self, work_item_id: str | None = None, cluster_id: str | None = None, status: str | None = None, limit: int = 50, cursor: str | None = None) -> dict:
+    async def list(
+        self, work_item_id: str | None = None, cluster_id: str | None = None,
+        status: str | None = None, limit: int = 50, cursor: str | None = None,
+    ) -> dict:
         stmt = select(Execution)
         if work_item_id:
             stmt = stmt.where(Execution.work_item_id == work_item_id)
@@ -86,7 +89,10 @@ class ExecutionRepository(BaseRepository):
                     try:
                         art_result = await self.session.execute(
                             select(ExecutionEvent)
-                            .where(ExecutionEvent.execution_id == UUID(artifact_id), ExecutionEvent.event_type == "investigation_completed")
+                            .where(
+                                ExecutionEvent.execution_id == UUID(artifact_id),
+                                ExecutionEvent.event_type == "investigation_completed",
+                            )
                             .limit(1)
                         )
                         event = art_result.scalar_one_or_none()
