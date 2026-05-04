@@ -152,7 +152,7 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
 
     logger.info("login successful: %s via %s", principal_data["id"], stored_provider)
 
-    redirect = RedirectResponse(url=f"{settings.auth.app_url}/tasks", status_code=302)
+    redirect = RedirectResponse(url=f"{settings.auth.app_url}/dashboard", status_code=302)
     cookie_kwargs = {
         "key": SESSION_COOKIE_NAME,
         "value": raw_token,
@@ -165,6 +165,18 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
     if settings.auth.cookie_domain:
         cookie_kwargs["domain"] = settings.auth.cookie_domain
     redirect.set_cookie(**cookie_kwargs)
+    csrf_cookie_kwargs = {
+        "key": "csrf_token",
+        "value": csrf_token,
+        "httponly": False,
+        "secure": False,
+        "samesite": "lax",
+        "path": "/",
+        "max_age": int(store.absolute_timeout.total_seconds()),
+    }
+    if settings.auth.cookie_domain:
+        csrf_cookie_kwargs["domain"] = settings.auth.cookie_domain
+    redirect.set_cookie(**csrf_cookie_kwargs)
     return redirect
 
 
