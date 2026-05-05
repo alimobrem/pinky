@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { WorkItem } from "@pinky/contracts";
 import { cn } from "@/lib/utils";
 import { tasksOptions, clustersOptions } from "../queries";
@@ -15,6 +15,8 @@ import { SkeletonRow } from "@/components/shared/skeleton-row";
 import { PageHeader } from "@/components/shared/page-header";
 import { useCluster } from "@/hooks/use-cluster";
 import { useIsDesktop } from "@/hooks/use-media-query";
+import { useSSE } from "@/hooks/use-sse";
+import { QUERY_KEYS } from "@/lib/constants";
 import { FadeIn } from "@/components/motion/fade-in";
 import {
   Select,
@@ -38,6 +40,13 @@ export function TasksView() {
   const searchParams = useSearchParams();
   const clusterId = useCluster();
   const isDesktop = useIsDesktop();
+  const qc = useQueryClient();
+
+  useSSE("/api/v1/streams/work-items", {
+    onEvent: {
+      update: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks() }),
+    },
+  });
 
   const [activeTab, setActiveTab] = useState(searchParams.get("status") ?? "all");
   const [search, setSearch] = useState("");

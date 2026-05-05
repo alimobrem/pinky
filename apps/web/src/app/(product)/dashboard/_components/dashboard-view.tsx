@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ListTodo,
   CheckCircle2,
@@ -28,8 +28,21 @@ import { PriorityBadge } from "@/components/shared/priority-badge";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FadeIn } from "@/components/motion/fade-in";
+import { useSSE } from "@/hooks/use-sse";
+import { QUERY_KEYS } from "@/lib/constants";
 
 export function DashboardView() {
+  const qc = useQueryClient();
+
+  useSSE("/api/v1/streams/work-items", {
+    onEvent: {
+      update: () => {
+        qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks() });
+        qc.invalidateQueries({ queryKey: QUERY_KEYS.issues() });
+      },
+    },
+  });
+
   const { data: tasks } = useQuery(dashboardTasksOptions());
   const { data: issues } = useQuery(dashboardIssuesOptions());
   const { data: history } = useQuery(dashboardHistoryOptions());
