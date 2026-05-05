@@ -91,8 +91,22 @@ async def _dispatch_investigation(
     from pinky_worker.db import get_pool
 
     pool = await get_pool()
-    exec_id = uuid.uuid4()
 
+    # Stable workflow ID for Temporal dedup (same issue = same workflow)
+    workflow_id = f"investigation-{cluster_id[:8]}-{obs.fingerprint[:16]}"
+
+    # Check if there's already a pending/running execution for this issue
+    existing = await pool.fetchrow(
+        "SELECT id FROM executions WHERE work_item_id IN "
+        "(SELECT id FROM work_items WHERE issue_id = $1::uuid) "
+        "AND status IN ('pending', 'running') LIMIT 1",
+        result.issue_id,
+    )
+    if existing:
+        logger.debug("investigation already in progress", issue_id=result.issue_id)
+        return
+
+    exec_id = uuid.uuid4()
     work_item_id = None
     wi_row = await pool.fetchrow(
         "SELECT id FROM work_items WHERE issue_id = $1::uuid ORDER BY created_at DESC LIMIT 1",
@@ -108,8 +122,6 @@ async def _dispatch_investigation(
         exec_id, work_item_id, cluster_id,
     )
 
-    workflow_id = f"investigation-{exec_id}"
-
     try:
         await temporal_client.start_workflow(
             "InvestigationWorkflow",
@@ -120,6 +132,7 @@ async def _dispatch_investigation(
                 "evidence_hash": "",
                 "skill_body": skill_body,
                 "skill_tools": skill_tools,
+                "execution_id": str(exec_id),
             },
             id=workflow_id,
             task_queue=INVESTIGATION_QUEUE,
@@ -134,6 +147,7 @@ async def _dispatch_investigation(
     except Exception as exc:
         if "already started" in str(exc).lower() or "already running" in str(exc).lower():
             logger.debug("investigation already running", workflow_id=workflow_id)
+            await pool.execute("DELETE FROM executions WHERE id = $1", exec_id)
         else:
             logger.exception("failed to dispatch investigation", workflow_id=workflow_id)
             await pool.execute(

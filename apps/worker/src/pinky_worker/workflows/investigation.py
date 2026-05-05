@@ -25,6 +25,7 @@ class InvestigationInput:
     evidence_hash: str
     skill_body: str = ""
     skill_tools: list[str] = field(default_factory=list)
+    execution_id: str = ""
 
 
 @dataclass
@@ -44,7 +45,7 @@ class InvestigationWorkflow:
         await workflow.execute_activity(
             emit_execution_event,
             ExecutionEventPayload(
-                execution_id=workflow.info().workflow_id,
+                execution_id=input.execution_id or workflow.info().workflow_id,
                 event_type="started",
                 sequence=0,
                 payload={"issue_id": input.issue_id, "type": "investigation"},
@@ -92,7 +93,7 @@ class InvestigationWorkflow:
         await workflow.execute_activity(
             emit_execution_event,
             ExecutionEventPayload(
-                execution_id=workflow.info().workflow_id,
+                execution_id=input.execution_id or workflow.info().workflow_id,
                 event_type="completed",
                 sequence=1,
                 payload={"artifact_id": artifact.artifact_id, "confidence": artifact.confidence},
