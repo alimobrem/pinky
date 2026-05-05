@@ -26,25 +26,25 @@ class DbIssueCorrelator:
     async def correlate(self, obs: RawObservation) -> CorrelationResult:
         pool = await get_pool()
         async with pool.acquire() as conn:
+            obs_id = uuid.uuid4()
             try:
                 await conn.execute(
-                    """INSERT INTO observations (cluster_id, scanner, fingerprint, severity,
+                    """INSERT INTO observations (id, cluster_id, scanner, fingerprint, severity,
                     resource_kind, resource_namespace, resource_name, payload,
                     observed_at, correlation_key)
-                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                     ON CONFLICT DO NOTHING""",
-                    obs.cluster_id, obs.scanner, obs.fingerprint, obs.severity,
+                    obs_id, obs.cluster_id, obs.scanner, obs.fingerprint, obs.severity,
                     obs.resource_kind, obs.resource_namespace or "", obs.resource_name,
                     "{}", obs.observed_at, obs.correlation_key,
                 )
             except Exception:
-                # Fallback for pre-migration schema without correlation_key column
                 await conn.execute(
-                    """INSERT INTO observations (cluster_id, scanner, fingerprint, severity,
+                    """INSERT INTO observations (id, cluster_id, scanner, fingerprint, severity,
                     resource_kind, resource_namespace, resource_name, payload, observed_at)
-                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
+                    VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10)
                     ON CONFLICT DO NOTHING""",
-                    obs.cluster_id, obs.scanner, obs.fingerprint, obs.severity,
+                    obs_id, obs.cluster_id, obs.scanner, obs.fingerprint, obs.severity,
                     obs.resource_kind, obs.resource_namespace or "", obs.resource_name,
                     "{}", obs.observed_at,
                 )
