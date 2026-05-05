@@ -179,7 +179,7 @@ async def observe_cluster(
                     try:
                         data = await _fetch_for_scanner(api_client, scanner_def)
                         observations.extend(
-                            run_generic_checks(data, cluster_id, scanner_def, prom_client=prom_client),
+                            await run_generic_checks(data, cluster_id, scanner_def, prom_client=prom_client),
                         )
                     except Exception:
                         logger.exception("scanner failed", scanner=scanner_def.name)

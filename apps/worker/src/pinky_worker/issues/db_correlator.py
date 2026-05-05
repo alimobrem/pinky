@@ -14,25 +14,40 @@ logger = structlog.get_logger(__name__)
 
 class DbIssueCorrelator:
     async def _count_observations(self, conn, correlation_key: str) -> int:
-        row = await conn.fetchrow(
-            "SELECT COUNT(*) as cnt FROM observations WHERE correlation_key = $1",
-            correlation_key,
-        )
-        return row["cnt"] if row else 1
+        try:
+            row = await conn.fetchrow(
+                "SELECT COUNT(*) as cnt FROM observations WHERE correlation_key = $1",
+                correlation_key,
+            )
+            return row["cnt"] if row else 1
+        except Exception:
+            return 1
 
     async def correlate(self, obs: RawObservation) -> CorrelationResult:
         pool = await get_pool()
         async with pool.acquire() as conn:
-            await conn.execute(
-                """INSERT INTO observations (cluster_id, scanner, fingerprint, severity,
-                resource_kind, resource_namespace, resource_name, payload,
-                observed_at, correlation_key)
-                VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                ON CONFLICT DO NOTHING""",
-                obs.cluster_id, obs.scanner, obs.fingerprint, obs.severity,
-                obs.resource_kind, obs.resource_namespace or "", obs.resource_name,
-                "{}", obs.observed_at, obs.correlation_key,
-            )
+            try:
+                await conn.execute(
+                    """INSERT INTO observations (cluster_id, scanner, fingerprint, severity,
+                    resource_kind, resource_namespace, resource_name, payload,
+                    observed_at, correlation_key)
+                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    ON CONFLICT DO NOTHING""",
+                    obs.cluster_id, obs.scanner, obs.fingerprint, obs.severity,
+                    obs.resource_kind, obs.resource_namespace or "", obs.resource_name,
+                    "{}", obs.observed_at, obs.correlation_key,
+                )
+            except Exception:
+                # Fallback for pre-migration schema without correlation_key column
+                await conn.execute(
+                    """INSERT INTO observations (cluster_id, scanner, fingerprint, severity,
+                    resource_kind, resource_namespace, resource_name, payload, observed_at)
+                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
+                    ON CONFLICT DO NOTHING""",
+                    obs.cluster_id, obs.scanner, obs.fingerprint, obs.severity,
+                    obs.resource_kind, obs.resource_namespace or "", obs.resource_name,
+                    "{}", obs.observed_at,
+                )
 
             obs_count = await self._count_observations(conn, obs.correlation_key)
 

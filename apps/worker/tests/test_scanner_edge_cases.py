@@ -70,59 +70,59 @@ SCANNER_DEF = Definition(
 )
 
 
-def test_pod_with_no_containers() -> None:
+async def test_pod_with_no_containers() -> None:
     pods = [{"name": "empty", "namespace": "ns", "phase": "Pending", "containers": []}]
-    obs = run_generic_checks(pods, "c1", SCANNER_DEF)
+    obs = await run_generic_checks(pods, "c1", SCANNER_DEF)
     assert obs == []
 
 
-def test_pod_with_none_state() -> None:
+async def test_pod_with_none_state() -> None:
     pods = [{"name": "weird", "namespace": "ns", "containers": [
         {"name": "main", "restart_count": 0, "state": None, "last_state": None},
     ]}]
-    obs = run_generic_checks(pods, "c1", SCANNER_DEF)
+    obs = await run_generic_checks(pods, "c1", SCANNER_DEF)
     assert obs == []
 
 
-def test_pod_with_empty_state_dict() -> None:
+async def test_pod_with_empty_state_dict() -> None:
     pods = [{"name": "empty-state", "namespace": "ns", "containers": [
         {"name": "main", "restart_count": 0, "state": {}, "last_state": {}},
     ]}]
-    obs = run_generic_checks(pods, "c1", SCANNER_DEF)
+    obs = await run_generic_checks(pods, "c1", SCANNER_DEF)
     assert obs == []
 
 
-def test_pod_missing_containers_key() -> None:
+async def test_pod_missing_containers_key() -> None:
     pods = [{"name": "no-containers", "namespace": "ns", "phase": "Pending"}]
-    obs = run_generic_checks(pods, "c1", SCANNER_DEF)
+    obs = await run_generic_checks(pods, "c1", SCANNER_DEF)
     # iterate on containers[*] resolves to None → no observations
     assert obs == []
 
 
-def test_image_pull_error_inside_container_loop() -> None:
+async def test_image_pull_error_inside_container_loop() -> None:
     pods = [{"name": "img-err", "namespace": "ns", "containers": [
         {"name": "app", "restart_count": 0, "state": {"type": "waiting", "reason": "ImagePullBackOff"}, "last_state": None},
     ]}]
-    obs = run_generic_checks(pods, "c1", SCANNER_DEF)
+    obs = await run_generic_checks(pods, "c1", SCANNER_DEF)
     assert len(obs) == 1
     assert obs[0].check_id == "image-pull-error"
 
 
-def test_multiple_containers_each_checked() -> None:
+async def test_multiple_containers_each_checked() -> None:
     pods = [{"name": "multi", "namespace": "ns", "containers": [
         {"name": "sidecar", "restart_count": 0, "state": {"type": "running"}, "last_state": None},
         {"name": "main", "restart_count": 10, "state": {"type": "waiting", "reason": "CrashLoopBackOff"}, "last_state": {"type": "terminated", "reason": "OOMKilled", "exit_code": 137}},
     ]}]
-    obs = run_generic_checks(pods, "c1", SCANNER_DEF)
+    obs = await run_generic_checks(pods, "c1", SCANNER_DEF)
     check_ids = {o.check_id for o in obs}
     assert "crash-loop-backoff" in check_ids
     assert "oom-killed" in check_ids
     assert "excessive-restarts" in check_ids
 
 
-def test_restart_count_none_treated_as_zero() -> None:
+async def test_restart_count_none_treated_as_zero() -> None:
     pods = [{"name": "null-restarts", "namespace": "ns", "containers": [
         {"name": "main", "restart_count": None, "state": {"type": "running"}, "last_state": None},
     ]}]
-    obs = run_generic_checks(pods, "c1", SCANNER_DEF)
+    obs = await run_generic_checks(pods, "c1", SCANNER_DEF)
     assert obs == []

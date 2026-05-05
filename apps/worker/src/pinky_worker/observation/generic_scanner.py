@@ -191,7 +191,7 @@ def _is_empty(value: Any) -> bool:
     return value is None or value == "" or value == [] or value == {} or value == 0
 
 
-def evaluate_op(
+async def evaluate_op(
     value: Any,
     op: str,
     condition: dict[str, Any],
@@ -203,10 +203,10 @@ def evaluate_op(
     try:
         # Unwrap list values — any() semantics
         if isinstance(value, list) and op not in ("condition_status",):
-            return any(
-                evaluate_op(v, op, condition, now, resource, prom_client)
-                for v in value
-            )
+            for v in value:
+                if await evaluate_op(v, op, condition, now, resource, prom_client):
+                    return True
+            return False
 
         cmp_value = condition.get("value")
         if "value_from" in condition:
@@ -251,9 +251,9 @@ def evaluate_op(
         if op == "quantity_gte_pct":
             return _eval_quantity_gte_pct(condition, resource)
         if op in ("promql_gt", "promql_lt", "promql_eq"):
-            return _eval_promql_compare(op, condition, resource, prom_client)
+            return await _eval_promql_compare(op, condition, resource, prom_client)
         if op == "promql_absent":
-            return _eval_promql_absent(condition, resource, prom_client)
+            return await _eval_promql_absent(condition, resource, prom_client)
 
         logger.warning("unknown operator", op=op)
         return False
@@ -341,7 +341,7 @@ def _interpolate_promql(query: str, resource: dict[str, Any]) -> str:
     return query.replace("{namespace}", ns).replace("{name}", name)
 
 
-def _eval_promql_compare(
+async def _eval_promql_compare(
     op: str,
     condition: dict[str, Any],
     resource: dict[str, Any],
@@ -351,7 +351,7 @@ def _eval_promql_compare(
         return False
     try:
         query = _interpolate_promql(condition["query"], resource)
-        result = prom_client.query_value(query)
+        result = await prom_client.query_value(query)
         if result is None:
             return False
         result_f = float(result)
@@ -367,7 +367,7 @@ def _eval_promql_compare(
     return False
 
 
-def _eval_promql_absent(
+async def _eval_promql_absent(
     condition: dict[str, Any],
     resource: dict[str, Any],
     prom_client: Any,
@@ -376,7 +376,7 @@ def _eval_promql_absent(
         return False
     try:
         query = _interpolate_promql(condition["query"], resource)
-        result = prom_client.query_value(query)
+        result = await prom_client.query_value(query)
         return result is None
     except Exception:
         logger.warning("promql_absent failed", exc_info=True)
@@ -388,7 +388,7 @@ def _eval_promql_absent(
 # ---------------------------------------------------------------------------
 
 
-def evaluate_condition(
+async def evaluate_condition(
     resource: dict[str, Any],
     condition: dict[str, Any],
     now: datetime,
@@ -403,15 +403,15 @@ def evaluate_condition(
     """
     try:
         if "all" in condition:
-            return all(
-                evaluate_condition(resource, c, now, prom_client)
-                for c in condition["all"]
-            )
+            for c in condition["all"]:
+                if not await evaluate_condition(resource, c, now, prom_client):
+                    return False
+            return True
         if "any" in condition:
-            return any(
-                evaluate_condition(resource, c, now, prom_client)
-                for c in condition["any"]
-            )
+            for c in condition["any"]:
+                if await evaluate_condition(resource, c, now, prom_client):
+                    return True
+            return False
         # Leaf condition
         path = condition.get("path", "")
         op = condition.get("op", "")
@@ -419,7 +419,7 @@ def evaluate_condition(
             logger.warning("condition missing 'op'", condition=condition)
             return False
         value = resolve_path(resource, path) if path else None
-        return evaluate_op(value, op, condition, now, resource, prom_client)
+        return await evaluate_op(value, op, condition, now, resource, prom_client)
     except Exception:
         logger.warning("evaluate_condition failed", exc_info=True)
         return False
@@ -430,7 +430,7 @@ def evaluate_condition(
 # ---------------------------------------------------------------------------
 
 
-def run_generic_checks(
+async def run_generic_checks(
     resources: list[dict[str, Any]],
     cluster_id: str,
     scanner_def: Definition,
@@ -449,7 +449,7 @@ def run_generic_checks(
     for resource in resources:
         for check in checks:
             try:
-                _run_single_check(
+                await _run_single_check(
                     resource=resource,
                     check=check,
                     cluster_id=cluster_id,
@@ -472,7 +472,7 @@ def run_generic_checks(
     return observations
 
 
-def _run_single_check(
+async def _run_single_check(
     resource: dict[str, Any],
     check: dict[str, Any],
     cluster_id: str,
@@ -499,7 +499,7 @@ def _run_single_check(
         for element in elements:
             if not isinstance(element, dict):
                 continue
-            if evaluate_condition(element, condition, now, prom_client):
+            if await evaluate_condition(element, condition, now, prom_client):
                 _emit_observation(
                     resource=resource,
                     element=element,
@@ -516,7 +516,7 @@ def _run_single_check(
                     observations=observations,
                 )
     else:
-        if evaluate_condition(resource, condition, now, prom_client):
+        if await evaluate_condition(resource, condition, now, prom_client):
             _emit_observation(
                 resource=resource,
                 element=None,
