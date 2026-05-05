@@ -28,6 +28,7 @@ import {
   executionsOptions,
 } from "../queries";
 import { useSSE } from "@/hooks/use-sse";
+import { MarkdownContent } from "@/components/shared/markdown-content";
 import { StatusIndicator } from "@/components/shared/status-indicator";
 import { PriorityBadge } from "@/components/shared/priority-badge";
 import { ConfidenceBadge } from "@/components/shared/confidence-badge";
@@ -348,34 +349,28 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                         <ConfidenceBadge value={investigation.confidence} />
                       )}
                     </div>
-                    <p className="text-sm text-text-primary">
-                      {investigation.recommended_action}
-                    </p>
+                    <MarkdownContent content={investigation.recommended_action} />
 
                     <Collapsible>
                       <CollapsibleTrigger className="flex items-center gap-1 mt-3 text-xs text-text-secondary hover:text-text-primary">
                         <ChevronRight className="h-3 w-3" />
                         View reasoning
                       </CollapsibleTrigger>
-                      <CollapsibleContent className="mt-2 space-y-2">
+                      <CollapsibleContent className="mt-3 space-y-4">
                         {investigation.summary && (
                           <div>
-                            <span className="text-xs font-medium text-text-secondary">
+                            <span className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">
                               Summary
                             </span>
-                            <p className="text-sm text-text-primary">
-                              {investigation.summary}
-                            </p>
+                            <MarkdownContent content={investigation.summary} className="mt-1" />
                           </div>
                         )}
                         {investigation.root_cause && (
                           <div>
-                            <span className="text-xs font-medium text-text-secondary">
-                              Root cause
+                            <span className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">
+                              Root Cause
                             </span>
-                            <p className="text-sm text-text-primary">
-                              {investigation.root_cause}
-                            </p>
+                            <MarkdownContent content={investigation.root_cause} className="mt-1" />
                           </div>
                         )}
                       </CollapsibleContent>
