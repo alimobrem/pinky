@@ -2,5 +2,18 @@
   "extends": [
     "next/core-web-vitals",
     "next/typescript"
-  ]
+  ],
+  "rules": {
+    "react/forbid-component-props": [
+      "error",
+      {
+        "forbid": [
+          {
+            "propName": "style",
+            "message": "Inline styles are banned — use Tailwind utility classes. If truly needed for runtime-computed values (e.g., progress bars), add an eslint-disable comment with a reason."
+          }
+        ]
+      }
+    ]
+  }
 }

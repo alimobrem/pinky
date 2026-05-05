@@ -126,6 +126,7 @@ export function ExecutionMonitor({ executionId, onComplete }: ExecutionMonitorPr
       {/* Progress bar */}
       {totalSteps && currentStep && (
         <div className="h-0.5 bg-bg-elevated">
+          {/* eslint-disable-next-line react/forbid-component-props -- runtime-computed progress width */}
           <div className="h-full bg-accent-brain transition-all duration-300" style={{ width: `${(currentStep / totalSteps) * 100}%` }} />
         </div>
       )}
