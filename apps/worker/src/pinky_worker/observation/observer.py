@@ -109,8 +109,11 @@ async def _dispatch_investigation(
             skill=skill_name or "<generic>",
             issue_id=result.issue_id,
         )
-    except Exception:
-        logger.exception("failed to dispatch investigation", workflow_id=workflow_id)
+    except Exception as exc:
+        if "already started" in str(exc).lower() or "already running" in str(exc).lower():
+            logger.debug("investigation already running", workflow_id=workflow_id)
+        else:
+            logger.exception("failed to dispatch investigation", workflow_id=workflow_id)
 
 
 async def _handle_suppress(result, decision) -> None:
@@ -151,7 +154,7 @@ async def observe_cluster(
 
     cycle = 0
     try:
-        api_client = await create_client(in_cluster=True)
+        api_client = await create_client()
     except Exception:
         logger.exception("failed to create K8s client for cluster %s", cluster_id)
         return

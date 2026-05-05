@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from kubernetes_asyncio import client, config
@@ -10,12 +11,14 @@ from kubernetes_asyncio.client import ApiClient
 
 logger = logging.getLogger(__name__)
 
+_SA_TOKEN = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
 
-async def create_client(kubeconfig: str | None = None, in_cluster: bool = False) -> ApiClient:
-    if in_cluster:
-        config.load_incluster_config()
-    elif kubeconfig:
+
+async def create_client(kubeconfig: str | None = None) -> ApiClient:
+    if kubeconfig:
         await config.load_kube_config(config_file=kubeconfig)
+    elif _SA_TOKEN.exists():
+        config.load_incluster_config()
     else:
         await config.load_kube_config()
     return ApiClient()
