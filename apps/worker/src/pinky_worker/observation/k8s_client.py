@@ -634,3 +634,11 @@ async def get_helm_releases(
     except Exception:
         logger.warning("failed to list helm releases in namespace %s", namespace)
         return []
+
+
+async def query_prometheus(api_client: ApiClient, query: str) -> list[dict]:
+    """Execute a PromQL instant query via Thanos Querier."""
+    from pinky_worker.observation.prom_client import PromClient
+
+    prom = PromClient(api_client)
+    return await prom.instant_query(query)

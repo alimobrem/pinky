@@ -17,7 +17,8 @@ BUILTIN_PATTERNS: list[tuple[str, str]] = [
     # kubernetes-internal patterns
     (r"/var/run/secrets/kubernetes\.io/serviceaccount/token", "[REDACTED-SA-TOKEN]"),
     (r"eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}", "[REDACTED-JWT]"),
-    (r"(certificate-authority-data|client-certificate-data|client-key-data):\s*[A-Za-z0-9+/=]{20,}", "[REDACTED-KUBECONFIG]"),
+    (r"(certificate-authority-data|client-certificate-data|client-key-data)"
+     r":\s*[A-Za-z0-9+/=]{20,}", "[REDACTED-KUBECONFIG]"),
     (r"token:\s*[A-Za-z0-9+/=._-]{20,}", "[REDACTED-TOKEN]"),
     (r"X-aws-ec2-metadata-token:\s*\S+", "[REDACTED-AWS-METADATA]"),
     (r"Metadata-Flavor:\s*Google", "[REDACTED-GCP-METADATA]"),

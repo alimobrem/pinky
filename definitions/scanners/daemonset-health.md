@@ -6,25 +6,27 @@ resource_kinds: [DaemonSet]
 api_groups: [apps]
 scan_interval_seconds: 120
 timeout_seconds: 30
+checks:
+  - id: daemonset-unavailable
+    severity: high
+    condition: {path: "number_unavailable", op: "gt", value: 0}
+    resource_kind: DaemonSet
+    title_template: "DaemonSet {namespace}/{name} has unavailable pods"
+
+  - id: daemonset-misscheduled
+    severity: medium
+    condition: {path: "number_misscheduled", op: "gt", value: 0}
+    resource_kind: DaemonSet
+    title_template: "DaemonSet {namespace}/{name} has misscheduled pods"
+
+  - id: daemonset-desired-mismatch
+    severity: medium
+    condition:
+      all:
+        - {path: "desired_number_scheduled", op: "neq", value_from: "current_number_scheduled"}
+    resource_kind: DaemonSet
+    title_template: "DaemonSet {namespace}/{name} desired != current scheduled"
 ---
 # DaemonSet Health Scanner
 
-Checks for DaemonSets with missing or unavailable pods. Critical for
-logging, monitoring, CNI, and storage components that must run on every node.
-
-## Checks
-
-### daemonset-unavailable
-- severity: high
-- condition: status.numberUnavailable > 0 for > 5 minutes
-- evidence: DaemonSet status, unavailable nodes, pod events on affected nodes
-
-### daemonset-misscheduled
-- severity: medium
-- condition: status.numberMisscheduled > 0
-- evidence: DaemonSet node selector/tolerations, misscheduled node list
-
-### daemonset-desired-mismatch
-- severity: medium
-- condition: status.desiredNumberScheduled != status.currentNumberScheduled
-- evidence: DaemonSet status, node count, scheduling constraints
+Checks for DaemonSets with unavailable, misscheduled, or missing pods.

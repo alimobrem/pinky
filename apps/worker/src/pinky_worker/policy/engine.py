@@ -88,10 +88,10 @@ def matches(conditions: PolicyConditions, input: PolicyInput) -> bool:
         for k, v in conditions.labels.items():
             if input.labels.get(k) != v:
                 return False
-    if conditions.recurrence_count_gte is not None:
-        if input.recurrence_count < conditions.recurrence_count_gte:
-            return False
-    return True
+    return not (
+        conditions.recurrence_count_gte is not None
+        and input.recurrence_count < conditions.recurrence_count_gte
+    )
 
 
 def evaluate(rules: list[PolicyRule], input: PolicyInput) -> PolicyDecision:

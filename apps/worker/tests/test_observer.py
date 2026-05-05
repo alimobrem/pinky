@@ -1,23 +1,73 @@
-"""Observer tests — mock K8s client and correlator, test orchestration."""
+"""Observer tests — mock K8s client and correlator, test orchestration.
+
+The observer now uses generic scanner definitions with structured checks
+in frontmatter. It calls _fetch_for_scanner + run_generic_checks instead
+of the old hardcoded SCANNER_FETCHERS / SCANNER_RUNNERS dispatch.
+"""
 
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from pinky_worker.definitions.loader import Definition, DefinitionRegistry
-from pinky_worker.observation.observer import SCANNER_FETCHERS, observe_cluster
+from pinky_worker.issues.correlator import RawObservation
+from pinky_worker.observation.observer import observe_cluster
 
 
 def _mock_registry() -> DefinitionRegistry:
+    """Registry with a pod-health scanner that has structured checks."""
     registry = DefinitionRegistry()
     scanner = Definition(
-        kind="scanner", name="pod-health", version="1.0.0",
-        frontmatter={"kind": "scanner"}, body="", source="test",
+        kind="scanner",
+        name="pod-health",
+        version="1.0.0",
+        frontmatter={
+            "kind": "scanner",
+            "name": "pod-health",
+            "version": "1.0.0",
+            "resource_kinds": ["Pod"],
+            "checks": [
+                {
+                    "id": "crash-loop-backoff",
+                    "severity": "high",
+                    "iterate": "containers[*]",
+                    "condition": {
+                        "all": [
+                            {"path": "state.type", "op": "eq", "value": "waiting"},
+                            {"path": "state.reason", "op": "eq", "value": "CrashLoopBackOff"},
+                        ],
+                    },
+                    "resource_kind": "Pod",
+                    "title_template": "Pod {namespace}/{name} in CrashLoopBackOff",
+                    "payload_fields": ["name", "restart_count"],
+                },
+                {
+                    "id": "excessive-restarts",
+                    "severity": "medium",
+                    "iterate": "containers[*]",
+                    "condition": {"path": "restart_count", "op": "gt", "value": 5},
+                    "resource_kind": "Pod",
+                    "title_template": "Pod {namespace}/{name} excessive restarts",
+                    "payload_fields": ["name", "restart_count"],
+                },
+            ],
+        },
+        body="",
+        source="test",
     )
     policy = Definition(
-        kind="policy", name="default", version="1.0.0",
-        frontmatter={"kind": "policy", "priority": 100, "conditions": {}, "action": {"action_type": "observe"}},
-        body="", source="test",
+        kind="policy",
+        name="default",
+        version="1.0.0",
+        frontmatter={
+            "kind": "policy",
+            "name": "default",
+            "priority": 100,
+            "conditions": {},
+            "action": {"action_type": "observe"},
+        },
+        body="",
+        source="test",
     )
     registry._definitions = {
         ("scanner", "pod-health"): scanner,
@@ -31,7 +81,12 @@ HEALTHY_PODS = [
         "name": "web-abc",
         "namespace": "default",
         "containers": [
-            {"name": "web", "state": {"type": "running"}, "last_state": None, "restart_count": 0},
+            {
+                "name": "web",
+                "state": {"type": "running"},
+                "last_state": None,
+                "restart_count": 0,
+            },
         ],
     },
 ]
@@ -56,12 +111,12 @@ async def test_observer_clean_scan() -> None:
     mock_client = AsyncMock()
     mock_correlator = AsyncMock()
 
-    async def mock_list_pods(*args, **kwargs):
+    async def mock_fetch(api_client, scanner_def):
         return HEALTHY_PODS
 
     with (
         patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
-        patch.dict(SCANNER_FETCHERS, {"pod-health": mock_list_pods}),
+        patch("pinky_worker.observation.observer._fetch_for_scanner", side_effect=mock_fetch),
     ):
         await observe_cluster(
             cluster_id="cluster-1",
@@ -78,14 +133,14 @@ async def test_observer_clean_scan() -> None:
 async def test_observer_detects_crash_loop() -> None:
     mock_client = AsyncMock()
     mock_correlator = AsyncMock()
-    mock_correlator.correlate.return_value = MagicMock(action="created", issue_id="issue-1")
+    mock_correlator.correlate.return_value = MagicMock(action="created", issue_id="issue-1", observation_count=1)
 
-    async def mock_list_pods(*args, **kwargs):
+    async def mock_fetch(api_client, scanner_def):
         return UNHEALTHY_PODS
 
     with (
         patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
-        patch.dict(SCANNER_FETCHERS, {"pod-health": mock_list_pods}),
+        patch("pinky_worker.observation.observer._fetch_for_scanner", side_effect=mock_fetch),
     ):
         await observe_cluster(
             cluster_id="cluster-1",
@@ -104,12 +159,12 @@ async def test_observer_detects_crash_loop() -> None:
 async def test_observer_closes_client_on_error() -> None:
     mock_client = AsyncMock()
 
-    async def mock_list_pods_error(*args, **kwargs):
+    async def mock_fetch_error(api_client, scanner_def):
         raise RuntimeError("K8s down")
 
     with (
         patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
-        patch.dict(SCANNER_FETCHERS, {"pod-health": mock_list_pods_error}),
+        patch("pinky_worker.observation.observer._fetch_for_scanner", side_effect=mock_fetch_error),
     ):
         await observe_cluster(
             cluster_id="cluster-1",
@@ -127,14 +182,14 @@ async def test_observer_runs_multiple_cycles() -> None:
     mock_correlator = AsyncMock()
     call_count = 0
 
-    async def mock_list_pods(*args, **kwargs):
+    async def mock_fetch(api_client, scanner_def):
         nonlocal call_count
         call_count += 1
         return HEALTHY_PODS
 
     with (
         patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
-        patch.dict(SCANNER_FETCHERS, {"pod-health": mock_list_pods}),
+        patch("pinky_worker.observation.observer._fetch_for_scanner", side_effect=mock_fetch),
     ):
         await observe_cluster(
             cluster_id="cluster-1",
@@ -145,3 +200,52 @@ async def test_observer_runs_multiple_cycles() -> None:
         )
 
     assert call_count == 3
+
+
+async def test_observer_skips_scanner_without_checks() -> None:
+    """Scanner definitions without checks in frontmatter are skipped."""
+    registry = DefinitionRegistry()
+    no_checks_scanner = Definition(
+        kind="scanner",
+        name="legacy",
+        version="1.0.0",
+        frontmatter={"kind": "scanner", "resource_kinds": ["Pod"]},
+        body="",
+        source="test",
+    )
+    policy = Definition(
+        kind="policy",
+        name="default",
+        version="1.0.0",
+        frontmatter={
+            "kind": "policy",
+            "name": "default",
+            "priority": 100,
+            "conditions": {},
+            "action": {"action_type": "observe"},
+        },
+        body="",
+        source="test",
+    )
+    registry._definitions = {
+        ("scanner", "legacy"): no_checks_scanner,
+        ("policy", "default"): policy,
+    }
+
+    mock_client = AsyncMock()
+    mock_correlator = AsyncMock()
+
+    with (
+        patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
+        patch("pinky_worker.observation.observer._fetch_for_scanner") as mock_fetch,
+    ):
+        await observe_cluster(
+            cluster_id="cluster-1",
+            registry=registry,
+            correlator=mock_correlator,
+            scan_interval=1,
+            max_cycles=1,
+        )
+
+    mock_fetch.assert_not_called()
+    mock_correlator.correlate.assert_not_called()

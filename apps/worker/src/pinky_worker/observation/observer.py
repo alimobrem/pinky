@@ -2,17 +2,21 @@
 
 One observer task per registered cluster. Uses observer identity
 (read-only SA) for all reads. Dispatches Temporal workflows based
-on policy decisions.
+on policy decisions. Scanners are interpreted from structured YAML
+checks in definition frontmatter — no hardcoded runner functions.
 """
 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 import structlog
 
 from pinky_worker.definitions.loader import DefinitionRegistry
 from pinky_worker.issues.db_correlator import DbIssueCorrelator
+from pinky_worker.observation.generic_scanner import run_generic_checks
 from pinky_worker.observation.k8s_client import (
     create_client,
     list_cronjobs,
@@ -28,31 +32,40 @@ from pinky_worker.observation.k8s_client import (
     list_statefulsets,
     list_tls_secrets,
 )
-from pinky_worker.observation.scanner_runner import SCANNER_RUNNERS
 from pinky_worker.policy.engine import PolicyInput, evaluate, rules_from_definitions
 from pinky_worker.queues import INVESTIGATION_QUEUE
 
 logger = structlog.get_logger(__name__)
 
-async def _fetch_jobs_and_cronjobs(api_client):
-    jobs = await list_jobs(api_client)
-    cronjobs = await list_cronjobs(api_client)
-    return jobs + cronjobs
+Fetcher = Callable[..., Coroutine[Any, Any, list[dict]]]
 
-
-SCANNER_FETCHERS = {
-    "pod-health": list_pods,
-    "node-conditions": list_nodes,
-    "deployment-health": list_deployments,
-    "cert-expiry": list_tls_secrets,
-    "pvc-health": list_pvcs,
-    "resource-quotas": list_resource_quotas,
-    "ingress-health": list_ingresses,
-    "statefulset-health": list_statefulsets,
-    "job-health": _fetch_jobs_and_cronjobs,
-    "service-endpoints": list_services,
-    "daemonset-health": list_daemonsets,
+RESOURCE_KIND_FETCHERS: dict[str, Fetcher] = {
+    "Pod": list_pods,
+    "Node": list_nodes,
+    "Deployment": list_deployments,
+    "StatefulSet": list_statefulsets,
+    "DaemonSet": list_daemonsets,
+    "Job": list_jobs,
+    "CronJob": list_cronjobs,
+    "Service": list_services,
+    "PersistentVolumeClaim": list_pvcs,
+    "Ingress": list_ingresses,
+    "Secret": list_tls_secrets,
+    "ResourceQuota": list_resource_quotas,
 }
+
+
+async def _fetch_for_scanner(api_client, scanner_def) -> list[dict]:
+    resource_kinds = scanner_def.frontmatter.get("resource_kinds", [])
+    resources: list[dict] = []
+    for kind in resource_kinds:
+        fetcher = RESOURCE_KIND_FETCHERS.get(kind)
+        if fetcher:
+            try:
+                resources.extend(await fetcher(api_client))
+            except Exception:
+                logger.exception("fetcher failed", kind=kind)
+    return resources
 
 
 async def _dispatch_investigation(
@@ -131,6 +144,8 @@ async def observe_cluster(
     policy_defs = registry.list_by_kind("policy")
     policy_rules = rules_from_definitions(policy_defs)
 
+    prom_client = None
+
     logger.info("starting observer", cluster_id=cluster_id, scanners=len(scanner_defs))
 
     cycle = 0
@@ -141,6 +156,13 @@ async def observe_cluster(
         return
 
     try:
+        try:
+            from pinky_worker.observation.prom_client import PromClient
+            prom_client = PromClient(api_client)
+            logger.info("prometheus client initialized")
+        except Exception:
+            logger.info("prometheus client not available — PromQL checks disabled")
+
         while max_cycles == 0 or cycle < max_cycles:
             cycle += 1
             logger.info("scan cycle", cluster_id=cluster_id, cycle=cycle)
@@ -148,13 +170,13 @@ async def observe_cluster(
             try:
                 observations: list = []
                 for scanner_def in scanner_defs:
-                    runner = SCANNER_RUNNERS.get(scanner_def.name)
-                    fetcher = SCANNER_FETCHERS.get(scanner_def.name)
-                    if runner is None or fetcher is None:
+                    if not scanner_def.frontmatter.get("checks"):
                         continue
                     try:
-                        data = await fetcher(api_client)
-                        observations.extend(runner(data, cluster_id, scanner_def))
+                        data = await _fetch_for_scanner(api_client, scanner_def)
+                        observations.extend(
+                            run_generic_checks(data, cluster_id, scanner_def, prom_client=prom_client),
+                        )
                     except Exception:
                         logger.exception("scanner failed", scanner=scanner_def.name)
 

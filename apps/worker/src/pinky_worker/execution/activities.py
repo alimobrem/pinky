@@ -159,6 +159,28 @@ async def gather_evidence(
                 if helm:
                     sections["helm_releases"] = json.dumps(helm, default=str)
 
+            if "prometheus-query" in skill_tools and resource_namespace and resource_name:
+                from pinky_worker.observation.prom_client import PromClient
+
+                prom = PromClient(k8s)
+                ns_pod = f'namespace="{resource_namespace}",pod="{resource_name}"'
+                prom_queries = {
+                    "cpu_usage": f"rate(container_cpu_usage_seconds_total{{{ns_pod}}}[5m])",
+                    "memory_usage": f"container_memory_working_set_bytes{{{ns_pod}}}",
+                    "restart_rate": (
+                        f"rate(kube_pod_container_status_restarts_total{{{ns_pod}}}[1h])"
+                    ),
+                }
+                prom_results: dict[str, float | None] = {}
+                for metric_name, prom_query in prom_queries.items():
+                    try:
+                        result = await prom.query_value(prom_query)
+                        prom_results[metric_name] = result
+                    except Exception:
+                        logger.warning("prometheus query failed", extra={"metric": metric_name})
+                if prom_results:
+                    sections["prometheus_metrics"] = json.dumps(prom_results, default=str)
+
         await k8s.close()
     except Exception:
         logger.exception("failed to gather evidence from cluster")

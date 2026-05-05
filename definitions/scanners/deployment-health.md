@@ -2,33 +2,32 @@
 name: deployment-health
 kind: scanner
 version: 1.0.0
-resource_kinds: [Deployment, ReplicaSet]
+resource_kinds: [Deployment]
 api_groups: [apps]
 scan_interval_seconds: 60
 timeout_seconds: 30
+checks:
+  - id: rollout-stalled
+    severity: high
+    condition: {path: "conditions", op: "condition_status", type: "Progressing", status: "False"}
+    resource_kind: Deployment
+    title_template: "Deployment {namespace}/{name} rollout stalled"
+
+  - id: replicas-unavailable
+    severity: high
+    condition: {path: "unavailable_replicas", op: "gte", value: 1}
+    resource_kind: Deployment
+    title_template: "Deployment {namespace}/{name} has unavailable replicas"
+
+  - id: replica-mismatch
+    severity: medium
+    condition:
+      all:
+        - {path: "ready_replicas", op: "lt", value_from: "replicas"}
+        - {path: "replicas", op: "gt", value: 0}
+    resource_kind: Deployment
+    title_template: "Deployment {namespace}/{name} ready replicas < desired"
 ---
 # Deployment Health Scanner
 
-Checks for unhealthy deployment states.
-
-## Checks
-
-### rollout-stalled
-- severity: high
-- condition: status.conditions where type == "Progressing" and status == "False"
-- evidence: deployment conditions, replica counts, rollout history
-
-### replicas-unavailable
-- severity: high
-- condition: status.unavailableReplicas > 0 for > 5 minutes
-- evidence: deployment status, pod statuses, events
-
-### replica-mismatch
-- severity: medium
-- condition: status.readyReplicas < spec.replicas for > 5 minutes
-- evidence: deployment spec vs status, pod events, scheduling constraints
-
-### hpa-maxed-out
-- severity: medium
-- condition: HPA currentReplicas == maxReplicas and current CPU/memory > target
-- evidence: HPA status, deployment resource usage, scaling history
+Checks for stalled rollouts, unavailable replicas, and replica count mismatches.
