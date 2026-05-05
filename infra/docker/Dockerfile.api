@@ -12,6 +12,8 @@ WORKDIR /opt/app-root/src
 COPY apps/api/src/ ./
 COPY apps/api/alembic.ini ./
 COPY apps/api/alembic/ ./alembic/
+COPY definitions/ ./definitions/
+ENV PINKY_DEFINITIONS_DIR=/opt/app-root/src/definitions
 USER 1001
 EXPOSE 8000
 CMD ["uvicorn", "pinky_api.app:app", "--host", "0.0.0.0", "--port", "8000"]
