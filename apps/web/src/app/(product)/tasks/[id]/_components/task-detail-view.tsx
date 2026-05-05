@@ -243,9 +243,10 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   );
   const events = timeline?.items ?? [];
   const isInvestigationInProgress =
-    investigationState === "starting" ||
+    !investigation?.has_investigation &&
+    (investigationState === "starting" ||
     investigationState === "gathering_evidence" ||
-    investigationState === "analyzing";
+    investigationState === "analyzing");
 
   return (
     <div className="space-y-6">

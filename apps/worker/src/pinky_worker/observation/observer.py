@@ -95,15 +95,18 @@ async def _dispatch_investigation(
     # Stable workflow ID for Temporal dedup (same issue = same workflow)
     workflow_id = f"investigation-{cluster_id[:8]}-{obs.fingerprint[:16]}"
 
-    # Check if there's already a pending/running execution for this issue
+    # Skip if there's already a pending/running OR recently completed investigation
     existing = await pool.fetchrow(
-        "SELECT id FROM executions WHERE work_item_id IN "
+        "SELECT id, status FROM executions WHERE work_item_id IN "
         "(SELECT id FROM work_items WHERE issue_id = $1::uuid) "
-        "AND status IN ('pending', 'running') LIMIT 1",
+        "AND (status IN ('pending', 'running') "
+        "     OR (status = 'completed' AND completed_at > now() - interval '1 hour')) "
+        "ORDER BY created_at DESC LIMIT 1",
         result.issue_id,
     )
     if existing:
-        logger.debug("investigation already in progress", issue_id=result.issue_id)
+        logger.debug("investigation cooldown active",
+                     issue_id=result.issue_id, status=existing["status"])
         return
 
     exec_id = uuid.uuid4()
