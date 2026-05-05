@@ -116,10 +116,10 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={cn("rounded-lg border border-border-subtle overflow-hidden", className)}>
+    <div className={cn("rounded-lg border border-border-default overflow-hidden", className)}>
       <Table ref={tableRef}>
         <TableHeader>
-          <TableRow className="border-b border-border-subtle bg-bg-surface hover:bg-bg-surface">
+          <TableRow className="border-b border-border-default bg-bg-surface hover:bg-bg-surface">
             {columns.map((col) => (
               <TableHead
                 key={col.id}
@@ -153,7 +153,7 @@ export function DataTable<T>({
                 data-focused={isFocused || undefined}
                 data-selected={isSelected || undefined}
                 className={cn(
-                  "border-b border-border-subtle transition-colors duration-100",
+                  "border-b border-border-default/50 transition-colors duration-100",
                   isFocused && "bg-bg-hover",
                   isSelected && "bg-brand-purple/5",
                   onRowClick && "cursor-pointer",

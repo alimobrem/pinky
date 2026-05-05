@@ -51,7 +51,7 @@ export function DashboardView() {
   const degradedClusters = clusterList.filter((c) => c.onboarding_state !== "ready");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h1 className="text-xl font-bold text-text-primary">Dashboard</h1>
         <p className="mt-1 text-[13px] text-text-secondary">
@@ -61,7 +61,7 @@ export function DashboardView() {
 
       {/* Stat cards */}
       <FadeIn>
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           <StatCard label="Ready" value={readyCount} icon={ListTodo} color="text-status-ready" href="/tasks?status=ready" />
           <StatCard label="Active" value={activeCount} icon={CheckCircle2} color="text-status-in-progress" href="/tasks?status=in_progress" />
           <StatCard label="Blocked" value={blockedCount} icon={Ban} color="text-status-blocked" href="/tasks?status=blocked" />
@@ -71,9 +71,9 @@ export function DashboardView() {
 
       {/* Main grid */}
       <FadeIn delay={0.05}>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {/* Fleet health — spans 1 col */}
-          <Card className="border-border-subtle bg-bg-surface">
+          <Card className="">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-text-tertiary">
                 <Server size={14} className="text-brand-purple" />
@@ -82,7 +82,7 @@ export function DashboardView() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-baseline justify-between">
-                <span className="font-mono text-3xl font-bold tabular text-text-primary">
+                <span className="font-mono text-3xl font-bold tabular-nums text-text-primary">
                   {clusterList.length}
                 </span>
                 <span className="text-[12px] text-text-tertiary">clusters</span>
@@ -106,7 +106,7 @@ export function DashboardView() {
           </Card>
 
           {/* Brain status */}
-          <Card className="border-border-subtle border-l-2 border-l-brand-purple bg-bg-surface">
+          <Card className="border-l-2 border-l-brand-purple">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-text-tertiary">
                 <Brain size={14} className="text-brand-purple" />
@@ -131,7 +131,7 @@ export function DashboardView() {
           </Card>
 
           {/* Open issues */}
-          <Card className="border-border-subtle bg-bg-surface">
+          <Card className="">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-text-tertiary">
                 <Eye size={14} className="text-status-blocked" />
@@ -183,7 +183,7 @@ export function DashboardView() {
 
       {/* Recent activity */}
       <FadeIn delay={0.1}>
-        <Card className="border-border-subtle bg-bg-surface">
+        <Card className="">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-semibold uppercase tracking-widest text-text-tertiary">
               Recent Activity
@@ -254,13 +254,13 @@ function StatCard({ label, value, icon: Icon, color, href }: {
 }) {
   return (
     <Link href={href} className="no-underline">
-      <Card className="border-border-subtle bg-bg-surface transition-colors hover:border-border-default hover:bg-bg-hover">
+      <Card className="transition-colors hover:border-border-strong hover:bg-bg-hover">
         <CardContent className="flex items-center gap-3 p-4">
           <div className={cn("rounded-lg bg-bg-hover p-2", color)}>
             <Icon size={16} />
           </div>
           <div>
-            <p className="font-mono text-xl font-bold tabular text-text-primary">{value}</p>
+            <p className="font-mono text-xl font-bold tabular-nums text-text-primary">{value}</p>
             <p className="text-[11px] text-text-secondary">{label}</p>
           </div>
         </CardContent>
@@ -273,7 +273,7 @@ function MetricRow({ label, value, valueClass }: { label: string; value: string;
   return (
     <div className="flex items-center justify-between text-[13px]">
       <span className="text-text-tertiary">{label}</span>
-      <span className={cn("font-mono tabular text-text-primary", valueClass)}>{value}</span>
+      <span className={cn("font-mono tabular-nums text-text-primary", valueClass)}>{value}</span>
     </div>
   );
 }

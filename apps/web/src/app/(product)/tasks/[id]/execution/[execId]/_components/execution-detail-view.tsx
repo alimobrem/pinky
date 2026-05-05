@@ -76,7 +76,7 @@ export function ExecutionDetailView({ taskId, execId }: ExecutionDetailViewProps
         />
       </div>
 
-      <Card className="border-border-subtle bg-bg-surface overflow-hidden">
+      <Card className="overflow-hidden">
         <ExecutionMonitor
           events={events?.items ?? []}
           sseState={state}

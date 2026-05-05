@@ -155,7 +155,7 @@ function IssueRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-lg border border-border-subtle border-l-2 bg-bg-surface px-4 py-3 transition-colors hover:bg-bg-hover",
+        "flex items-center gap-3 rounded-lg border border-border-default border-l-2 bg-bg-surface px-4 py-3 transition-colors hover:bg-bg-hover",
         borderClass,
       )}
     >

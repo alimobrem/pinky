@@ -21,7 +21,7 @@ export function TaskPreview({ task, clusterName, className }: TaskPreviewProps) 
     return (
       <div
         className={cn(
-          "flex items-center justify-center rounded-lg border border-border-subtle bg-bg-surface p-8 text-sm text-text-tertiary",
+          "flex items-center justify-center rounded-lg border border-border-default bg-bg-surface p-8 text-sm text-text-tertiary",
           className,
         )}
       >
@@ -33,7 +33,7 @@ export function TaskPreview({ task, clusterName, className }: TaskPreviewProps) 
   return (
     <div
       className={cn(
-        "space-y-4 rounded-lg border border-border-subtle bg-bg-surface p-4",
+        "space-y-4 rounded-lg border border-border-default bg-bg-surface p-4",
         className,
       )}
     >

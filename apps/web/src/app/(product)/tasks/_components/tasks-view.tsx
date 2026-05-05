@@ -121,7 +121,7 @@ export function TasksView() {
         title="Tasks"
         description="Work items surfaced by The Brain across your fleet"
         meta={
-          <span className="font-mono tabular">{tasks?.total_count ?? 0} total</span>
+          <span className="font-mono tabular-nums">{tasks?.total_count ?? 0} total</span>
         }
       />
 
@@ -143,7 +143,7 @@ export function TasksView() {
               {tab.label}
               <span
                 className={cn(
-                  "min-w-5 rounded-md px-1.5 py-0.5 text-center font-mono text-[10px] tabular",
+                  "min-w-5 rounded-md px-1.5 py-0.5 text-center font-mono text-[10px] tabular-nums",
                   activeTab === tab.id
                     ? "bg-brand-pink/15 text-brand-pink"
                     : "bg-bg-hover text-text-tertiary",

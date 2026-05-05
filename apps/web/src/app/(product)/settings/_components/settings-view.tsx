@@ -107,7 +107,7 @@ function ClustersTab() {
 
   return (
     <FadeIn>
-      <Card className="border-border-subtle bg-bg-surface">
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-sm">Clusters</CardTitle>
           <Dialog>
@@ -164,7 +164,7 @@ function DefinitionsTab() {
 
   return (
     <FadeIn>
-      <Card className="border-border-subtle bg-bg-surface">
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-sm">Definitions</CardTitle>
           <div className="flex gap-1">
@@ -221,7 +221,7 @@ function WebhooksTab() {
 
   return (
     <FadeIn>
-      <Card className="border-border-subtle bg-bg-surface">
+      <Card>
         <CardHeader><CardTitle className="text-sm">Webhooks</CardTitle></CardHeader>
         <CardContent>
           {(data?.items ?? []).length === 0 ? (
@@ -263,7 +263,7 @@ function RulesTab() {
 
   return (
     <FadeIn>
-      <Card className="border-border-subtle bg-bg-surface">
+      <Card>
         <CardHeader><CardTitle className="text-sm">Policy Rules</CardTitle></CardHeader>
         <CardContent>
           {(data?.items ?? []).length === 0 ? (
@@ -295,7 +295,7 @@ function AccessTab() {
   const { data } = useQuery(bindingsOptions());
   return (
     <FadeIn>
-      <Card className="border-border-subtle bg-bg-surface">
+      <Card>
         <CardHeader><CardTitle className="text-sm">Cluster Bindings</CardTitle></CardHeader>
         <CardContent>
           {(data?.items ?? []).length === 0 ? (
@@ -337,7 +337,7 @@ function AnalyticsTab() {
           <MetricCard label="Completion Rate" value={m ? Math.round(m.task_completion_rate * 100) : 0} suffix="%" />
         </div>
 
-        <Card className="border-border-subtle bg-bg-surface">
+        <Card>
           <CardHeader><CardTitle className="text-sm">Scanner Activity</CardTitle></CardHeader>
           <CardContent>
             {!scanners?.scanners?.length ? (
@@ -351,7 +351,7 @@ function AnalyticsTab() {
                   {scanners.scanners.map((s) => (
                     <TableRow key={s.scanner}>
                       <TableCell className="font-mono text-xs">{s.scanner}</TableCell>
-                      <TableCell className="text-right font-mono tabular">{s.signal_total}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{s.signal_total}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -366,10 +366,10 @@ function AnalyticsTab() {
 
 function MetricCard({ label, value, total, suffix }: { label: string; value: number; total?: number; suffix?: string }) {
   return (
-    <Card className="border-border-subtle bg-bg-surface">
+    <Card>
       <CardContent className="p-4">
         <p className="text-[12px] text-text-tertiary">{label}</p>
-        <p className="mt-1 font-mono text-2xl font-bold tabular text-text-primary">
+        <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-text-primary">
           {value}{suffix}
           {total != null && <span className="text-sm font-normal text-text-tertiary"> / {total}</span>}
         </p>

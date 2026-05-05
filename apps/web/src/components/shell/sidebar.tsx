@@ -83,7 +83,7 @@ export function Sidebar() {
                 />
                 <span className="flex-1">{item.label}</span>
                 {badge != null && badge > 0 && (
-                  <span className="min-w-5 rounded-md bg-brand-pink/15 px-1.5 py-0.5 text-center font-mono text-[10px] font-semibold tabular text-brand-pink">
+                  <span className="min-w-5 rounded-md bg-brand-pink/15 px-1.5 py-0.5 text-center font-mono text-[10px] font-semibold tabular-nums text-brand-pink">
                     {badge > 99 ? "99+" : badge}
                   </span>
                 )}

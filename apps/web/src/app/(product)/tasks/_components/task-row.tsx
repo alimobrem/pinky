@@ -65,7 +65,7 @@ export function taskColumns(clusterMap: Record<string, string>) {
 
 export function TaskRowCard({ task, clusterName }: TaskRowProps) {
   return (
-    <div className="space-y-2 rounded-lg border border-border-subtle bg-bg-surface px-4 py-3 transition-colors hover:border-border-default">
+    <div className="space-y-2 rounded-lg border border-border-default bg-bg-surface px-4 py-3 transition-colors hover:border-border-strong">
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium text-text-primary">{task.title}</p>
         <PriorityBadge priority={task.priority} />

@@ -25,7 +25,7 @@ export function SearchFilterBar({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2",
+        "flex flex-wrap items-center gap-2 rounded-lg border border-border-default bg-bg-surface px-3 py-2",
         className,
       )}
     >

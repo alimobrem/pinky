@@ -15,7 +15,7 @@ export function ConfidenceBadge({ value, className }: ConfidenceBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 font-mono text-[11px] tabular",
+        "inline-flex items-center gap-1 font-mono text-[11px] tabular-nums",
         confidenceColor(value),
         className,
       )}

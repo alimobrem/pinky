@@ -94,7 +94,7 @@ export function AlertsView() {
         title="Alerts"
         description="Raw signals from scanners across your fleet"
         meta={
-          <span className="font-mono tabular">
+          <span className="font-mono tabular-nums">
             {data?.total_count ?? filtered.length} observations
           </span>
         }

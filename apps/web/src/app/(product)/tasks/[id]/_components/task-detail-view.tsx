@@ -140,7 +140,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="space-y-4 lg:col-span-2">
             {task.why_now && (
-              <Card className="border-border-subtle bg-bg-surface">
+              <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-[11px] font-semibold uppercase tracking-widest text-text-tertiary">
                     Situation
@@ -155,7 +155,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
             )}
 
             {investigation?.has_investigation && (
-              <Card className="border-border-subtle bg-bg-surface">
+              <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-text-tertiary">
                     <Brain size={14} className="text-brand-purple" />
@@ -196,7 +196,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
             )}
 
             {events.length > 0 && (
-              <Card className="border-border-subtle bg-bg-surface">
+              <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-[11px] font-semibold uppercase tracking-widest text-text-tertiary">
                     Timeline
@@ -232,7 +232,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
           </div>
 
           <div className="space-y-4">
-            <Card className="border-border-subtle bg-bg-surface">
+            <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-[11px] font-semibold uppercase tracking-widest text-text-tertiary">
                   Actions
@@ -348,7 +348,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
               </CardContent>
             </Card>
 
-            <Card className="border-border-subtle bg-bg-surface">
+            <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-[11px] font-semibold uppercase tracking-widest text-text-tertiary">
                   Details
@@ -391,7 +391,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
             </Card>
 
             {activeExec && (
-              <Card className="border-border-subtle border-l-2 border-l-brand-purple bg-bg-surface">
+              <Card className="border-l-2 border-l-brand-purple">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 text-sm">
                     <Brain size={14} className="text-brand-purple" />

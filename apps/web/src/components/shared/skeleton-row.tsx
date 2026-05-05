@@ -13,7 +13,7 @@ export function SkeletonRow({ columns = 5, rows = 5, className }: SkeletonRowPro
       {Array.from({ length: rows }, (_, i) => (
         <div
           key={i}
-          className="flex items-center gap-3 rounded-lg border border-border-subtle bg-bg-surface px-4 py-3"
+          className="flex items-center gap-3 rounded-lg border border-border-default bg-bg-surface px-4 py-3"
         >
           {Array.from({ length: columns }, (_, j) => (
             <Skeleton
