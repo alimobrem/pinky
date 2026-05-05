@@ -37,6 +37,7 @@ export const QUERY_KEYS = {
   session: () => ["session"] as const,
   analyticsRoi: (since?: string) => ["analytics-roi", since] as const,
   analyticsScanners: (since?: string) => ["analytics-scanners", since] as const,
+  watchSummary: (since?: string) => ["watch-summary", since] as const,
 } as const;
 
 export const SIDEBAR_WIDTH = {

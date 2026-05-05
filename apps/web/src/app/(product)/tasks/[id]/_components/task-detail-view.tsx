@@ -98,6 +98,9 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   useEffect(() => {
     if (!executions?.items || investigationState === "starting") return;
 
+    // If we already have investigation results, don't show analyzing for new runs
+    if (investigation?.has_investigation) return;
+
     const runningExec = executions.items.find(
       (e) =>
         (e.status === "running" || e.status === "pending") &&
@@ -116,7 +119,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
       }
       setActiveExecId(runningExec.id);
     }
-  }, [executions, investigationState]);
+  }, [executions, investigationState, investigation]);
 
   // SSE subscription for execution progress
   const sseEventHandlers = useMemo(

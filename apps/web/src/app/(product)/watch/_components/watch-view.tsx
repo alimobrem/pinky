@@ -3,6 +3,7 @@
 import { useState, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Issue, Execution, PaginatedResponse } from "@pinky/contracts";
+import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
@@ -20,6 +21,7 @@ import { ClusterBadge } from "@/components/shared/cluster-badge";
 import { FadeIn } from "@/components/motion/fade-in";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -39,16 +41,29 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Textarea } from "@/components/ui/textarea";
 import { useCluster } from "@/hooks/use-cluster";
 import { useSSE } from "@/hooks/use-sse";
+import Link from "next/link";
 import {
+  Activity,
   Eye,
   EyeOff,
   CheckCheck,
+  CheckSquare,
   ChevronRight,
   Search,
   Zap,
@@ -57,9 +72,56 @@ import {
   Sparkles,
   Shield,
   Loader2,
+  ArrowUpRight,
+  XCircle,
+  ThumbsUp,
+  ThumbsDown,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+
+// ---------------------------------------------------------------------------
+// Watch summary type (local — API contract managed by another agent)
+// ---------------------------------------------------------------------------
+
+type WatchSummary = {
+  since: string;
+  signals_processed: number;
+  suppressed: number;
+  investigating: number;
+  tasks_created: number;
+  auto_resolved: number;
+};
+
+// ---------------------------------------------------------------------------
+// MetricCard
+// ---------------------------------------------------------------------------
+
+function MetricCard({
+  label,
+  value,
+  icon: Icon,
+  color,
+}: {
+  label: string;
+  value: number;
+  icon: LucideIcon;
+  color?: string;
+}) {
+  return (
+    <Card className="py-3">
+      <CardContent className="flex items-center gap-3 px-4 pb-0">
+        <Icon size={18} className={cn("shrink-0", color ?? "text-text-secondary")} />
+        <div className="min-w-0">
+          <p className="text-lg font-semibold tabular-nums text-text-primary">
+            {value.toLocaleString()}
+          </p>
+          <p className="text-xs text-text-tertiary">{label}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Category definitions
@@ -291,16 +353,22 @@ function CollapsibleCategory({
 // Row components
 // ---------------------------------------------------------------------------
 
+type IssueCategory = "analyzing" | "grouped" | "suppressed" | "candidates";
+
 function IssueRow({
   issue,
+  category,
   onSuppress,
   onResolve,
-  actionLabel,
+  onEscalate,
+  onInvestigate,
 }: {
   issue: Issue;
+  category: IssueCategory;
   onSuppress: () => void;
   onResolve: () => void;
-  actionLabel?: string;
+  onEscalate: () => void;
+  onInvestigate: () => void;
 }) {
   const severityConfig = SEVERITY[issue.severity];
   const borderClass = severityConfig?.border ?? "";
@@ -320,72 +388,148 @@ function IssueRow({
           <PriorityBadge priority={issue.severity} />
           <StatusIndicator status={issue.status} />
           <ClusterBadge name={issue.cluster_id} />
+          {issue.labels?.scanner && (
+            <Badge variant="outline" className="text-xs font-mono">
+              {issue.labels.scanner}
+            </Badge>
+          )}
+          {category === "grouped" && issue.labels?.observation_count && (
+            <Badge variant="outline" className="text-xs">
+              {issue.labels.observation_count} observations
+            </Badge>
+          )}
+          {category === "suppressed" && issue.suppressed_until && (
+            <span className="text-xs text-text-tertiary">
+              suppressed for{" "}
+              {formatDistanceToNow(new Date(issue.suppressed_until))}
+            </span>
+          )}
+          {category === "candidates" && issue.labels?.confidence && (
+            <Badge variant="outline" className="text-xs">
+              {Math.round(Number(issue.labels.confidence) * 100)}% confidence
+            </Badge>
+          )}
           <RelativeTime date={issue.last_seen_at} />
         </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
-        {actionLabel && (
+        {category === "analyzing" && (
           <span className="hidden text-xs text-text-tertiary sm:inline">
-            {actionLabel}
+            Investigating...
           </span>
         )}
 
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-text-tertiary"
-            >
-              <EyeOff size={14} />
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Suppress issue?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will hide the issue from the active feed.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={onSuppress}>
-                Suppress
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* Suppress button — shown for analyzing & grouped */}
+        {(category === "analyzing" || category === "grouped") && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-text-tertiary"
+              >
+                <EyeOff size={14} />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Suppress issue?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will hide the issue from the active feed.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={onSuppress}>
+                  Suppress
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
 
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-text-tertiary"
-            >
-              <CheckCheck size={14} />
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Resolve issue?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Mark this issue as resolved.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={onResolve}>Resolve</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* Investigate button — grouped issues */}
+        {category === "grouped" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={onInvestigate}
+          >
+            <Search size={14} className="mr-1" />
+            Investigate
+          </Button>
+        )}
+
+        {/* Escalate button — suppressed issues */}
+        {category === "suppressed" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={onEscalate}
+          >
+            <ArrowUpRight size={14} className="mr-1" />
+            Escalate
+          </Button>
+        )}
+
+        {/* Resolve button — analyzing, grouped, candidates */}
+        {category !== "suppressed" && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-text-tertiary"
+              >
+                <CheckCheck size={14} />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Resolve issue?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Mark this issue as resolved.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={onResolve}>Resolve</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
     </div>
   );
 }
 
-function ExecutionRow({ execution }: { execution: Execution }) {
+type ExecCategory = "remediating" | "approvals";
+
+function ExecutionRow({
+  execution,
+  category,
+  onCancel,
+  onApprove,
+  onReject,
+}: {
+  execution: Execution;
+  category: ExecCategory;
+  onCancel: () => void;
+  onApprove: () => void;
+  onReject: (reason: string) => void;
+}) {
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const handleReject = () => {
+    onReject(rejectReason);
+    setRejectReason("");
+    setRejectOpen(false);
+  };
+
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border-default bg-bg-surface px-4 py-2.5 transition-colors hover:bg-bg-hover">
       <div className="min-w-0 flex-1 space-y-1">
@@ -395,12 +539,125 @@ function ExecutionRow({ execution }: { execution: Execution }) {
         <div className="flex flex-wrap items-center gap-2">
           <StatusIndicator status={execution.status} />
           <ClusterBadge name={execution.cluster_id} />
-          <RelativeTime date={execution.started_at ?? execution.created_at} />
+          <span className="text-xs text-text-tertiary">
+            {formatDistanceToNow(new Date(execution.created_at), {
+              addSuffix: false,
+            })}{" "}
+            elapsed
+          </span>
         </div>
       </div>
-      <Button variant="ghost" size="sm" className="shrink-0 text-xs" asChild>
-        <a href={`/executions/${execution.id}`}>View execution</a>
-      </Button>
+
+      <div className="flex shrink-0 items-center gap-1">
+        {/* Cancel — remediating executions */}
+        {category === "remediating" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-text-tertiary"
+            onClick={onCancel}
+          >
+            <XCircle size={14} className="mr-1" />
+            Cancel
+          </Button>
+        )}
+
+        {/* View Details — remediating executions */}
+        {category === "remediating" && execution.work_item_id && (
+          <Button variant="ghost" size="sm" className="h-7 text-xs" asChild>
+            <Link href={`/tasks/${execution.work_item_id}`}>View Details</Link>
+          </Button>
+        )}
+
+        {/* Approve/Reject — approvals with waiting_for_approval status */}
+        {category === "approvals" &&
+          execution.status === "waiting_for_approval" && (
+            <>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-green-600"
+                  >
+                    <ThumbsUp size={14} className="mr-1" />
+                    Approve
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Approve execution?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will allow the execution to proceed with the
+                      proposed changes.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={onApprove}>
+                      Approve
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-red-600"
+                  >
+                    <ThumbsDown size={14} className="mr-1" />
+                    Reject
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Reject execution</DialogTitle>
+                    <DialogDescription>
+                      Provide a reason for rejecting this execution.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <Textarea
+                    placeholder="Reason for rejection..."
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    className="min-h-20"
+                  />
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setRejectOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleReject}
+                      disabled={!rejectReason.trim()}
+                    >
+                      Reject
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
+
+        {/* Fallback View link for non-approval pending executions */}
+        {category === "approvals" &&
+          execution.status !== "waiting_for_approval" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0 text-xs"
+              asChild
+            >
+              <Link href={`/executions/${execution.id}`}>View execution</Link>
+            </Button>
+          )}
+      </div>
     </div>
   );
 }
@@ -414,6 +671,18 @@ export function WatchView() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
+  const [timeWindow, setTimeWindow] = useState("1h");
+
+  // -- Watch summary --
+  const { data: summary } = useQuery({
+    queryKey: QUERY_KEYS.watchSummary(timeWindow),
+    queryFn: () =>
+      api.get<WatchSummary>(
+        `/api/v1/analytics/watch-summary?since=${timeWindow}`,
+      ),
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
 
   const { data: issues, isLoading: issuesLoading } = useQuery(
     issuesOptions({
@@ -436,9 +705,12 @@ export function WatchView() {
       update: () => {
         qc.invalidateQueries({ queryKey: QUERY_KEYS.issues() });
         qc.invalidateQueries({ queryKey: QUERY_KEYS.executions() });
+        qc.invalidateQueries({ queryKey: QUERY_KEYS.watchSummary() });
       },
     },
   });
+
+  // -- Mutations --
 
   const suppress = useMutation({
     mutationFn: (id: string) => api.post(`/api/v1/issues/${id}/suppress`),
@@ -453,6 +725,53 @@ export function WatchView() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.issues() });
       toast.success("Issue resolved");
+    },
+  });
+
+  const escalate = useMutation({
+    mutationFn: (id: string) => api.post(`/api/v1/issues/${id}/escalate`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.issues() });
+      toast.success("Issue escalated to investigation");
+    },
+  });
+
+  const investigate = useMutation({
+    mutationFn: (workItemId: string) =>
+      api.post("/api/v1/executions", {
+        work_item_id: workItemId,
+        execution_type: "investigation",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.issues() });
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.executions() });
+      toast.success("Investigation started");
+    },
+  });
+
+  const cancelExec = useMutation({
+    mutationFn: (id: string) => api.post(`/api/v1/executions/${id}/cancel`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.executions() });
+      toast.info("Execution cancelled");
+    },
+  });
+
+  const approveExec = useMutation({
+    mutationFn: (id: string) =>
+      api.post(`/api/v1/executions/${id}/approve`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.executions() });
+      toast.success("Execution approved");
+    },
+  });
+
+  const rejectExec = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      api.post(`/api/v1/executions/${id}/reject`, { reason }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.executions() });
+      toast.info("Execution rejected");
     },
   });
 
@@ -508,23 +827,70 @@ export function WatchView() {
         }
       />
 
+      {/* Activity Summary Strip */}
+      {summary && (
+        <div className="grid grid-cols-5 gap-3">
+          <MetricCard
+            label="Signals"
+            value={summary.signals_processed}
+            icon={Activity}
+          />
+          <MetricCard
+            label="Suppressed"
+            value={summary.suppressed}
+            icon={VolumeX}
+            color="text-text-tertiary"
+          />
+          <MetricCard
+            label="Investigating"
+            value={summary.investigating}
+            icon={Search}
+            color="text-purple-400"
+          />
+          <MetricCard
+            label="Tasks Created"
+            value={summary.tasks_created}
+            icon={CheckSquare}
+            color="text-green-400"
+          />
+          <MetricCard
+            label="Auto-Resolved"
+            value={summary.auto_resolved}
+            icon={Sparkles}
+            color="text-blue-400"
+          />
+        </div>
+      )}
+
       <SearchFilterBar
         value={search}
         onChange={setSearch}
         placeholder="Search issues..."
         filters={
-          <Select value={severityFilter} onValueChange={setSeverityFilter}>
-            <SelectTrigger className="h-7 w-auto min-w-[100px] border-0 bg-transparent text-xs shadow-none">
-              <SelectValue placeholder="Severity" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All severities</SelectItem>
-              <SelectItem value="critical">Critical</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="low">Low</SelectItem>
-            </SelectContent>
-          </Select>
+          <>
+            <Select value={severityFilter} onValueChange={setSeverityFilter}>
+              <SelectTrigger className="h-7 w-auto min-w-[100px] border-0 bg-transparent text-xs shadow-none">
+                <SelectValue placeholder="Severity" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All severities</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={timeWindow} onValueChange={setTimeWindow}>
+              <SelectTrigger className="h-7 w-auto min-w-[60px] border-0 bg-transparent text-xs shadow-none">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1h">1h</SelectItem>
+                <SelectItem value="4h">4h</SelectItem>
+                <SelectItem value="24h">24h</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
         }
       />
 
@@ -553,25 +919,39 @@ export function WatchView() {
                 >
                   {key === "remediating"
                     ? (filtered.remediating as Execution[]).map((exec) => (
-                        <ExecutionRow key={exec.id} execution={exec} />
+                        <ExecutionRow
+                          key={exec.id}
+                          execution={exec}
+                          category="remediating"
+                          onCancel={() => cancelExec.mutate(exec.id)}
+                          onApprove={() => approveExec.mutate(exec.id)}
+                          onReject={(reason) =>
+                            rejectExec.mutate({ id: exec.id, reason })
+                          }
+                        />
                       ))
                     : key === "approvals"
                       ? (filtered.approvals as Execution[]).map((exec) => (
-                          <ExecutionRow key={exec.id} execution={exec} />
+                          <ExecutionRow
+                            key={exec.id}
+                            execution={exec}
+                            category="approvals"
+                            onCancel={() => cancelExec.mutate(exec.id)}
+                            onApprove={() => approveExec.mutate(exec.id)}
+                            onReject={(reason) =>
+                              rejectExec.mutate({ id: exec.id, reason })
+                            }
+                          />
                         ))
                       : (items as Issue[]).map((issue) => (
                           <IssueRow
                             key={issue.id}
                             issue={issue}
+                            category={key as IssueCategory}
                             onSuppress={() => suppress.mutate(issue.id)}
                             onResolve={() => resolve.mutate(issue.id)}
-                            actionLabel={
-                              key === "analyzing"
-                                ? "Investigating..."
-                                : key === "candidates"
-                                  ? "View tasks"
-                                  : undefined
-                            }
+                            onEscalate={() => escalate.mutate(issue.id)}
+                            onInvestigate={() => investigate.mutate(issue.id)}
                           />
                         ))}
                 </CollapsibleCategory>
