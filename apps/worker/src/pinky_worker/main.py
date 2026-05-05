@@ -80,6 +80,19 @@ async def run_temporal_workers() -> None:
 
 async def run_observer(registry: DefinitionRegistry, correlator: DbIssueCorrelator) -> None:
     scan_interval = int(os.environ.get("PINKY_SCAN_INTERVAL", "60"))
+    temporal_enabled = os.environ.get("PINKY_TEMPORAL_ENABLED", "true") == "true"
+
+    temporal_client = None
+    if temporal_enabled:
+        try:
+            from temporalio.client import Client
+            settings = get_settings()
+            temporal_client = await Client.connect(
+                settings.temporal.address, namespace=settings.temporal.namespace,
+            )
+            logger.info("observer connected to temporal")
+        except Exception:
+            logger.warning("observer could not connect to temporal — dispatch disabled")
 
     logger.info("starting observer daemon", scan_interval=scan_interval)
 
@@ -101,6 +114,7 @@ async def run_observer(registry: DefinitionRegistry, correlator: DbIssueCorrelat
                             correlator=correlator,
                             scan_interval=scan_interval,
                             max_cycles=1,
+                            temporal_client=temporal_client,
                         )
                     except Exception:
                         logger.exception("observer scan failed", cluster_id=cluster_id)

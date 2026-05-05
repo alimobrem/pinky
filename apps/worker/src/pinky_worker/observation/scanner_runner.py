@@ -6,14 +6,17 @@ against K8s API data, and produces RawObservations.
 
 from __future__ import annotations
 
+import base64
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from pinky_worker.definitions.loader import Definition
 from pinky_worker.issues.correlator import RawObservation
 from pinky_worker.observation.fingerprint import compute_correlation_key, compute_observation_fingerprint
 
 logger = logging.getLogger(__name__)
+
+PENDING_THRESHOLD = timedelta(minutes=5)
 
 
 def run_pod_health_checks(pods: list[dict], cluster_id: str, scanner_def: Definition) -> list[RawObservation]:
@@ -110,4 +113,437 @@ def run_pod_health_checks(pods: list[dict], cluster_id: str, scanner_def: Defini
                     correlation_key=ck,
                 ))
 
+        phase = pod.get("phase", "")
+        created_str = pod.get("creation_timestamp")
+        if phase == "Pending" and created_str:
+            created_at = datetime.fromisoformat(created_str)
+            if (now - created_at) > PENDING_THRESHOLD:
+                fp = compute_observation_fingerprint(cluster_id, "pod-health", "pending-too-long", "Pod", ns, name)
+                ck = compute_correlation_key(cluster_id, "Pod", ns, name, "pod-health", "pending-too-long")
+                observations.append(RawObservation(
+                    cluster_id=cluster_id,
+                    scanner="pod-health",
+                    scanner_version=scanner_def.version,
+                    check_id="pending-too-long",
+                    severity="medium",
+                    resource_kind="Pod",
+                    resource_namespace=ns,
+                    resource_name=name,
+                    title=f"Pod {ns}/{name} pending for >{int(PENDING_THRESHOLD.total_seconds() // 60)}m",
+                    payload={"phase": phase, "created_at": created_str},
+                    observed_at=now,
+                    fingerprint=fp,
+                    correlation_key=ck,
+                ))
+
     return observations
+
+
+def run_node_condition_checks(nodes: list[dict], cluster_id: str, scanner_def: Definition) -> list[RawObservation]:
+    observations: list[RawObservation] = []
+    now = datetime.now(UTC)
+
+    condition_checks = {
+        "MemoryPressure": ("memory-pressure", "high"),
+        "DiskPressure": ("disk-pressure", "high"),
+        "PIDPressure": ("pid-pressure", "medium"),
+    }
+
+    for node in nodes:
+        name = node.get("name", "")
+
+        for cond in node.get("conditions", []):
+            ctype = cond.get("type", "")
+            cstatus = cond.get("status", "")
+
+            if ctype in condition_checks and cstatus == "True":
+                check_id, severity = condition_checks[ctype]
+                fp = compute_observation_fingerprint(cluster_id, "node-conditions", check_id, "Node", "", name)
+                ck = compute_correlation_key(cluster_id, "Node", "", name, "node-conditions", check_id)
+                observations.append(RawObservation(
+                    cluster_id=cluster_id,
+                    scanner="node-conditions",
+                    scanner_version=scanner_def.version,
+                    check_id=check_id,
+                    severity=severity,
+                    resource_kind="Node",
+                    resource_namespace="",
+                    resource_name=name,
+                    title=f"Node {name} has {ctype}",
+                    payload={"condition": ctype, "reason": cond.get("reason", "")},
+                    observed_at=now,
+                    fingerprint=fp,
+                    correlation_key=ck,
+                ))
+
+            if ctype == "Ready" and cstatus != "True":
+                fp = compute_observation_fingerprint(cluster_id, "node-conditions", "not-ready", "Node", "", name)
+                ck = compute_correlation_key(cluster_id, "Node", "", name, "node-conditions", "not-ready")
+                observations.append(RawObservation(
+                    cluster_id=cluster_id,
+                    scanner="node-conditions",
+                    scanner_version=scanner_def.version,
+                    check_id="not-ready",
+                    severity="critical",
+                    resource_kind="Node",
+                    resource_namespace="",
+                    resource_name=name,
+                    title=f"Node {name} is NotReady",
+                    payload={"condition": "Ready", "status": cstatus, "reason": cond.get("reason", "")},
+                    observed_at=now,
+                    fingerprint=fp,
+                    correlation_key=ck,
+                ))
+
+        if node.get("unschedulable"):
+            fp = compute_observation_fingerprint(cluster_id, "node-conditions", "unschedulable", "Node", "", name)
+            ck = compute_correlation_key(cluster_id, "Node", "", name, "node-conditions", "unschedulable")
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="node-conditions",
+                scanner_version=scanner_def.version,
+                check_id="unschedulable",
+                severity="medium",
+                resource_kind="Node",
+                resource_namespace="",
+                resource_name=name,
+                title=f"Node {name} is unschedulable",
+                payload={},
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+
+    return observations
+
+
+def run_deployment_health_checks(
+    deployments: list[dict], cluster_id: str, scanner_def: Definition,
+) -> list[RawObservation]:
+    observations: list[RawObservation] = []
+    now = datetime.now(UTC)
+
+    for dep in deployments:
+        ns = dep.get("namespace", "")
+        name = dep.get("name", "")
+        desired = dep.get("desired_replicas", 1)
+        ready = dep.get("ready_replicas", 0)
+        unavailable = dep.get("unavailable_replicas", 0)
+
+        for cond in dep.get("conditions", []):
+            if cond.get("type") == "Progressing" and cond.get("status") == "False":
+                fp = compute_observation_fingerprint(
+                    cluster_id, "deployment-health", "rollout-stalled", "Deployment", ns, name,
+                )
+                ck = compute_correlation_key(
+                    cluster_id, "Deployment", ns, name, "deployment-health", "rollout-stalled",
+                )
+                observations.append(RawObservation(
+                    cluster_id=cluster_id,
+                    scanner="deployment-health",
+                    scanner_version=scanner_def.version,
+                    check_id="rollout-stalled",
+                    severity="high",
+                    resource_kind="Deployment",
+                    resource_namespace=ns,
+                    resource_name=name,
+                    title=f"Deployment {ns}/{name} rollout stalled",
+                    payload={"reason": cond.get("reason", ""), "message": cond.get("message", "")},
+                    observed_at=now,
+                    fingerprint=fp,
+                    correlation_key=ck,
+                ))
+
+        if unavailable > 0:
+            fp = compute_observation_fingerprint(
+                cluster_id, "deployment-health", "replicas-unavailable", "Deployment", ns, name,
+            )
+            ck = compute_correlation_key(
+                cluster_id, "Deployment", ns, name, "deployment-health", "replicas-unavailable",
+            )
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="deployment-health",
+                scanner_version=scanner_def.version,
+                check_id="replicas-unavailable",
+                severity="high",
+                resource_kind="Deployment",
+                resource_namespace=ns,
+                resource_name=name,
+                title=f"Deployment {ns}/{name} has {unavailable} unavailable replicas",
+                payload={"unavailable": unavailable, "desired": desired},
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+
+        if ready < desired:
+            fp = compute_observation_fingerprint(
+                cluster_id, "deployment-health", "replica-mismatch", "Deployment", ns, name,
+            )
+            ck = compute_correlation_key(cluster_id, "Deployment", ns, name, "deployment-health", "replica-mismatch")
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="deployment-health",
+                scanner_version=scanner_def.version,
+                check_id="replica-mismatch",
+                severity="medium",
+                resource_kind="Deployment",
+                resource_namespace=ns,
+                resource_name=name,
+                title=f"Deployment {ns}/{name} has {ready}/{desired} ready replicas",
+                payload={"ready": ready, "desired": desired},
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+
+    return observations
+
+
+def run_cert_expiry_checks(secrets: list[dict], cluster_id: str, scanner_def: Definition) -> list[RawObservation]:
+    from cryptography.x509 import load_pem_x509_certificate
+
+    observations: list[RawObservation] = []
+    now = datetime.now(UTC)
+    expiry_warn = timedelta(days=7)
+
+    for secret in secrets:
+        ns = secret.get("namespace", "")
+        name = secret.get("name", "")
+        crt_b64 = secret.get("tls_crt", "")
+        if not crt_b64:
+            continue
+
+        try:
+            pem_data = base64.b64decode(crt_b64)
+            cert = load_pem_x509_certificate(pem_data)
+            not_after = cert.not_valid_after_utc
+        except Exception:
+            logger.warning("failed to parse cert", secret=f"{ns}/{name}")
+            continue
+
+        if not_after < now:
+            fp = compute_observation_fingerprint(cluster_id, "cert-expiry", "cert-expired", "Secret", ns, name)
+            ck = compute_correlation_key(cluster_id, "Secret", ns, name, "cert-expiry", "cert-expired")
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="cert-expiry",
+                scanner_version=scanner_def.version,
+                check_id="cert-expired",
+                severity="critical",
+                resource_kind="Secret",
+                resource_namespace=ns,
+                resource_name=name,
+                title=f"TLS cert {ns}/{name} expired",
+                payload={"not_after": not_after.isoformat()},
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+        elif not_after < (now + expiry_warn):
+            fp = compute_observation_fingerprint(cluster_id, "cert-expiry", "cert-expiring-soon", "Secret", ns, name)
+            ck = compute_correlation_key(cluster_id, "Secret", ns, name, "cert-expiry", "cert-expiring-soon")
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="cert-expiry",
+                scanner_version=scanner_def.version,
+                check_id="cert-expiring-soon",
+                severity="high",
+                resource_kind="Secret",
+                resource_namespace=ns,
+                resource_name=name,
+                title=f"TLS cert {ns}/{name} expires in <7d",
+                payload={"not_after": not_after.isoformat()},
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+
+    return observations
+
+
+def run_pvc_health_checks(pvcs: list[dict], cluster_id: str, scanner_def: Definition) -> list[RawObservation]:
+    observations: list[RawObservation] = []
+    now = datetime.now(UTC)
+
+    for pvc in pvcs:
+        ns = pvc.get("namespace", "")
+        name = pvc.get("name", "")
+        phase = pvc.get("phase", "")
+
+        if phase == "Pending":
+            fp = compute_observation_fingerprint(
+                cluster_id, "pvc-health", "pvc-pending", "PersistentVolumeClaim", ns, name,
+            )
+            ck = compute_correlation_key(cluster_id, "PersistentVolumeClaim", ns, name, "pvc-health", "pvc-pending")
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="pvc-health",
+                scanner_version=scanner_def.version,
+                check_id="pvc-pending",
+                severity="high",
+                resource_kind="PersistentVolumeClaim",
+                resource_namespace=ns,
+                resource_name=name,
+                title=f"PVC {ns}/{name} is Pending",
+                payload={"phase": phase},
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+        elif phase == "Lost":
+            fp = compute_observation_fingerprint(
+                cluster_id, "pvc-health", "pvc-lost", "PersistentVolumeClaim", ns, name,
+            )
+            ck = compute_correlation_key(cluster_id, "PersistentVolumeClaim", ns, name, "pvc-health", "pvc-lost")
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="pvc-health",
+                scanner_version=scanner_def.version,
+                check_id="pvc-lost",
+                severity="critical",
+                resource_kind="PersistentVolumeClaim",
+                resource_namespace=ns,
+                resource_name=name,
+                title=f"PVC {ns}/{name} is Lost",
+                payload={"phase": phase},
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+
+    return observations
+
+
+def run_resource_quota_checks(quotas: list[dict], cluster_id: str, scanner_def: Definition) -> list[RawObservation]:
+    observations: list[RawObservation] = []
+    now = datetime.now(UTC)
+
+    for quota in quotas:
+        ns = quota.get("namespace", "")
+        name = quota.get("name", "")
+        hard = quota.get("hard", {})
+        used = quota.get("used", {})
+
+        for resource, hard_val in hard.items():
+            used_val = used.get(resource)
+            if used_val is None:
+                continue
+            try:
+                h = _parse_quantity(hard_val)
+                u = _parse_quantity(used_val)
+            except (ValueError, TypeError):
+                continue
+            if h <= 0:
+                continue
+
+            if u >= h:
+                fp = compute_observation_fingerprint(
+                    cluster_id, "resource-quotas", "quota-exceeded", "ResourceQuota", ns, name,
+                )
+                ck = compute_correlation_key(
+                    cluster_id, "ResourceQuota", ns, name, "resource-quotas", "quota-exceeded",
+                )
+                observations.append(RawObservation(
+                    cluster_id=cluster_id,
+                    scanner="resource-quotas",
+                    scanner_version=scanner_def.version,
+                    check_id="quota-exceeded",
+                    severity="high",
+                    resource_kind="ResourceQuota",
+                    resource_namespace=ns,
+                    resource_name=name,
+                    title=f"Quota {ns}/{name} exceeded for {resource}",
+                    payload={"resource": resource, "hard": str(hard_val), "used": str(used_val)},
+                    observed_at=now,
+                    fingerprint=fp,
+                    correlation_key=ck,
+                ))
+            elif u >= h * 0.8:
+                fp = compute_observation_fingerprint(
+                    cluster_id, "resource-quotas", "quota-near-limit", "ResourceQuota", ns, name,
+                )
+                ck = compute_correlation_key(
+                    cluster_id, "ResourceQuota", ns, name, "resource-quotas", "quota-near-limit",
+                )
+                observations.append(RawObservation(
+                    cluster_id=cluster_id,
+                    scanner="resource-quotas",
+                    scanner_version=scanner_def.version,
+                    check_id="quota-near-limit",
+                    severity="medium",
+                    resource_kind="ResourceQuota",
+                    resource_namespace=ns,
+                    resource_name=name,
+                    title=f"Quota {ns}/{name} near limit for {resource} ({int(u / h * 100)}%)",
+                    payload={
+                        "resource": resource, "hard": str(hard_val),
+                        "used": str(used_val), "pct": round(u / h * 100, 1),
+                    },
+                    observed_at=now,
+                    fingerprint=fp,
+                    correlation_key=ck,
+                ))
+
+    return observations
+
+
+def _parse_quantity(val: str) -> float:
+    """Parse K8s resource quantity string to a numeric value."""
+    s = str(val).strip()
+    suffixes = {
+        "Ki": 1024, "Mi": 1024**2, "Gi": 1024**3, "Ti": 1024**4,
+        "m": 0.001, "k": 1000, "M": 1_000_000, "G": 1_000_000_000,
+    }
+    for suffix, multiplier in sorted(suffixes.items(), key=lambda x: -len(x[0])):
+        if s.endswith(suffix):
+            return float(s[: -len(suffix)]) * multiplier
+    return float(s)
+
+
+def run_ingress_health_checks(ingresses: list[dict], cluster_id: str, scanner_def: Definition) -> list[RawObservation]:
+    observations: list[RawObservation] = []
+    now = datetime.now(UTC)
+
+    for ingress in ingresses:
+        ns = ingress.get("namespace", "")
+        name = ingress.get("name", "")
+        rules = ingress.get("rules", [])
+
+        for rule in rules:
+            service_name = rule.get("service_name", "")
+            if not service_name:
+                fp = compute_observation_fingerprint(
+                    cluster_id, "ingress-health", "ingress-no-backend", "Ingress", ns, name,
+                )
+                ck = compute_correlation_key(cluster_id, "Ingress", ns, name, "ingress-health", "ingress-no-backend")
+                observations.append(RawObservation(
+                    cluster_id=cluster_id,
+                    scanner="ingress-health",
+                    scanner_version=scanner_def.version,
+                    check_id="ingress-no-backend",
+                    severity="high",
+                    resource_kind="Ingress",
+                    resource_namespace=ns,
+                    resource_name=name,
+                    title=f"Ingress {ns}/{name} has rule with no backend service",
+                    payload={"host": rule.get("host", ""), "path": rule.get("path", "/")},
+                    observed_at=now,
+                    fingerprint=fp,
+                    correlation_key=ck,
+                ))
+                break
+
+    return observations
+
+
+SCANNER_RUNNERS = {
+    "pod-health": run_pod_health_checks,
+    "node-conditions": run_node_condition_checks,
+    "deployment-health": run_deployment_health_checks,
+    "cert-expiry": run_cert_expiry_checks,
+    "pvc-health": run_pvc_health_checks,
+    "resource-quotas": run_resource_quota_checks,
+    "ingress-health": run_ingress_health_checks,
+}

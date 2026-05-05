@@ -35,6 +35,7 @@ class CorrelationResult:
     action: str  # "created" | "attached" | "reopened" | "deduplicated"
     issue_id: str | None = None
     observation_id: str | None = None
+    observation_count: int = 1
 
 
 REOPEN_WINDOW = timedelta(hours=1)

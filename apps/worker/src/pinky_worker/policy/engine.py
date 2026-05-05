@@ -89,7 +89,8 @@ def matches(conditions: PolicyConditions, input: PolicyInput) -> bool:
             if input.labels.get(k) != v:
                 return False
     if conditions.recurrence_count_gte is not None:
-        return input.recurrence_count >= conditions.recurrence_count_gte
+        if input.recurrence_count < conditions.recurrence_count_gte:
+            return False
     return True
 
 

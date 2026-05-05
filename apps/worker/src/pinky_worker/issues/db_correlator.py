@@ -13,9 +13,29 @@ logger = structlog.get_logger(__name__)
 
 
 class DbIssueCorrelator:
+    async def _count_observations(self, conn, correlation_key: str) -> int:
+        row = await conn.fetchrow(
+            "SELECT COUNT(*) as cnt FROM observations WHERE correlation_key = $1",
+            correlation_key,
+        )
+        return row["cnt"] if row else 1
+
     async def correlate(self, obs: RawObservation) -> CorrelationResult:
         pool = await get_pool()
         async with pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO observations (cluster_id, scanner, fingerprint, severity,
+                resource_kind, resource_namespace, resource_name, payload,
+                observed_at, correlation_key)
+                VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ON CONFLICT DO NOTHING""",
+                obs.cluster_id, obs.scanner, obs.fingerprint, obs.severity,
+                obs.resource_kind, obs.resource_namespace or "", obs.resource_name,
+                "{}", obs.observed_at, obs.correlation_key,
+            )
+
+            obs_count = await self._count_observations(conn, obs.correlation_key)
+
             existing = await conn.fetchrow(
                 "SELECT id, status FROM issues WHERE correlation_key = $1 AND cluster_id = $2::uuid",
                 obs.correlation_key, obs.cluster_id,
@@ -26,7 +46,10 @@ class DbIssueCorrelator:
                     "UPDATE issues SET last_seen_at = $1, updated_at = $1 WHERE id = $2",
                     obs.observed_at, existing["id"],
                 )
-                return CorrelationResult(action="attached", issue_id=str(existing["id"]))
+                return CorrelationResult(
+                    action="attached", issue_id=str(existing["id"]),
+                    observation_count=obs_count,
+                )
 
             if existing and existing["status"] in ("resolved", "suppressed"):
                 await conn.execute(
@@ -37,7 +60,10 @@ class DbIssueCorrelator:
                 logger.info(
                 "reopened issue", issue_id=str(existing["id"]), correlation_key=obs.correlation_key,
             )
-                return CorrelationResult(action="reopened", issue_id=str(existing["id"]))
+                return CorrelationResult(
+                    action="reopened", issue_id=str(existing["id"]),
+                    observation_count=obs_count,
+                )
 
             issue_id = uuid.uuid4()
             await conn.execute(
@@ -77,4 +103,7 @@ class DbIssueCorrelator:
                 "created issue + work_item",
                 issue_id=str(issue_id), work_item_id=str(work_item_id), title=obs.title,
             )
-            return CorrelationResult(action="created", issue_id=str(issue_id))
+            return CorrelationResult(
+                action="created", issue_id=str(issue_id),
+                observation_count=obs_count,
+            )

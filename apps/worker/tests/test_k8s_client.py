@@ -41,7 +41,7 @@ def _make_pod(
     containers: list | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
-        metadata=SimpleNamespace(name=name, namespace=namespace),
+        metadata=SimpleNamespace(name=name, namespace=namespace, creation_timestamp=None),
         status=SimpleNamespace(
             phase=phase,
             container_statuses=containers or [_make_container_status()],
@@ -89,7 +89,7 @@ def test_pod_summary_basic() -> None:
 
 def test_pod_summary_no_status() -> None:
     pod = SimpleNamespace(
-        metadata=SimpleNamespace(name="broken", namespace="test"),
+        metadata=SimpleNamespace(name="broken", namespace="test", creation_timestamp=None),
         status=None,
     )
     summary = _pod_summary(pod)
@@ -128,6 +128,7 @@ def test_event_summary() -> None:
 def test_node_summary() -> None:
     node = SimpleNamespace(
         metadata=SimpleNamespace(name="node-1"),
+        spec=SimpleNamespace(unschedulable=False),
         status=SimpleNamespace(
             conditions=[
                 SimpleNamespace(type="Ready", status="True", reason="KubeletReady"),
@@ -136,6 +137,7 @@ def test_node_summary() -> None:
     )
     summary = _node_summary(node)
     assert summary["name"] == "node-1"
+    assert summary["unschedulable"] is False
     assert summary["conditions"][0]["type"] == "Ready"
 
 

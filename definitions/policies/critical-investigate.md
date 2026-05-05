@@ -7,6 +7,7 @@ conditions:
   severity_gte: critical
 action:
   type: investigate
+  skill: investigate-generic
 ---
 # Critical Severity Investigation Policy
 

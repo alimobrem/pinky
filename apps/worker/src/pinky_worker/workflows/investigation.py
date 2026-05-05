@@ -1,6 +1,6 @@
 """Investigation workflow — gathers evidence, runs LLM analysis, produces artifact."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 
 from temporalio import workflow
@@ -24,6 +24,7 @@ class InvestigationInput:
     correlation_key: str
     evidence_hash: str
     skill_body: str = ""
+    skill_tools: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -53,8 +54,8 @@ class InvestigationWorkflow:
 
         evidence = await workflow.execute_activity(
             gather_evidence,
-            args=[input.issue_id, input.cluster_id],
-            start_to_close_timeout=timedelta(seconds=30),
+            args=[input.issue_id, input.cluster_id, input.skill_tools],
+            start_to_close_timeout=timedelta(seconds=60),
             retry_policy=RetryPolicy(maximum_attempts=3),
         )
 

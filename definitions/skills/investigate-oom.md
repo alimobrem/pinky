@@ -3,7 +3,7 @@ name: investigate-oom
 kind: skill
 version: 1.0.0
 description: Investigate OOM kills on a cluster
-tools: [kubectl-get, kubectl-describe]
+tools: [kubectl-get, kubectl-describe, kubectl-logs, kubectl-top, kubectl-events]
 model_tier: reasoning
 timeout_seconds: 120
 ---

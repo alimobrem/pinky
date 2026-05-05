@@ -62,25 +62,104 @@ def compute_evidence_hash(sections: dict[str, str]) -> str:
 
 
 @activity.defn
-async def gather_evidence(issue_id: str, cluster_id: str) -> EvidenceBundle:
-    """Gather evidence from cluster using observer identity."""
+async def gather_evidence(
+    issue_id: str, cluster_id: str, skill_tools: list[str] | None = None,
+) -> EvidenceBundle:
+    """Gather evidence from cluster using observer identity.
+
+    When *skill_tools* is provided, additional tool-specific evidence is
+    collected (pod logs, metrics, describe, rollout status, helm releases).
+    """
     activity.heartbeat("gathering evidence")
 
     from pinky_worker.llm.redaction import redact_evidence_sections
-    from pinky_worker.observation.k8s_client import create_client, list_events, list_pods
+    from pinky_worker.observation.k8s_client import (
+        create_client,
+        describe_resource,
+        get_helm_releases,
+        get_pod_logs,
+        get_rollout_status,
+        get_top_nodes,
+        get_top_pods,
+        list_events,
+        list_pods,
+    )
 
     try:
         k8s = await create_client()
         pods = await list_pods(k8s)
         events = await list_events(k8s, limit=50)
-        await k8s.close()
 
-        sections = {
+        sections: dict[str, str] = {
             "pods": json.dumps(pods[:20], indent=2, default=str),
             "events": json.dumps(events[:20], indent=2, default=str),
             "cluster_id": cluster_id,
             "issue_id": issue_id,
         }
+
+        # ----- skill-aware evidence -----
+        if skill_tools:
+            activity.heartbeat("gathering skill-specific evidence")
+
+            from pinky_worker.db import get_pool
+
+            pool = await get_pool()
+            wi = await pool.fetchrow(
+                "SELECT title, labels FROM work_items WHERE issue_id = $1::uuid LIMIT 1",
+                issue_id,
+            )
+
+            resource_namespace = ""
+            resource_name = ""
+            resource_kind = "pod"
+            if wi and wi["labels"]:
+                labels = json.loads(wi["labels"]) if isinstance(wi["labels"], str) else wi["labels"]
+                resource_namespace = labels.get("namespace", "")
+                resource_name = labels.get("name", "")
+                resource_kind = labels.get("kind", "pod")
+
+            if "kubectl-logs" in skill_tools and resource_namespace and resource_name:
+                current_logs = await get_pod_logs(k8s, resource_namespace, resource_name)
+                previous_logs = await get_pod_logs(
+                    k8s, resource_namespace, resource_name, previous=True,
+                )
+                if current_logs:
+                    sections["pod_logs"] = current_logs
+                if previous_logs:
+                    sections["pod_logs_previous"] = previous_logs
+
+            if "kubectl-top" in skill_tools:
+                top_pods = await get_top_pods(k8s, resource_namespace)
+                top_nodes = await get_top_nodes(k8s)
+                if top_pods:
+                    sections["resource_usage_pods"] = json.dumps(top_pods, default=str)
+                if top_nodes:
+                    sections["resource_usage_nodes"] = json.dumps(top_nodes, default=str)
+
+            if "kubectl-describe" in skill_tools and resource_namespace and resource_name:
+                detail = await describe_resource(k8s, resource_kind, resource_namespace, resource_name)
+                if detail:
+                    sections["resource_detail"] = json.dumps(detail, default=str)
+
+            if "kubectl-events" in skill_tools and resource_name:
+                resource_events = [
+                    e for e in events
+                    if e.get("involved_object", {}).get("name") == resource_name
+                ]
+                if resource_events:
+                    sections["resource_events"] = json.dumps(resource_events, default=str)
+
+            if "kubectl-rollout" in skill_tools and resource_namespace and resource_name:
+                rollout = await get_rollout_status(k8s, resource_namespace, resource_name)
+                if rollout:
+                    sections["rollout_status"] = json.dumps(rollout, default=str)
+
+            if "helm-history" in skill_tools and resource_namespace:
+                helm = await get_helm_releases(k8s, resource_namespace)
+                if helm:
+                    sections["helm_releases"] = json.dumps(helm, default=str)
+
+        await k8s.close()
     except Exception:
         logger.exception("failed to gather evidence from cluster")
         sections = {

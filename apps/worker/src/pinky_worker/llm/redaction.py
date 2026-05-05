@@ -10,9 +10,18 @@ from __future__ import annotations
 import re
 
 BUILTIN_PATTERNS: list[tuple[str, str]] = [
+    # builtin-secrets patterns
     (r"Bearer [A-Za-z0-9\-._~+/]+", "[REDACTED-BEARER]"),
     (r"Basic [A-Za-z0-9+/=]+", "[REDACTED-BASIC]"),
     (r"(postgres|mysql|mongodb|redis)://[^\s]+", "[REDACTED-CONNSTR]"),
+    # kubernetes-internal patterns
+    (r"/var/run/secrets/kubernetes\.io/serviceaccount/token", "[REDACTED-SA-TOKEN]"),
+    (r"eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}", "[REDACTED-JWT]"),
+    (r"(certificate-authority-data|client-certificate-data|client-key-data):\s*[A-Za-z0-9+/=]{20,}", "[REDACTED-KUBECONFIG]"),
+    (r"token:\s*[A-Za-z0-9+/=._-]{20,}", "[REDACTED-TOKEN]"),
+    (r"X-aws-ec2-metadata-token:\s*\S+", "[REDACTED-AWS-METADATA]"),
+    (r"Metadata-Flavor:\s*Google", "[REDACTED-GCP-METADATA]"),
+    (r"sh\.helm\.release\.v1\.[^\s]+", "[REDACTED-HELM-RELEASE]"),
 ]
 
 SENSITIVE_ENV_NAMES = {"SECRET", "KEY", "TOKEN", "PASSWORD", "CREDENTIAL", "API_KEY", "APIKEY"}

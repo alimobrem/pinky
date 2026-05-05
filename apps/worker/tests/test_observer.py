@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from pinky_worker.definitions.loader import Definition, DefinitionRegistry
-from pinky_worker.observation.observer import observe_cluster
+from pinky_worker.observation.observer import SCANNER_FETCHERS, observe_cluster
 
 
 def _mock_registry() -> DefinitionRegistry:
@@ -56,9 +56,12 @@ async def test_observer_clean_scan() -> None:
     mock_client = AsyncMock()
     mock_correlator = AsyncMock()
 
+    async def mock_list_pods(*args, **kwargs):
+        return HEALTHY_PODS
+
     with (
         patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
-        patch("pinky_worker.observation.observer.list_pods", return_value=HEALTHY_PODS),
+        patch.dict(SCANNER_FETCHERS, {"pod-health": mock_list_pods}),
     ):
         await observe_cluster(
             cluster_id="cluster-1",
@@ -77,9 +80,12 @@ async def test_observer_detects_crash_loop() -> None:
     mock_correlator = AsyncMock()
     mock_correlator.correlate.return_value = MagicMock(action="created", issue_id="issue-1")
 
+    async def mock_list_pods(*args, **kwargs):
+        return UNHEALTHY_PODS
+
     with (
         patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
-        patch("pinky_worker.observation.observer.list_pods", return_value=UNHEALTHY_PODS),
+        patch.dict(SCANNER_FETCHERS, {"pod-health": mock_list_pods}),
     ):
         await observe_cluster(
             cluster_id="cluster-1",
@@ -98,9 +104,12 @@ async def test_observer_detects_crash_loop() -> None:
 async def test_observer_closes_client_on_error() -> None:
     mock_client = AsyncMock()
 
+    async def mock_list_pods_error(*args, **kwargs):
+        raise RuntimeError("K8s down")
+
     with (
         patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
-        patch("pinky_worker.observation.observer.list_pods", side_effect=RuntimeError("K8s down")),
+        patch.dict(SCANNER_FETCHERS, {"pod-health": mock_list_pods_error}),
     ):
         await observe_cluster(
             cluster_id="cluster-1",
@@ -125,7 +134,7 @@ async def test_observer_runs_multiple_cycles() -> None:
 
     with (
         patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
-        patch("pinky_worker.observation.observer.list_pods", side_effect=mock_list_pods),
+        patch.dict(SCANNER_FETCHERS, {"pod-health": mock_list_pods}),
     ):
         await observe_cluster(
             cluster_id="cluster-1",
