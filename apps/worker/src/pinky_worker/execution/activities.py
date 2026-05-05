@@ -336,7 +336,7 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
                 "AND execution_type = 'investigation' ORDER BY created_at DESC LIMIT 1",
             )
             exec_uuid = row["id"] if row else uuid4()
-            logger.info("resolved workflow_id to execution", workflow_id=exec_id_str, execution_id=str(exec_uuid))
+            logger.info("resolved workflow_id %s to execution %s", exec_id_str, str(exec_uuid))
 
     await pool.execute(
         """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)
