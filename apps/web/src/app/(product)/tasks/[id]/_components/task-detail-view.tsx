@@ -513,9 +513,10 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                       variant="outline"
                       className="w-full justify-start gap-2"
                       onClick={handleStartInvestigation}
+                      disabled={investigate.isPending}
                     >
                       <Brain size={14} className="text-brand-purple" />
-                      Start Investigation
+                      {investigate.isPending ? "Starting..." : "Start Investigation"}
                     </Button>
                   )}
                 {investigationState === "starting" && (
