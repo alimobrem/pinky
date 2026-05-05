@@ -249,11 +249,9 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     (e) => e.status === "running" || e.status === "pending",
   );
   const events = timeline?.items ?? [];
-  const isInvestigationInProgress =
-    !investigation?.has_investigation &&
-    (investigationState === "starting" ||
-    investigationState === "gathering_evidence" ||
-    investigationState === "analyzing");
+  const hasResults = investigation?.has_investigation === true;
+  const hasActiveInvestigation = !!activeExec && activeExec.execution_type === "investigation";
+  const isInvestigationInProgress = !hasResults && (hasActiveInvestigation || investigate.isPending);
 
   return (
     <div className="space-y-6">
