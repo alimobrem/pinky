@@ -125,13 +125,12 @@ HELM_ARGS=(
   --set-string "global.deployId=${DEPLOY_ID}"
 )
 
-if [[ -n "${PINKY_TAG:-}" ]]; then
-  HELM_ARGS+=(
-    --set-string "api.image.tag=${PINKY_TAG}"
-    --set-string "web.image.tag=${PINKY_TAG}"
-    --set-string "worker.image.tag=${PINKY_TAG}"
-  )
-fi
+EFFECTIVE_TAG="${PINKY_TAG:-latest}"
+HELM_ARGS+=(
+  --set-string "api.image.tag=${EFFECTIVE_TAG}"
+  --set-string "web.image.tag=${EFFECTIVE_TAG}"
+  --set-string "worker.image.tag=${EFFECTIVE_TAG}"
+)
 
 helm "${HELM_ARGS[@]}"
 
