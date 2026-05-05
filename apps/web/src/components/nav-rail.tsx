@@ -36,7 +36,7 @@ export function NavRail() {
     <nav className="hidden h-screen shrink-0 overflow-y-auto border-r border-sidebar-border bg-[linear-gradient(180deg,#0b0a12_0%,#09080f_100%)] md:flex md:w-[72px] md:flex-col xl:w-[248px]">
       <div className="flex items-center gap-3 px-4 pb-6 pt-6 xl:px-5">
         <div className="relative">
-          <Brain size={24} className="text-accent-brain drop-shadow-[0_0_8px_rgba(167,139,250,0.4)]" />
+          <Brain size={24} className="text-accent-brain drop-shadow-[0_0_12px_rgba(167,139,250,0.5)] transition-all duration-300 hover:drop-shadow-[0_0_20px_rgba(167,139,250,0.7)]" />
           {brainActive && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-status-done animate-brain-pulse" />}
         </div>
         <div className="hidden min-w-0 xl:block">
@@ -84,11 +84,11 @@ function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badg
       className={cn(
         "group relative flex items-center justify-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium no-underline transition-all duration-200 xl:justify-start",
         active
-          ? "bg-bg-elevated text-text-primary shadow-card"
-          : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+          ? "bg-bg-elevated text-text-primary shadow-[0_0_16px_rgba(244,114,182,0.08),0_1px_3px_rgba(0,0,0,0.3)]"
+          : "text-text-secondary hover:bg-bg-hover hover:text-text-primary hover:shadow-[0_0_12px_rgba(167,139,250,0.06)]"
       )}
     >
-      {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-accent-brand" />}
+      {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full bg-accent-brand shadow-[0_0_8px_rgba(244,114,182,0.5)]" />}
       <Icon size={18} strokeWidth={active ? 2 : 1.6} className={cn("shrink-0 transition-colors duration-200", active ? "text-accent-brand" : "text-text-tertiary group-hover:text-text-secondary")} />
       <span className="hidden flex-1 xl:block">{item.label}</span>
       {badge != null && badge !== "0" && (
