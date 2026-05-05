@@ -327,10 +327,16 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
     try:
         exec_uuid = UUID(exec_id_str)
     except ValueError:
-        if exec_id_str.startswith("investigation-"):
-            exec_uuid = UUID(exec_id_str.removeprefix("investigation-"))
-        else:
-            exec_uuid = uuid4()
+        try:
+            stripped = exec_id_str.removeprefix("investigation-").removeprefix("remediation-")
+            exec_uuid = UUID(stripped)
+        except ValueError:
+            row = await pool.fetchrow(
+                "SELECT id FROM executions WHERE status IN ('pending', 'running') "
+                "AND execution_type = 'investigation' ORDER BY created_at DESC LIMIT 1",
+            )
+            exec_uuid = row["id"] if row else uuid4()
+            logger.info("resolved workflow_id to execution", workflow_id=exec_id_str, execution_id=str(exec_uuid))
 
     await pool.execute(
         """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)
@@ -341,16 +347,25 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
         json.dumps(event.payload), occurred,
     )
 
+    status_map = {
+        "started": ("running", "UPDATE executions SET status = 'running', started_at = $2 WHERE id = $1"),
+        "completed": ("completed", "UPDATE executions SET status = 'completed', completed_at = $2 WHERE id = $1"),
+        "failed": ("failed", "UPDATE executions SET status = 'failed', completed_at = $2 WHERE id = $1"),
+    }
+    if event.event_type in status_map:
+        _, sql = status_map[event.event_type]
+        await pool.execute(sql, exec_uuid, occurred)
+
     try:
         await pool.execute(
             "SELECT pg_notify($1, $2)",
             "pinky_watch",
-            json.dumps({"event_type": event.event_type, "execution_id": event.execution_id}),
+            json.dumps({"event_type": event.event_type, "execution_id": str(exec_uuid)}),
         )
     except Exception:
         logger.debug("NOTIFY skipped in execution event emission")
 
-    logger.info("execution event emitted: %s %s", event.event_type, event.execution_id)
+    logger.info("execution event emitted: %s %s exec=%s", event.event_type, event.execution_id, str(exec_uuid))
 
 
 @activity.defn
