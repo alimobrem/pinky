@@ -50,7 +50,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, Server, FileText, Webhook, Shield, Users, BarChart3 } from "lucide-react";
-import type { Definition } from "@pinky/contracts";
+
 import { toast } from "sonner";
 
 export function SettingsView() {
@@ -59,7 +59,7 @@ export function SettingsView() {
       <PageHeader title="Settings" description="Platform configuration" />
 
       <Tabs defaultValue="clusters">
-        <TabsList className="border-b border-border-subtle bg-transparent">
+        <TabsList className="border-b border-border-default bg-transparent">
           <TabsTrigger value="clusters" className="gap-1.5"><Server size={14} />Clusters</TabsTrigger>
           <TabsTrigger value="definitions" className="gap-1.5"><FileText size={14} />Definitions</TabsTrigger>
           <TabsTrigger value="webhooks" className="gap-1.5"><Webhook size={14} />Webhooks</TabsTrigger>

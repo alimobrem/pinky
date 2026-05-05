@@ -38,7 +38,7 @@ export function Sidebar() {
   if (issueCount > 0) badges.watch = issueCount;
 
   return (
-    <aside className="hidden h-full w-[200px] shrink-0 flex-col border-r border-border-subtle bg-bg-inset md:flex">
+    <aside className="hidden h-full w-[200px] shrink-0 flex-col border-r border-border-default bg-bg-inset md:flex">
       <div className="flex items-center gap-2.5 px-5 py-5">
         <Brain size={20} className="text-brand-purple" />
         <span className="bg-gradient-to-r from-brand-pink to-brand-purple bg-clip-text text-sm font-bold tracking-widest text-transparent">
@@ -64,7 +64,7 @@ export function Sidebar() {
                 href={item.path}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium no-underline transition-all duration-150",
+                  "group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium no-underline transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                   active
                     ? "bg-bg-active text-text-primary"
                     : "text-text-secondary hover:bg-bg-hover hover:text-text-primary",
@@ -108,7 +108,7 @@ export function Sidebar() {
                 href={item.path}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium no-underline transition-all duration-150",
+                  "flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium no-underline transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                   active
                     ? "bg-bg-active text-text-primary"
                     : "text-text-secondary hover:bg-bg-hover hover:text-text-primary",

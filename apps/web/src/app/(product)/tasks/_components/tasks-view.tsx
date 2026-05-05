@@ -125,7 +125,7 @@ export function TasksView() {
         }
       />
 
-      <div className="flex items-center gap-1 border-b border-border-subtle">
+      <div className="flex items-center gap-1 border-b border-border-default">
         {QUEUE_TABS.map((tab) => {
           const count = tabCounts[tab.id as keyof typeof tabCounts] ?? 0;
           return (

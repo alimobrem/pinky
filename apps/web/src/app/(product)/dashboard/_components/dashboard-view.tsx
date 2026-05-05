@@ -27,7 +27,6 @@ import { StatusDot } from "@/components/shared/status-indicator";
 import { PriorityBadge } from "@/components/shared/priority-badge";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { FadeIn } from "@/components/motion/fade-in";
 
 export function DashboardView() {
@@ -71,7 +70,7 @@ export function DashboardView() {
 
       {/* Main grid */}
       <FadeIn delay={0.05}>
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {/* Fleet health — spans 1 col */}
           <Card className="">
             <CardHeader className="pb-2">
@@ -115,7 +114,7 @@ export function DashboardView() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className={cn("h-2.5 w-2.5 rounded-full", clusterList.length > 0 ? "bg-status-done animate-pulse-dot" : "bg-text-tertiary")} />
+                <span className={cn("h-2.5 w-2.5 rounded-full", clusterList.length > 0 ? "bg-status-done motion-safe:animate-pulse-dot" : "bg-text-tertiary")} />
                 <span className="text-sm font-medium text-text-primary">
                   {clusterList.length > 0 ? "Online" : "Idle"}
                 </span>

@@ -11,8 +11,7 @@ import {
   Brain,
   ExternalLink,
 } from "lucide-react";
-import type { WorkItem } from "@pinky/contracts";
-import { cn } from "@/lib/utils";
+
 import { api } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 import {

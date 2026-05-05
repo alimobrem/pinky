@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Search, LogOut, User } from "lucide-react";
 import type { ClusterRegistryEntry, PaginatedResponse } from "@pinky/contracts";
-import { cn } from "@/lib/utils";
+
 import { api } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export function TopBar() {
   }
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border-subtle bg-bg-base px-6">
+    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border-default bg-bg-base px-6">
       <Select value={clusterId ?? "all"} onValueChange={handleClusterChange}>
         <SelectTrigger className="h-7 w-auto min-w-[140px] gap-1.5 border-border-subtle bg-bg-surface text-xs">
           <SelectValue placeholder="All clusters" />

@@ -25,7 +25,7 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute left-1/2 top-[45%] h-[600px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-purple/[0.07] blur-[180px]" />
       <div className="pointer-events-none absolute left-[40%] top-[55%] h-[400px] w-[600px] rounded-full bg-brand-pink/[0.05] blur-[140px]" />
 
-      <div className="relative w-[420px] animate-fade-in">
+      <div className="relative w-full max-w-[420px] px-4 animate-fade-in">
         <div className="overflow-hidden rounded-2xl border border-border-default bg-bg-surface shadow-lg">
           <div className="flex flex-col items-center px-10 pb-6 pt-16">
             <div className="relative mb-8">
@@ -69,7 +69,7 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-10 flex items-center justify-center gap-2.5 text-xs text-text-tertiary">
-          <span className="h-1.5 w-1.5 rounded-full bg-status-done animate-pulse-dot" />
+          <span className="h-1.5 w-1.5 rounded-full bg-status-done motion-safe:animate-pulse-dot" />
           <span className="font-mono tracking-wider">brain online</span>
         </div>
       </div>

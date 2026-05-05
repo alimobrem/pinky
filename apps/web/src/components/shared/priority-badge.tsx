@@ -40,7 +40,7 @@ export function PriorityBadge({
         size === "sm" ? "px-1.5 py-0.5 text-[11px]" : "px-2 py-1 text-xs",
         config.bg,
         config.color,
-        config.pulse && "animate-pulse-dot",
+        config.pulse && "motion-safe:animate-pulse-dot",
         className,
       )}
     >

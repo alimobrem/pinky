@@ -12,7 +12,6 @@ interface StalenessIndicatorProps {
 
 export function StalenessIndicator({
   state,
-  lastUpdated,
   className,
 }: StalenessIndicatorProps) {
   const isLive = state === "connected";

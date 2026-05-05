@@ -71,7 +71,7 @@ export function StatusDot({ status, pulse, className }: StatusDotProps) {
       className={cn(
         "inline-block h-2 w-2 rounded-full",
         config.dot,
-        pulse && "animate-pulse-dot",
+        pulse && "motion-safe:animate-pulse-dot",
         className,
       )}
       aria-label={config.label}
