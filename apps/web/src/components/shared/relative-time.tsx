@@ -31,7 +31,7 @@ export function RelativeTime({ date, className, live = true }: RelativeTimeProps
         <TooltipTrigger asChild>
           <time
             dateTime={date}
-            className={cn("font-mono text-[11px] tabular-nums text-text-tertiary", className)}
+            className={cn("font-mono text-caption tabular-nums text-text-tertiary", className)}
           >
             {display}
           </time>

@@ -141,7 +141,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
             {task.why_now && (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-[11px] font-semibold uppercase tracking-widest text-text-tertiary">
+                  <CardTitle className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">
                     Situation
                   </CardTitle>
                 </CardHeader>
@@ -156,7 +156,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
             {investigation?.has_investigation && (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-text-tertiary">
+                  <CardTitle className="flex items-center gap-2 text-caption font-semibold uppercase tracking-widest text-text-tertiary">
                     <Brain size={14} className="text-brand-purple" />
                     Investigation
                   </CardTitle>
@@ -169,7 +169,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                   )}
                   {investigation.root_cause && (
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                      <p className="text-caption font-semibold uppercase tracking-wider text-text-tertiary">
                         Root cause
                       </p>
                       <p className="mt-1 text-sm text-text-secondary">
@@ -179,7 +179,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                   )}
                   {investigation.recommended_action && (
                     <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                      <p className="text-caption font-semibold uppercase tracking-wider text-text-tertiary">
                         Recommendation
                       </p>
                       <p className="mt-1 text-sm text-text-secondary">
@@ -197,7 +197,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
             {events.length > 0 && (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-[11px] font-semibold uppercase tracking-widest text-text-tertiary">
+                  <CardTitle className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">
                     Timeline
                   </CardTitle>
                 </CardHeader>
@@ -233,7 +233,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
           <div className="space-y-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-[11px] font-semibold uppercase tracking-widest text-text-tertiary">
+                <CardTitle className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">
                   Actions
                 </CardTitle>
               </CardHeader>
@@ -349,7 +349,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-[11px] font-semibold uppercase tracking-widest text-text-tertiary">
+                <CardTitle className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">
                   Details
                 </CardTitle>
               </CardHeader>

@@ -124,7 +124,7 @@ export function DataTable<T>({
               <TableHead
                 key={col.id}
                 className={cn(
-                  "h-9 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary",
+                  "h-9 text-caption font-semibold uppercase tracking-wider text-text-tertiary",
                   stickyHeader && "sticky top-0 z-10 bg-bg-surface",
                   col.sortable && "cursor-pointer select-none hover:text-text-secondary",
                   col.headerClassName,

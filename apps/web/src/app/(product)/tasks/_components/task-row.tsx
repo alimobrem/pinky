@@ -22,7 +22,7 @@ export function taskColumns(clusterMap: Record<string, string>) {
             {task.title}
           </p>
           {clusterMap[task.cluster_id] && (
-            <p className="mt-0.5 truncate font-mono text-[11px] text-text-tertiary">
+            <p className="mt-0.5 truncate font-mono text-caption text-text-tertiary">
               {clusterMap[task.cluster_id]}
             </p>
           )}
@@ -74,7 +74,7 @@ export function TaskRowCard({ task, clusterName }: TaskRowProps) {
         <StatusIndicator status={task.status} />
         <ConfidenceBadge value={task.confidence} />
         {clusterName && (
-          <span className="font-mono text-[11px] text-text-tertiary">
+          <span className="font-mono text-caption text-text-tertiary">
             {clusterName}
           </span>
         )}

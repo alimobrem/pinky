@@ -12,7 +12,7 @@ export function ClusterBadge({ name, className }: ClusterBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md bg-bg-hover px-1.5 py-0.5 font-mono text-[11px] text-text-secondary",
+        "inline-flex items-center gap-1 rounded-md bg-bg-hover px-1.5 py-0.5 font-mono text-caption text-text-secondary",
         className,
       )}
     >

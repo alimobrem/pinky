@@ -49,7 +49,7 @@ const columns: Column<Observation>[] = [
     id: "resource",
     header: "Resource",
     cell: (o) => (
-      <span className="font-mono text-[11px] text-text-tertiary">
+      <span className="font-mono text-caption text-text-tertiary">
         {o.resource_kind ? `${o.resource_namespace ?? ""}/${o.resource_name}` : "—"}
       </span>
     ),

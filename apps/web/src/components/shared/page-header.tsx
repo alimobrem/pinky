@@ -24,7 +24,7 @@ export function PageHeader({
             {title}
           </h1>
           {description && (
-            <p className="max-w-2xl text-[13px] leading-relaxed text-text-secondary">
+            <p className="max-w-2xl text-body-sm leading-relaxed text-text-secondary">
               {description}
             </p>
           )}
@@ -34,7 +34,7 @@ export function PageHeader({
         )}
       </div>
       {meta && (
-        <div className="flex items-center gap-3 text-[11px] text-text-tertiary">
+        <div className="flex items-center gap-3 text-caption text-text-tertiary">
           {meta}
         </div>
       )}

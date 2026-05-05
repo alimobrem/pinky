@@ -64,7 +64,7 @@ export function Sidebar() {
                 href={item.path}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium no-underline transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                  "group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-body-sm font-medium no-underline transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                   active
                     ? "bg-bg-active text-text-primary"
                     : "text-text-secondary hover:bg-bg-hover hover:text-text-primary",
@@ -108,7 +108,7 @@ export function Sidebar() {
                 href={item.path}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium no-underline transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                  "flex items-center gap-2.5 rounded-lg px-3 py-2 text-body-sm font-medium no-underline transition-all duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                   active
                     ? "bg-bg-active text-text-primary"
                     : "text-text-secondary hover:bg-bg-hover hover:text-text-primary",

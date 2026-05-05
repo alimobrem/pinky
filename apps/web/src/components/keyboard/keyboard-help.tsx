@@ -57,7 +57,7 @@ export function KeyboardHelp() {
         <div className="space-y-5 py-2">
           {SHORTCUTS.map((section) => (
             <div key={section.section}>
-              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-text-tertiary">
+              <h3 className="mb-2 text-caption font-semibold uppercase tracking-widest text-text-tertiary">
                 {section.section}
               </h3>
               <div className="space-y-1.5">

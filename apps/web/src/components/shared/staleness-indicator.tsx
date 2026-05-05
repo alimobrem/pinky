@@ -19,7 +19,7 @@ export function StalenessIndicator({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 text-[11px]",
+        "inline-flex items-center gap-1.5 text-caption",
         isLive ? "text-status-done" : "text-text-tertiary",
         className,
       )}

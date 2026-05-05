@@ -61,7 +61,7 @@ export function ExecutionMonitor({
   return (
     <div className={cn("space-y-0", className)}>
       <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+        <span className="text-caption font-semibold uppercase tracking-wider text-text-tertiary">
           Execution Log
         </span>
         <StalenessIndicator state={sseState} lastUpdated={lastUpdated} />
@@ -104,7 +104,7 @@ export function ExecutionMonitor({
                     </p>
                   )}
                   {payload.tool_name && (
-                    <span className="inline-block rounded bg-bg-elevated px-1.5 py-0.5 font-mono text-[11px] text-brand-purple">
+                    <span className="inline-block rounded bg-bg-elevated px-1.5 py-0.5 font-mono text-caption text-brand-purple">
                       {String(payload.tool_name)}
                     </span>
                   )}

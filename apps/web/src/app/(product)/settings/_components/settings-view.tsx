@@ -173,7 +173,7 @@ function DefinitionsTab() {
                 key={k}
                 size="sm"
                 variant={kindFilter === k ? "default" : "ghost"}
-                className="h-6 px-2 text-[11px]"
+                className="h-6 px-2 text-caption"
                 onClick={() => setKindFilter(k)}
               >
                 {k}
@@ -193,7 +193,7 @@ function DefinitionsTab() {
                 {items.map((d) => (
                   <TableRow key={d.id}>
                     <TableCell className="font-medium">{d.name}</TableCell>
-                    <TableCell><span className="rounded bg-bg-hover px-1.5 py-0.5 font-mono text-[11px]">{d.kind}</span></TableCell>
+                    <TableCell><span className="rounded bg-bg-hover px-1.5 py-0.5 font-mono text-caption">{d.kind}</span></TableCell>
                     <TableCell className="font-mono text-xs text-text-tertiary">{d.version}</TableCell>
                     <TableCell><Switch checked={d.enabled} disabled /></TableCell>
                   </TableRow>

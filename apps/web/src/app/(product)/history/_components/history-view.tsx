@@ -47,7 +47,7 @@ const columns: Column<HistoryEvent>[] = [
     id: "aggregate",
     header: "Aggregate",
     cell: (e) => (
-      <span className="font-mono text-[11px] text-text-tertiary">
+      <span className="font-mono text-caption text-text-tertiary">
         {e.aggregate_type} / {e.aggregate_id.slice(0, 8)}
       </span>
     ),

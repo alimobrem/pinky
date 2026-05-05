@@ -44,16 +44,16 @@ export function TaskPreview({ task, clusterName, className }: TaskPreviewProps) 
         </div>
         <h3 className="text-sm font-semibold text-text-primary">{task.title}</h3>
         {clusterName && (
-          <p className="font-mono text-[11px] text-text-tertiary">{clusterName}</p>
+          <p className="font-mono text-caption text-text-tertiary">{clusterName}</p>
         )}
       </div>
 
       {task.why_now && (
         <div className="space-y-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+          <p className="text-caption font-semibold uppercase tracking-wider text-text-tertiary">
             Why now
           </p>
-          <p className="text-[13px] leading-relaxed text-text-secondary">
+          <p className="text-body-sm leading-relaxed text-text-secondary">
             {task.why_now}
           </p>
         </div>
@@ -61,16 +61,16 @@ export function TaskPreview({ task, clusterName, className }: TaskPreviewProps) 
 
       {task.recommended_next_step && (
         <div className="space-y-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+          <p className="text-caption font-semibold uppercase tracking-wider text-text-tertiary">
             Recommended
           </p>
-          <p className="text-[13px] leading-relaxed text-text-secondary">
+          <p className="text-body-sm leading-relaxed text-text-secondary">
             {task.recommended_next_step}
           </p>
         </div>
       )}
 
-      <div className="flex items-center gap-3 text-[11px] text-text-tertiary">
+      <div className="flex items-center gap-3 text-caption text-text-tertiary">
         <ConfidenceBadge value={task.confidence} />
         <RelativeTime date={task.created_at} />
       </div>

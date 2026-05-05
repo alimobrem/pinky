@@ -37,7 +37,7 @@ export function PriorityBadge({
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-md font-medium",
-        size === "sm" ? "px-1.5 py-0.5 text-[11px]" : "px-2 py-1 text-xs",
+        size === "sm" ? "px-1.5 py-0.5 text-caption" : "px-2 py-1 text-xs",
         config.bg,
         config.color,
         config.pulse && "motion-safe:animate-pulse-dot",

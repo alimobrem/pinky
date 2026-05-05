@@ -31,7 +31,7 @@ export function EmptyState({
       <div className="space-y-1">
         <p className="text-sm font-medium text-text-primary">{title}</p>
         {description && (
-          <p className="max-w-sm text-[13px] text-text-secondary">
+          <p className="max-w-sm text-body-sm text-text-secondary">
             {description}
           </p>
         )}

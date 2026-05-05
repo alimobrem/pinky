@@ -53,7 +53,7 @@ export function DashboardView() {
     <div className="space-y-8">
       <div>
         <h1 className="text-xl font-bold text-text-primary">Dashboard</h1>
-        <p className="mt-1 text-[13px] text-text-secondary">
+        <p className="mt-1 text-body-sm text-text-secondary">
           Fleet overview and active work
         </p>
       </div>
@@ -136,7 +136,7 @@ export function DashboardView() {
                 <Eye size={14} className="text-status-blocked" />
                 Open Issues
               </CardTitle>
-              <Link href="/watch" className="text-[11px] text-text-tertiary no-underline hover:text-text-secondary">
+              <Link href="/watch" className="text-caption text-text-tertiary no-underline hover:text-text-secondary">
                 View all <ArrowRight size={10} className="inline" />
               </Link>
             </CardHeader>
@@ -146,7 +146,7 @@ export function DashboardView() {
                   <div className="rounded-lg bg-status-done/10 p-2">
                     <CheckCircle2 size={18} className="text-status-done" />
                   </div>
-                  <p className="text-[13px] text-text-tertiary">All clear</p>
+                  <p className="text-body-sm text-text-tertiary">All clear</p>
                 </div>
               ) : (
                 <div className="space-y-1">
@@ -169,7 +169,7 @@ export function DashboardView() {
                     </Link>
                   ))}
                   {issueCount > 6 && (
-                    <p className="px-2 pt-1 text-[11px] text-text-tertiary">
+                    <p className="px-2 pt-1 text-caption text-text-tertiary">
                       +{issueCount - 6} more
                     </p>
                   )}
@@ -187,13 +187,13 @@ export function DashboardView() {
             <CardTitle className="text-xs font-semibold uppercase tracking-widest text-text-tertiary">
               Recent Activity
             </CardTitle>
-            <Link href="/history" className="text-[11px] text-text-tertiary no-underline hover:text-text-secondary">
+            <Link href="/history" className="text-caption text-text-tertiary no-underline hover:text-text-secondary">
               View all <ArrowRight size={10} className="inline" />
             </Link>
           </CardHeader>
           <CardContent>
             {!history?.items?.length ? (
-              <p className="py-6 text-center text-[13px] text-text-tertiary">No recent activity</p>
+              <p className="py-6 text-center text-body-sm text-text-tertiary">No recent activity</p>
             ) : (
               <div className="space-y-0.5">
                 {history.items.map((event) => (
@@ -238,7 +238,7 @@ function ClusterList({ clusters }: { clusters: { id: string; display_name: strin
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1 px-1.5 py-1 text-[11px] text-text-tertiary hover:text-text-secondary"
+          className="flex items-center gap-1 px-1.5 py-1 text-caption text-text-tertiary hover:text-text-secondary"
         >
           {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           {expanded ? "Show less" : `+${clusters.length - COLLAPSED_LIMIT} more`}
@@ -260,7 +260,7 @@ function StatCard({ label, value, icon: Icon, color, href }: {
           </div>
           <div>
             <p className="font-mono text-xl font-bold tabular-nums text-text-primary">{value}</p>
-            <p className="text-[11px] text-text-secondary">{label}</p>
+            <p className="text-caption text-text-secondary">{label}</p>
           </div>
         </CardContent>
       </Card>
@@ -270,7 +270,7 @@ function StatCard({ label, value, icon: Icon, color, href }: {
 
 function MetricRow({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
   return (
-    <div className="flex items-center justify-between text-[13px]">
+    <div className="flex items-center justify-between text-body-sm">
       <span className="text-text-tertiary">{label}</span>
       <span className={cn("font-mono tabular-nums text-text-primary", valueClass)}>{value}</span>
     </div>

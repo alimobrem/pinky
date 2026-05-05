@@ -1,4 +1,4 @@
-.PHONY: dev dev-infra dev-api dev-worker dev-web lint typecheck test verify clean db-upgrade db-migrate temporal-init docker-build docker-push helm-lint helm-template deploy
+.PHONY: dev dev-infra dev-api dev-worker dev-web dev-web-clean lint typecheck test verify clean db-upgrade db-migrate temporal-init docker-build docker-push helm-lint helm-template deploy
 
 # Development
 CONTAINER_ENGINE ?= podman
@@ -14,6 +14,9 @@ dev-worker:
 
 dev-web:
 	pnpm --filter @pinky/web dev
+
+dev-web-clean:
+	rm -rf apps/web/.next && pnpm --filter @pinky/web dev
 
 dev: dev-infra
 	@echo "Starting all services..."
