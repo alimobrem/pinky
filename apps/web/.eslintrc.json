@@ -15,5 +15,13 @@
         ]
       }
     ]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/components/ui/**/*.tsx"],
+      "rules": {
+        "react/forbid-component-props": "off"
+      }
+    }
+  ]
 }
