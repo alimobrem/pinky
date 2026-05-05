@@ -84,16 +84,27 @@ class AuthProvider:
             token_url = wk["token_endpoint"]
 
         async with httpx.AsyncClient(verify=_get_ssl_context()) as client:
-            resp = await client.post(
-                token_url,
-                data={
-                    "grant_type": "authorization_code",
-                    "code": code,
-                    "redirect_uri": redirect_uri,
-                    "client_id": self.client_id,
-                    "client_secret": self.client_secret,
-                },
-            )
+            if self.provider_type == "openshift":
+                resp = await client.post(
+                    token_url,
+                    data={
+                        "grant_type": "authorization_code",
+                        "code": code,
+                        "redirect_uri": redirect_uri,
+                    },
+                    auth=(self.client_id, self.client_secret),
+                )
+            else:
+                resp = await client.post(
+                    token_url,
+                    data={
+                        "grant_type": "authorization_code",
+                        "code": code,
+                        "redirect_uri": redirect_uri,
+                        "client_id": self.client_id,
+                        "client_secret": self.client_secret,
+                    },
+                )
             if resp.status_code >= 400:
                 raise RuntimeError(f"Token exchange failed ({resp.status_code}): {resp.text[:300]}")
             return resp.json()
