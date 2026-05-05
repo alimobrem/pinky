@@ -508,7 +508,6 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                 )}
 
                 {investigationState === "idle" &&
-                  !investigation?.has_investigation &&
                   !activeExec && (
                     <Button
                       size="sm"
