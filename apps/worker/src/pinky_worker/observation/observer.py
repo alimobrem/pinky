@@ -9,6 +9,7 @@ checks in definition frontmatter — no hardcoded runner functions.
 from __future__ import annotations
 
 import asyncio
+import uuid
 from collections.abc import Callable, Coroutine
 from typing import Any
 
@@ -87,7 +88,27 @@ async def _dispatch_investigation(
         else:
             logger.warning("skill not found", skill=skill_name)
 
-    workflow_id = f"investigation-{cluster_id[:8]}-{obs.fingerprint[:16]}"
+    from pinky_worker.db import get_pool
+
+    pool = await get_pool()
+    exec_id = uuid.uuid4()
+
+    work_item_id = None
+    wi_row = await pool.fetchrow(
+        "SELECT id FROM work_items WHERE issue_id = $1::uuid ORDER BY created_at DESC LIMIT 1",
+        result.issue_id,
+    )
+    if wi_row:
+        work_item_id = wi_row["id"]
+
+    await pool.execute(
+        """INSERT INTO executions (id, work_item_id, cluster_id, execution_type, status, created_at)
+           VALUES ($1, $2, $3::uuid, 'investigation', 'pending', now())
+           ON CONFLICT DO NOTHING""",
+        exec_id, work_item_id, cluster_id,
+    )
+
+    workflow_id = f"investigation-{exec_id}"
 
     try:
         await temporal_client.start_workflow(
@@ -106,6 +127,7 @@ async def _dispatch_investigation(
         logger.info(
             "dispatched investigation",
             workflow_id=workflow_id,
+            execution_id=str(exec_id),
             skill=skill_name or "<generic>",
             issue_id=result.issue_id,
         )
@@ -114,6 +136,9 @@ async def _dispatch_investigation(
             logger.debug("investigation already running", workflow_id=workflow_id)
         else:
             logger.exception("failed to dispatch investigation", workflow_id=workflow_id)
+            await pool.execute(
+                "UPDATE executions SET status = 'failed' WHERE id = $1", exec_id,
+            )
 
 
 async def _handle_suppress(result, decision) -> None:
