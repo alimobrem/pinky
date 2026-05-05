@@ -139,21 +139,21 @@ function TaskPreviewPanel({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-3 py-3">
+          <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-4 py-3.5">
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Priority</div>
             <div className="mt-2 text-sm font-semibold text-text-primary">{task.priority}</div>
           </div>
-          <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-3 py-3">
+          <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-4 py-3.5">
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Status</div>
             <div className="mt-2 text-sm font-semibold text-text-primary">{task.status.replace(/_/g, " ")}</div>
           </div>
-          <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-3 py-3">
+          <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-4 py-3.5">
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Confidence</div>
             <div className={cn("mt-2 text-sm font-semibold", task.confidence != null ? confColor(task.confidence) : "text-text-primary")}>
               {task.confidence != null ? `${Math.round(task.confidence * 100)}%` : "Unknown"}
             </div>
           </div>
-          <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-3 py-3">
+          <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-4 py-3.5">
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Created</div>
             <div className="mt-2 text-sm font-semibold text-text-primary">
               {task.created_at ? relativeTime(task.created_at) : "Recent"}
@@ -459,7 +459,7 @@ export default function TasksPage() {
                   )}
                 >
                   <span className="font-medium">{queue.label}</span>
-                  <span className={cn("rounded-full px-2 py-0.5 font-mono text-xs tabular", active ? "bg-bg-primary/60 text-text-primary" : "bg-bg-primary/50 text-text-tertiary")}>
+                  <span className={cn("rounded-full px-2.5 py-1 font-mono text-xs tabular", active ? "bg-bg-primary/60 text-text-primary" : "bg-bg-primary/50 text-text-tertiary")}>
                     {count}
                   </span>
                 </Button>
@@ -665,14 +665,14 @@ export default function TasksPage() {
                         <div className="flex flex-wrap items-center gap-2 text-xs">
                           {item.blocked_reason ? (
                             <span
-                              className="inline-flex items-center gap-1 rounded-full border border-status-blocked/20 bg-status-blocked/10 px-2 py-1 text-status-blocked"
+                              className="inline-flex items-center gap-1 rounded-full border border-status-blocked/20 bg-status-blocked/10 px-2.5 py-1 text-status-blocked"
                             >
                               <Ban size={12} />
                               {item.blocked_reason}
                             </span>
                           ) : null}
                           {item.recommended_next_step ? (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-accent-brain/20 bg-[var(--accent-brain-bg)] px-2 py-1 text-text-secondary">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-accent-brain/20 bg-[var(--accent-brain-bg)] px-2.5 py-1 text-text-secondary">
                               <Brain size={12} className="text-accent-brain" />
                               Brain recommendation
                             </span>
@@ -680,13 +680,13 @@ export default function TasksPage() {
                           {visibleLabels.map(([k, v]) => (
                             <span
                               key={k}
-                              className="rounded-full border border-border-subtle bg-bg-elevated/80 px-2 py-1 font-mono text-xs text-text-tertiary"
+                              className="rounded-full border border-border-subtle bg-bg-elevated/80 px-2.5 py-1 font-mono text-xs text-text-tertiary"
                             >
                               {k}={v}
                             </span>
                           ))}
                           {extraLabelCount > 0 ? (
-                            <span className="rounded-full border border-border-subtle bg-bg-elevated/80 px-2 py-1 text-xs text-text-tertiary">
+                            <span className="rounded-full border border-border-subtle bg-bg-elevated/80 px-2.5 py-1 text-xs text-text-tertiary">
                               +{extraLabelCount} more
                             </span>
                           ) : null}
@@ -695,7 +695,7 @@ export default function TasksPage() {
                               href={item.annotations.ticket_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 rounded-full border border-border-subtle bg-bg-elevated px-2 py-1 text-xs text-text-secondary no-underline hover:text-accent-brand"
+                              className="inline-flex items-center gap-1 rounded-full border border-border-subtle bg-bg-elevated px-2.5 py-1 text-xs text-text-secondary no-underline hover:text-accent-brand"
                             >
                               <Link2 size={12} />
                               Ticket linked
@@ -706,7 +706,7 @@ export default function TasksPage() {
                               href={item.runbook_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 rounded-full border border-border-subtle bg-bg-elevated px-2 py-1 text-xs text-text-secondary no-underline hover:text-accent-brand"
+                              className="inline-flex items-center gap-1 rounded-full border border-border-subtle bg-bg-elevated px-2.5 py-1 text-xs text-text-secondary no-underline hover:text-accent-brand"
                             >
                               <ExternalLink size={12} />
                               Runbook
