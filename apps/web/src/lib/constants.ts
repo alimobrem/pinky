@@ -32,6 +32,7 @@ export const QUERY_KEYS = {
   webhookDeliveries: (subId?: string) => ["webhook-deliveries", subId] as const,
   policyRules: () => ["policy-rules"] as const,
   bindings: () => ["cluster-bindings"] as const,
+  apiTokens: () => ["api-tokens"] as const,
   serviceBindings: () => ["service-bindings"] as const,
   session: () => ["session"] as const,
   analyticsRoi: (since?: string) => ["analytics-roi", since] as const,

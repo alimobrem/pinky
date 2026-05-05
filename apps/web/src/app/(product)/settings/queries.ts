@@ -1,5 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import type {
+  ApiToken,
   ClusterRegistryEntry,
   Definition,
   WebhookSubscription,
@@ -51,6 +52,14 @@ export const bindingsOptions = () =>
     queryKey: QUERY_KEYS.bindings(),
     queryFn: () =>
       api.get<{ items: ClusterIdentityBinding[] }>("/api/v1/cluster-bindings"),
+    staleTime: 30_000,
+  });
+
+export const apiTokensOptions = () =>
+  queryOptions({
+    queryKey: QUERY_KEYS.apiTokens(),
+    queryFn: () =>
+      api.get<{ items: ApiToken[] }>("/api/v1/api-tokens"),
     staleTime: 30_000,
   });
 

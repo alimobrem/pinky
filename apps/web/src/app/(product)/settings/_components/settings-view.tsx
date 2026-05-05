@@ -2,13 +2,14 @@
 
 import { PageHeader } from "@/components/shared/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Server, FileText, Webhook, Shield, Users, BarChart3 } from "lucide-react";
+import { Server, FileText, Webhook, Shield, Users, BarChart3, Key } from "lucide-react";
 import { ClustersTab } from "./clusters-tab";
 import { DefinitionsTab } from "./definitions-tab";
 import { WebhooksTab } from "./webhooks-tab";
 import { RulesTab } from "./rules-tab";
 import { AccessTab } from "./access-tab";
 import { AnalyticsTab } from "./analytics-tab";
+import { TokensTab } from "./tokens-tab";
 
 export function SettingsView() {
   return (
@@ -23,6 +24,7 @@ export function SettingsView() {
           <TabsTrigger value="rules" className="gap-1.5"><Shield size={14} />Rules</TabsTrigger>
           <TabsTrigger value="access" className="gap-1.5"><Users size={14} />Access</TabsTrigger>
           <TabsTrigger value="analytics" className="gap-1.5"><BarChart3 size={14} />Analytics</TabsTrigger>
+          <TabsTrigger value="tokens" className="gap-1.5"><Key size={14} />API Tokens</TabsTrigger>
         </TabsList>
 
         <TabsContent value="clusters"><ClustersTab /></TabsContent>
@@ -31,6 +33,7 @@ export function SettingsView() {
         <TabsContent value="rules"><RulesTab /></TabsContent>
         <TabsContent value="access"><AccessTab /></TabsContent>
         <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
+        <TabsContent value="tokens"><TokensTab /></TabsContent>
       </Tabs>
     </div>
   );

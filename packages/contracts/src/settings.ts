@@ -6,8 +6,22 @@ export interface Definition {
   enabled: boolean;
   frontmatter: Record<string, unknown>;
   body: string;
+  source: "filesystem" | "database";
   created_at: string;
   updated_at: string;
+}
+
+export interface ApiToken {
+  id: string;
+  name: string;
+  scopes: string[];
+  last_used_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface ApiTokenCreateResponse extends ApiToken {
+  token: string;
 }
 
 export interface WebhookSubscription {

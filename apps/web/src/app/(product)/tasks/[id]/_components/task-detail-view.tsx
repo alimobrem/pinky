@@ -10,6 +10,7 @@ import {
   UserPlus,
   Brain,
   ExternalLink,
+  ChevronRight,
 } from "lucide-react";
 
 import { api } from "@/lib/api";
@@ -27,8 +28,15 @@ import { RelativeTime } from "@/components/shared/relative-time";
 import { ApprovalGate } from "@/components/shared/approval-gate";
 import { PageHeader } from "@/components/shared/page-header";
 import { FadeIn } from "@/components/motion/fade-in";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -153,46 +161,72 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
               </Card>
             )}
 
-            {investigation?.has_investigation && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2 text-caption font-semibold uppercase tracking-widest text-text-tertiary">
-                    <Brain size={14} className="text-brand-purple" />
-                    Investigation
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {investigation.summary && (
-                    <p className="text-sm leading-relaxed text-text-secondary">
-                      {investigation.summary}
+            {investigation?.has_investigation &&
+              investigation.recommended_action && (
+                <Card className="border-purple-500/20 bg-purple-500/5">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Brain className="h-4 w-4 text-purple-400" />
+                      <span className="text-sm font-medium text-purple-300">
+                        The Brain recommends
+                      </span>
+                      {investigation.confidence != null && (
+                        <ConfidenceBadge value={investigation.confidence} />
+                      )}
+                    </div>
+                    <p className="text-sm text-text-primary">
+                      {investigation.recommended_action}
                     </p>
-                  )}
-                  {investigation.root_cause && (
-                    <div>
-                      <p className="text-caption font-semibold uppercase tracking-wider text-text-tertiary">
-                        Root cause
-                      </p>
-                      <p className="mt-1 text-sm text-text-secondary">
-                        {investigation.root_cause}
-                      </p>
-                    </div>
-                  )}
-                  {investigation.recommended_action && (
-                    <div>
-                      <p className="text-caption font-semibold uppercase tracking-wider text-text-tertiary">
-                        Recommendation
-                      </p>
-                      <p className="mt-1 text-sm text-text-secondary">
-                        {investigation.recommended_action}
-                      </p>
-                    </div>
-                  )}
-                  {investigation.confidence != null && (
-                    <ConfidenceBadge value={investigation.confidence} />
-                  )}
-                </CardContent>
-              </Card>
-            )}
+
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center gap-1 mt-3 text-xs text-text-secondary hover:text-text-primary">
+                        <ChevronRight className="h-3 w-3" />
+                        View reasoning
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-2 space-y-2">
+                        {investigation.summary && (
+                          <div>
+                            <span className="text-xs font-medium text-text-secondary">
+                              Summary
+                            </span>
+                            <p className="text-sm text-text-primary">
+                              {investigation.summary}
+                            </p>
+                          </div>
+                        )}
+                        {investigation.root_cause && (
+                          <div>
+                            <span className="text-xs font-medium text-text-secondary">
+                              Root cause
+                            </span>
+                            <p className="text-sm text-text-primary">
+                              {investigation.root_cause}
+                            </p>
+                          </div>
+                        )}
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    {investigation.tool_calls &&
+                      investigation.tool_calls.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-border-default">
+                          <span className="text-xs text-text-secondary">
+                            Tools:
+                          </span>
+                          {investigation.tool_calls.map((tool) => (
+                            <Badge
+                              key={tool}
+                              variant="outline"
+                              className="text-xs font-mono"
+                            >
+                              {tool}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                  </CardContent>
+                </Card>
+              )}
 
             {events.length > 0 && (
               <Card>
@@ -372,6 +406,16 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                 {task.blocked_reason && (
                   <DetailRow label="Blocked">
                     <span className="text-status-blocked">{task.blocked_reason}</span>
+                  </DetailRow>
+                )}
+                {task.issue_id && (
+                  <DetailRow label="Issue">
+                    <Link
+                      href={`/alerts?issue=${task.issue_id}`}
+                      className="text-sm text-accent-brand hover:underline font-mono"
+                    >
+                      {task.issue_id.slice(0, 8)}...
+                    </Link>
                   </DetailRow>
                 )}
                 {task.runbook_url && (

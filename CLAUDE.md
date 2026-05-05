@@ -7,8 +7,10 @@ Pinky — greenfield multi-cluster Kubernetes operations platform with embedded 
 ## Stack
 
 - **Web:** Next.js 15 + React 19 + TypeScript (apps/web)
-  - **Styling:** Tailwind CSS v4 + shadcn/ui — no inline styles, no CSS modules
-  - **Data fetching:** TanStack Query (React Query) — no raw fetch/useState boilerplate
+  - **Styling:** Tailwind CSS v4 (@theme tokens, @layer base) + shadcn/ui (28 components) — no inline styles, no CSS modules
+  - **Data fetching:** TanStack Query with co-located `queries.ts` per page — no raw fetch/useState
+  - **Animation:** Motion v12 — FadeIn, StaggerList, AnimatePresence
+  - **Real-time:** SSE via `useSSE` hook on tasks, dashboard, watch pages
   - **Forms:** react-hook-form + Zod schemas
   - **Dates:** date-fns (relative timestamps for < 24h)
   - **Types:** Import from `@pinky/contracts` — never redeclare types locally
@@ -33,6 +35,7 @@ make dev-api            # FastAPI with hot reload on :8000
 make dev-worker         # Temporal worker
 make dev-web            # Next.js on :3000
 make dev                # All of the above
+make dev-web-clean      # Clear .next cache + restart (fixes stale chunk errors)
 
 # Quality
 make lint               # ruff (Python) + eslint (TypeScript)
@@ -52,8 +55,8 @@ make temporal-init      # Create pinky namespace
 
 ### Monorepo Layout
 ```
-apps/web/          → Next.js UI (Tasks, Watch, History, Alerts, Settings, Login)
-apps/api/          → FastAPI API server (all /api/v1/* routes)
+apps/web/          → Next.js UI (Dashboard, Tasks, Watch, History, Alerts, Settings, Login)
+apps/api/          → FastAPI API server (74 endpoints across /api/v1/*)
 apps/worker/       → Temporal workflows + observers + projectors
 apps/cli/          → CLI wrapping REST API
 packages/contracts/ → Shared TypeScript domain types
@@ -94,7 +97,7 @@ infra/helm/        → Helm chart
 ## Testing
 
 ```bash
-# API tests (~204 unit/integration + 10 benchmarks)
+# API tests (~245 unit/integration + 10 benchmarks)
 cd apps/api && .venv/bin/pytest tests/ --ignore=tests/benchmark -v
 cd apps/api && .venv/bin/pytest tests/benchmark/ -v --benchmark-only  # perf only
 
@@ -170,6 +173,11 @@ All in `docs/superpowers/specs/`:
 - Definitions are the extensibility mechanism — not hardcoded Python
 
 ### Frontend
+- **All CSS in `@layer base`** — never write unlayered CSS, it overrides Tailwind utilities
+- **Use `text-caption` (11px) and `text-body-sm` (13px)** — never `text-[11px]` or `text-[13px]`
+- **Use `tabular-nums`** — never custom `tabular` utility
+- **SSE subscriptions** — use `useSSE` hook + `queryClient.invalidateQueries` on events
+- **Co-located queries** — each page has `queries.ts` exporting `queryOptions` factories
 - **Zero inline styles** — use Tailwind utility classes only, never `style={{}}`
 - **Zero CSS modules** — use Tailwind, not `.module.css` files
 - **Use shadcn/ui components** — Button, Dialog, AlertDialog, Input, Select, Badge, Card, etc. Don't build custom primitives
