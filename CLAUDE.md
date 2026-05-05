@@ -67,9 +67,10 @@ infra/helm/        → Helm chart
 - **Auth:** Global `get_current_principal` dependency on all routes. Unprotected paths in `UNPROTECTED_PATHS` set. Session cookies (HTTP-only, Secure, SameSite=Strict) + API tokens for CLI.
 - **Authz:** 3-layer model in `auth/authz.py` — product authz, cluster authz, execution authz. Observer reads vs user-sensitive reads vs user writes.
 - **Crypto:** `security/crypto.py` — AES-256-GCM with key version prefix + AAD binding. HMAC-SHA256 for token hashing. Never `# type: ignore`.
-- **Definitions:** Markdown files with YAML frontmatter. Loaded from `definitions/` directory. DB overrides via API. Worker loads via `DefinitionRegistry`.
-- **Policy:** Declarative rules in `policy/engine.py`. Priority-ordered, first-match-wins. No LLM in the policy pipeline.
-- **Workflows:** 4 Temporal workflows (Investigation, Remediation, Approval, Verification). Activities in `execution/activities.py`. Workflow ID derived from issue fingerprint to prevent duplicates.
+- **Definitions:** Markdown files with YAML frontmatter. Loaded from `definitions/` directory. DB overrides via API. Worker loads via `DefinitionRegistry`. 35 definitions ship out of box: 7 scanners, 7 tools, 7 skills, 10 policies, 3 pipelines, 2 redaction rules.
+- **Policy:** Declarative rules in `policy/engine.py`. Priority-ordered, first-match-wins. No LLM in the policy pipeline. Supports 8 condition fields and 5 action types. Observer dispatches Temporal workflows on `investigate` decisions.
+- **Observation:** Scanner dispatch loop in `observer.py` — iterates all enabled scanner definitions, fetches resources via `SCANNER_FETCHERS` map, runs checks via `SCANNER_RUNNERS` map. Recurrence counting via observation count per correlation key.
+- **Workflows:** 4 Temporal workflows (Investigation, Remediation, Approval, Verification). Activities in `execution/activities.py`. Workflow ID derived from issue fingerprint to prevent duplicates. `gather_evidence` is skill-aware — reads the skill's `tools` list and calls tool-specific K8s API functions (logs, top, describe, rollout, helm-history).
 - **SSE:** Heartbeat every 15s. Reconnect with `Last-Event-ID`. Auth-expired/binding-expired sentinel events.
 - **Models:** SQLAlchemy 2 declarative in `models/`. Alembic for migrations. 23 tables including extensibility (definitions, service_bindings, domain_events, webhooks, policy_rules, api_tokens).
 
@@ -86,7 +87,7 @@ infra/helm/        → Helm chart
 - CSRF via double-submit cookie (`X-CSRF-Token` header)
 - All containers non-root (UID 1001), read-only rootfs
 - Cluster credentials encrypted at rest (AES-256-GCM with AAD)
-- Evidence redacted before LLM prompts (bearer tokens, connection strings, sensitive env vars)
+- Evidence redacted before LLM prompts (11 patterns: bearer tokens, connection strings, env vars, K8s JWTs, kubeconfig fields, AWS/GCP metadata, Helm release secrets)
 - Observer identity isolated from user execution identity
 - >5 clusters requires external OIDC (per-cluster OAuth doesn't scale)
 
@@ -97,7 +98,7 @@ infra/helm/        → Helm chart
 cd apps/api && .venv/bin/pytest tests/ --ignore=tests/benchmark -v
 cd apps/api && .venv/bin/pytest tests/benchmark/ -v --benchmark-only  # perf only
 
-# Worker tests (72 unit + 26 integration + 36 evals)
+# Worker tests (106 unit + 26 integration + 36 evals)
 cd apps/worker && .venv/bin/pytest tests/ -v                          # unit + integration
 cd apps/worker && .venv/bin/pytest evals/ -v                          # LLM eval graders
 

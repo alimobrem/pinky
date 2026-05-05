@@ -14,3 +14,18 @@ export function shortTime(dateStr: string): string {
   if (!isValid(date)) return dateStr;
   return format(date, "HH:mm:ss");
 }
+
+export function fullDateTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  if (!isValid(date)) return dateStr;
+  return format(date, "MMM d, yyyy 'at' HH:mm:ss");
+}
+
+export function compactNumber(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+export function percentLabel(n: number): string {
+  return `${Math.round(n * 100)}%`;
+}
