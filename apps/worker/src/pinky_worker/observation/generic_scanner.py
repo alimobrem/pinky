@@ -208,20 +208,26 @@ def evaluate_op(
                 for v in value
             )
 
+        cmp_value = condition.get("value")
+        if "value_from" in condition:
+            cmp_value = resolve_path(resource, condition["value_from"])
+            if cmp_value is None:
+                return False
+
         if op == "eq":
-            return value == condition["value"]
+            return value == cmp_value
         if op == "neq":
-            return value != condition["value"]
+            return value != cmp_value
         if op == "gt":
-            return _to_float(value) > _to_float(condition["value"])
+            return _to_float(value) > _to_float(cmp_value)
         if op == "gte":
-            return _to_float(value) >= _to_float(condition["value"])
+            return _to_float(value) >= _to_float(cmp_value)
         if op == "lt":
-            return _to_float(value) < _to_float(condition["value"])
+            return _to_float(value) < _to_float(cmp_value)
         if op == "lte":
-            return _to_float(value) <= _to_float(condition["value"])
+            return _to_float(value) <= _to_float(cmp_value)
         if op == "in":
-            return value in condition["value"]
+            return value in cmp_value
         if op == "is_empty":
             return _is_empty(value)
         if op == "is_set":
