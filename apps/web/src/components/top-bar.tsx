@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Search, Brain, ChevronDown, LogOut } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import type { ClusterRegistryEntry, PaginatedResponse } from "@pinky/contracts";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-interface Cluster { id: string; display_name: string; onboarding_state: string; }
 interface SessionInfo { authenticated: boolean; principal?: { display_name?: string }; }
 
 const PAGE_NAMES: Record<string, string> = {
@@ -21,29 +23,30 @@ const PAGE_NAMES: Record<string, string> = {
 };
 
 export function TopBar() {
-  const [clusters, setClusters] = useState<Cluster[]>([]);
-  const [session, setSession] = useState<SessionInfo | null>(null);
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
   const selectedCluster = searchParams.get("cluster") || "all";
 
-  useEffect(() => {
-    api.get<{ items: Cluster[] }>("/api/v1/clusters")
-      .then(d => setClusters(d.items || []))
-      .catch(() => setClusters([]));
-  }, []);
+  const { data: clustersData } = useQuery({
+    queryKey: ["clusters"],
+    queryFn: () => api.get<PaginatedResponse<ClusterRegistryEntry>>("/api/v1/clusters"),
+    staleTime: 60_000,
+  });
+  const clusters = clustersData?.items ?? [];
 
-  useEffect(() => {
-    const checkSession = () =>
-      fetch("/api/v1/auth/session", { credentials: "include" })
-        .then(r => r.json())
-        .then(setSession)
-        .catch(() => setSession({ authenticated: false }));
-    checkSession();
-    const interval = setInterval(checkSession, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  const { data: session } = useQuery({
+    queryKey: ["session"],
+    queryFn: () => api.get<SessionInfo>("/api/v1/auth/session"),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    retry: false,
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: () => api.post("/api/v1/auth/logout"),
+    onSuccess: () => { window.location.href = "/login"; },
+  });
 
   const handleClusterChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -86,27 +89,26 @@ export function TopBar() {
           <div className="hidden h-4 w-px bg-border-subtle lg:block" />
 
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-            <div className="relative sm:min-w-[180px]">
-              <select
-                aria-label="Cluster selector"
-                value={selectedCluster}
-                onChange={e => handleClusterChange(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-border-default bg-bg-surface py-2 pl-3 pr-8 text-xs font-medium text-text-primary transition-colors hover:border-accent-brain/30 focus:outline-none focus:ring-1 focus:ring-ring sm:w-auto"
-              >
-                <option value="all">All Clusters ({clusters.length})</option>
-                {clusters.map(c => <option key={c.id} value={c.id}>{c.display_name}</option>)}
-              </select>
-              <ChevronDown size={12} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
-            </div>
+            <Select value={selectedCluster} onValueChange={handleClusterChange}>
+              <SelectTrigger className="w-full sm:w-[200px] h-9 text-xs" aria-label="Cluster selector">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Clusters ({clusters.length})</SelectItem>
+                {clusters.map(c => <SelectItem key={c.id} value={c.id}>{c.display_name}</SelectItem>)}
+              </SelectContent>
+            </Select>
 
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-              className="flex w-full items-center gap-2 rounded-lg border border-border-default bg-bg-surface px-3 py-2 text-xs text-text-tertiary transition-colors hover:border-accent-brain/30 sm:w-auto sm:min-w-[220px]"
+              className="justify-start gap-2 text-text-tertiary sm:min-w-[220px]"
             >
               <Search size={13} />
               <span>Search...</span>
-              <kbd className="ml-auto rounded border border-border-default bg-bg-active px-1.5 py-0.5 font-mono text-xs text-text-tertiary sm:ml-4">⌘K</kbd>
-            </button>
+              <kbd className="ml-auto rounded border border-border-default bg-bg-active px-1.5 py-0.5 font-mono text-xs text-text-tertiary">⌘K</kbd>
+            </Button>
           </div>
         </div>
 
@@ -122,18 +124,17 @@ export function TopBar() {
                 <span className="h-1.5 w-1.5 rounded-full bg-status-done" />
                 <span>{session.principal?.display_name || "Connected"}</span>
               </div>
-              <button
-                onClick={async () => {
-                  await fetch("/api/v1/auth/logout", { method: "POST", credentials: "include" });
-                  window.location.href = "/login";
-                }}
-                className="cursor-pointer border-none bg-transparent p-1 text-text-tertiary transition-colors hover:text-text-secondary"
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => logoutMutation.mutate()}
                 title="Sign out"
+                className="h-7 w-7 p-0 text-text-tertiary hover:text-text-secondary"
               >
                 <LogOut size={13} />
-              </button>
+              </Button>
             </div>
-          ) : session !== null ? (
+          ) : session !== undefined ? (
             <Link href="/login" className={cn("flex items-center gap-2 no-underline font-medium", "text-status-blocked")}>
               <span className="h-1.5 w-1.5 rounded-full bg-status-blocked" />
               <span>Session expired</span>

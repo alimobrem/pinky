@@ -2,37 +2,38 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import { Brain } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import type { PaginatedResponse } from "@pinky/contracts";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { NAV_ITEMS, type NavItem } from "@/components/nav-config";
 
 export function NavRail() {
   const pathname = usePathname();
-  const [badges, setBadges] = useState<Record<string, string>>({});
-  const [brainActive, setBrainActive] = useState(false);
 
-  useEffect(() => {
-    const fetchBadges = () => {
-      api.get<{ items: unknown[]; has_more: boolean; total_count?: number }>("/api/v1/work-items?status=ready&limit=1")
-        .then(d => { const count = d.total_count ?? (d.items || []).length; setBadges(prev => ({ ...prev, tasks: `${count}` })); })
-        .catch(() => {});
-      api.get<{ items: unknown[]; has_more: boolean; total_count?: number }>("/api/v1/alerts?limit=1")
-        .then(d => { const count = d.total_count ?? (d.items || []).length; setBadges(prev => ({ ...prev, alerts: `${count}` })); })
-        .catch(() => {});
-      api.get<{ items: unknown[]; total_count?: number }>("/api/v1/issues?status=open&limit=1")
-        .then(d => setBrainActive((d.total_count ?? (d.items || []).length) > 0))
-        .catch(() => {});
-    };
-    fetchBadges();
-    const interval = setInterval(fetchBadges, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  const { data: taskData } = useQuery({
+    queryKey: ["nav-badge-tasks"],
+    queryFn: () => api.get<PaginatedResponse<unknown>>("/api/v1/work-items?status=ready&limit=1"),
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+
+  const { data: issueData } = useQuery({
+    queryKey: ["nav-badge-issues"],
+    queryFn: () => api.get<PaginatedResponse<unknown>>("/api/v1/issues?status=open&limit=1"),
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+
+  const taskCount = taskData?.total_count ?? taskData?.items?.length ?? 0;
+  const brainActive = (issueData?.total_count ?? issueData?.items?.length ?? 0) > 0;
+
+  const badges: Record<string, string> = {};
+  if (taskCount > 0) badges.tasks = `${taskCount}`;
 
   return (
     <nav className="hidden h-screen shrink-0 overflow-y-auto border-r border-sidebar-border bg-[linear-gradient(180deg,#0b0a12_0%,#09080f_100%)] md:flex md:w-[96px] md:flex-col xl:w-[248px]">
-      {/* Brand */}
       <div className="flex items-center gap-3 px-4 pb-6 pt-5 xl:px-5">
         <div className="relative">
           <Brain size={24} className="text-accent-brain drop-shadow-[0_0_8px_rgba(167,139,250,0.4)]" />
@@ -50,7 +51,6 @@ export function NavRail() {
 
       <div className="mx-4 mb-4 h-px bg-border-subtle" />
 
-      {/* Primary nav */}
       <div className="flex flex-col gap-1 px-2 xl:px-3">
         <div className="hidden px-2 pb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary xl:block">
           Workbench
@@ -62,7 +62,6 @@ export function NavRail() {
 
       <div className="mx-4 mb-4 mt-6 h-px bg-border-subtle" />
 
-      {/* Secondary nav */}
       <div className="flex flex-col gap-1 px-2 pb-6 xl:px-3">
         <div className="hidden px-2 pb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary xl:block">
           System

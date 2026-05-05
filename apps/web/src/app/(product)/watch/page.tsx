@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Brain, Eye, EyeOff, CheckCircle } from "lucide-react";
+import { Brain, Eye, EyeOff, CheckCircle, Filter } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Issue, PaginatedResponse } from "@pinky/contracts";
@@ -11,6 +11,8 @@ import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useSSE } from "@/hooks/use-sse";
 import { api } from "@/lib/api";
 import { relativeTime } from "@/lib/format-date";
@@ -21,9 +23,11 @@ export default function WatchPage() {
   const cluster = searchParams.get("cluster");
   const queryClient = useQueryClient();
   const [actingId, setActingId] = useState<string | null>(null);
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [confirmAction, setConfirmAction] = useState<{ id: string; action: "suppress" | "resolve"; title: string } | null>(null);
 
   const queryKey = ["issues", cluster] as const;
-  const { data, error: fetchError } = useQuery({
+  const { data, isLoading, error: fetchError } = useQuery({
     queryKey,
     queryFn: () => {
       let url = "/api/v1/issues?status=open";
@@ -32,7 +36,10 @@ export default function WatchPage() {
     },
   });
 
-  const issues = data?.items ?? [];
+  const allIssues = data?.items ?? [];
+  const issues = severityFilter === "all"
+    ? allIssues
+    : allIssues.filter(i => i.severity === severityFilter);
 
   const sseHandlers = useMemo(() => ({
     update: () => queryClient.invalidateQueries({ queryKey: ["issues"] }),
@@ -55,6 +62,13 @@ export default function WatchPage() {
     onSettled: () => setActingId(null),
   });
 
+  const handleConfirm = () => {
+    if (!confirmAction) return;
+    if (confirmAction.action === "suppress") suppressMutation.mutate(confirmAction.id);
+    else resolveMutation.mutate(confirmAction.id);
+    setConfirmAction(null);
+  };
+
   return (
     <div className="animate-fade-in">
       <PageHeader
@@ -75,11 +89,34 @@ export default function WatchPage() {
         }
       />
 
+      <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-4 py-3 shadow-card">
+        <Filter size={14} className="text-text-tertiary" />
+        <Select value={severityFilter} onValueChange={setSeverityFilter}>
+          <SelectTrigger className="w-[140px] h-8 text-xs" aria-label="Filter issues by severity">
+            <SelectValue placeholder="All Severities" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Severities</SelectItem>
+            <SelectItem value="critical">Critical</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="low">Low</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="ml-auto text-xs text-text-tertiary">{issues.length} of {allIssues.length} issues</span>
+      </div>
+
       {fetchError && (
         <div className="mt-6 p-3 px-4 rounded-md bg-status-blocked/10 border border-status-blocked/30 text-status-blocked text-sm">{fetchError.message}</div>
       )}
 
-      {issues.length === 0 && !fetchError ? (
+      {isLoading && (
+        <div className="mt-6 flex flex-col gap-3">
+          {[1, 2, 3].map(i => <div key={i} className="skeleton h-24 rounded-xl" />)}
+        </div>
+      )}
+
+      {!isLoading && issues.length === 0 && !fetchError ? (
         <EmptyState
           className="mt-6"
           eyebrow="Everything is calm"
@@ -91,7 +128,7 @@ export default function WatchPage() {
       ) : issues.length > 0 ? (
         <div className="mt-6 flex flex-col gap-3">
           {issues.map(issue => (
-            <div key={issue.id} className={`bg-bg-surface border border-border-default rounded-xl border-l-[3px] p-5 shadow-card transition-all duration-200 hover:shadow-card-hover ${SEVERITY_BORDER[issue.severity] || "border-l-border-default"} transition-colors`}>
+            <div key={issue.id} className={`bg-bg-surface border border-border-default rounded-xl border-l-[3px] p-5 shadow-card transition-all duration-200 hover:shadow-card-hover ${SEVERITY_BORDER[issue.severity] || "border-l-border-default"}`}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2 flex-1">
                   <Brain size={14} className="text-accent-brain" />
@@ -103,10 +140,10 @@ export default function WatchPage() {
                 {issue.status} — last seen {issue.last_seen_at ? relativeTime(issue.last_seen_at) : "unknown"}
               </div>
               <div className="flex gap-2 mt-3 pl-6">
-                <Button variant="outline" size="sm" onClick={() => suppressMutation.mutate(issue.id)} disabled={actingId === issue.id} className="h-7 text-xs">
+                <Button variant="outline" size="sm" onClick={() => setConfirmAction({ id: issue.id, action: "suppress", title: issue.title })} disabled={actingId === issue.id} className="h-7 text-xs">
                   <EyeOff size={12} /> Suppress
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => resolveMutation.mutate(issue.id)} disabled={actingId === issue.id} className="h-7 text-xs text-status-done">
+                <Button variant="outline" size="sm" onClick={() => setConfirmAction({ id: issue.id, action: "resolve", title: issue.title })} disabled={actingId === issue.id} className="h-7 text-xs text-status-done">
                   <CheckCircle size={12} /> Resolve
                 </Button>
                 <Button variant="outline" size="sm" asChild className="h-7 text-xs">
@@ -117,6 +154,27 @@ export default function WatchPage() {
           ))}
         </div>
       ) : null}
+
+      <AlertDialog open={!!confirmAction} onOpenChange={() => setConfirmAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmAction?.action === "suppress" ? "Suppress issue?" : "Resolve issue?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction?.action === "suppress"
+                ? `This will suppress "${confirmAction?.title}". It won't trigger new tasks until it reappears after suppression expires.`
+                : `This will mark "${confirmAction?.title}" as resolved. If the underlying problem persists, it will reopen automatically.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirm}>
+              {confirmAction?.action === "suppress" ? "Suppress" : "Resolve"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

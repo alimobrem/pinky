@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Settings as SettingsIcon, Plus, Trash2, Brain } from "lucide-react";
 import { toast } from "sonner";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import type { ClusterRegistryEntry, ClusterIdentityBinding, Definition, WebhookSubscription, PolicyRule, PaginatedResponse } from "@pinky/contracts";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -57,64 +57,52 @@ export default function SettingsPage() {
     queryClient.invalidateQueries({ queryKey: ["analytics-roi"] });
   };
 
-  const createCluster = async () => {
-    try {
-      await api.post("/api/v1/clusters", { display_name: clusterForm.display_name, api_endpoint: clusterForm.api_endpoint, fleet_identifier: clusterForm.fleet_identifier || null });
-      toast.success("Cluster added");
-      setClusterOpen(false);
-      setClusterForm({ display_name: "", api_endpoint: "", fleet_identifier: "" });
-      refresh();
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
-  };
+  const clusterMutation = useMutation({
+    mutationFn: () => api.post("/api/v1/clusters", { display_name: clusterForm.display_name, api_endpoint: clusterForm.api_endpoint, fleet_identifier: clusterForm.fleet_identifier || null }),
+    onSuccess: () => { toast.success("Cluster added"); setClusterOpen(false); setClusterForm({ display_name: "", api_endpoint: "", fleet_identifier: "" }); refresh(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
-  const createDefinition = async () => {
-    try {
+  const definitionMutation = useMutation({
+    mutationFn: () => {
       let frontmatter = {};
-      try { frontmatter = JSON.parse(defForm.frontmatter); } catch { toast.error("Invalid frontmatter JSON"); return; }
-      await api.post("/api/v1/definitions", { kind: defForm.kind, name: defForm.name, version: defForm.version, frontmatter, body: defForm.body, enabled: true });
-      toast.success("Definition created");
-      setDefOpen(false);
-      setDefForm({ kind: "scanner", name: "", version: "1", frontmatter: "{}", body: "" });
-      refresh();
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
-  };
+      try { frontmatter = JSON.parse(defForm.frontmatter); } catch { toast.error("Invalid frontmatter JSON"); throw new Error("Invalid JSON"); }
+      return api.post("/api/v1/definitions", { kind: defForm.kind, name: defForm.name, version: defForm.version, frontmatter, body: defForm.body, enabled: true });
+    },
+    onSuccess: () => { toast.success("Definition created"); setDefOpen(false); setDefForm({ kind: "scanner", name: "", version: "1", frontmatter: "{}", body: "" }); refresh(); },
+    onError: (e: Error) => { if (e.message !== "Invalid JSON") toast.error(e.message); },
+  });
 
-  const createWebhook = async () => {
-    try {
-      await api.post("/api/v1/webhook-subscriptions", { name: webhookForm.name, url: webhookForm.url, event_patterns: webhookForm.event_patterns.split(",").map(s => s.trim()).filter(Boolean), formatter: webhookForm.formatter });
-      toast.success("Webhook created");
-      setWebhookOpen(false);
-      setWebhookForm({ name: "", url: "", event_patterns: "", formatter: "generic" });
-      refresh();
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
-  };
+  const webhookMutation = useMutation({
+    mutationFn: () => api.post("/api/v1/webhook-subscriptions", { name: webhookForm.name, url: webhookForm.url, event_patterns: webhookForm.event_patterns.split(",").map(s => s.trim()).filter(Boolean), formatter: webhookForm.formatter }),
+    onSuccess: () => { toast.success("Webhook created"); setWebhookOpen(false); setWebhookForm({ name: "", url: "", event_patterns: "", formatter: "generic" }); refresh(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
-  const createRule = async () => {
-    try {
+  const ruleMutation = useMutation({
+    mutationFn: () => {
       let conditions = {}, action = {};
-      try { conditions = JSON.parse(ruleForm.conditions); } catch { toast.error("Invalid conditions JSON"); return; }
-      try { action = JSON.parse(ruleForm.action); } catch { toast.error("Invalid action JSON"); return; }
-      await api.post("/api/v1/policy-rules", { name: ruleForm.name, description: ruleForm.description || null, priority: parseInt(ruleForm.priority, 10), conditions, action });
-      toast.success("Rule created");
-      setRuleOpen(false);
-      setRuleForm({ name: "", description: "", priority: "50", conditions: "{}", action: "{}" });
-      refresh();
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
-  };
+      try { conditions = JSON.parse(ruleForm.conditions); } catch { toast.error("Invalid conditions JSON"); throw new Error("Invalid JSON"); }
+      try { action = JSON.parse(ruleForm.action); } catch { toast.error("Invalid action JSON"); throw new Error("Invalid JSON"); }
+      return api.post("/api/v1/policy-rules", { name: ruleForm.name, description: ruleForm.description || null, priority: parseInt(ruleForm.priority, 10), conditions, action });
+    },
+    onSuccess: () => { toast.success("Rule created"); setRuleOpen(false); setRuleForm({ name: "", description: "", priority: "50", conditions: "{}", action: "{}" }); refresh(); },
+    onError: (e: Error) => { if (e.message !== "Invalid JSON") toast.error(e.message); },
+  });
 
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    try {
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!deleteTarget) return;
       if (deleteTarget.type === "cluster") await api.del(`/api/v1/clusters/${deleteTarget.id}`);
       else if (deleteTarget.type === "definition") await api.del(`/api/v1/definitions/${deleteTarget.id}`);
       else if (deleteTarget.type === "webhook") await api.del(`/api/v1/webhook-subscriptions/${deleteTarget.id}`);
       else if (deleteTarget.type === "rule") await api.del(`/api/v1/policy-rules/${deleteTarget.id}`);
       else if (deleteTarget.type === "binding") await api.del(`/api/v1/cluster-bindings/${deleteTarget.id}`);
-      toast.success(`${deleteTarget.type} deleted`);
-      refresh();
-    } catch { toast.error("Failed to delete"); }
-    setDeleteTarget(null);
-  };
+    },
+    onSuccess: () => { toast.success(`${deleteTarget?.type} deleted`); refresh(); },
+    onError: () => toast.error("Failed to delete"),
+    onSettled: () => setDeleteTarget(null),
+  });
 
   return (
     <div className="space-y-6">
@@ -176,7 +164,7 @@ export default function SettingsPage() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setClusterOpen(false)}>Cancel</Button>
-                  <Button onClick={createCluster} disabled={!clusterForm.display_name || !clusterForm.api_endpoint}>Add Cluster</Button>
+                  <Button onClick={() => clusterMutation.mutate()} disabled={!clusterForm.display_name || !clusterForm.api_endpoint}>Add Cluster</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -237,7 +225,7 @@ export default function SettingsPage() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setDefOpen(false)}>Cancel</Button>
-                  <Button onClick={createDefinition} disabled={!defForm.name}>Create</Button>
+                  <Button onClick={() => definitionMutation.mutate()} disabled={!defForm.name}>Create</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -293,7 +281,7 @@ export default function SettingsPage() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setWebhookOpen(false)}>Cancel</Button>
-                  <Button onClick={createWebhook} disabled={!webhookForm.name || !webhookForm.url}>Create</Button>
+                  <Button onClick={() => webhookMutation.mutate()} disabled={!webhookForm.name || !webhookForm.url}>Create</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -339,7 +327,7 @@ export default function SettingsPage() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setRuleOpen(false)}>Cancel</Button>
-                  <Button onClick={createRule} disabled={!ruleForm.name}>Create</Button>
+                  <Button onClick={() => ruleMutation.mutate()} disabled={!ruleForm.name}>Create</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -477,7 +465,7 @@ export default function SettingsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-status-blocked hover:bg-status-blocked/90">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={() => deleteMutation.mutate()} className="bg-status-blocked hover:bg-status-blocked/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
