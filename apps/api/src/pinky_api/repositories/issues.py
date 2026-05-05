@@ -56,6 +56,20 @@ class IssueRepository(BaseRepository):
         self.session.expire_all()
         return await self.get(issue_id)
 
+    async def escalate(self, issue_id: UUID) -> Issue | None:
+        issue = await self.get(issue_id)
+        if issue is None:
+            return None
+        await self.session.execute(
+            sa_update(Issue).where(Issue.id == issue_id).values(
+                status="open",
+                suppressed_until=None,
+                updated_at=datetime.utcnow(),
+            )
+        )
+        self.session.expire_all()
+        return await self.get(issue_id)
+
     async def resolve(self, issue_id: UUID) -> Issue | None:
         issue = await self.get(issue_id)
         if issue is None:

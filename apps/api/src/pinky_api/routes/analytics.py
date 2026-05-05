@@ -1,7 +1,9 @@
 """Analytics and ROI routes — proving Pinky's value."""
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.db.deps import get_db
@@ -10,6 +12,53 @@ from pinky_api.models.issue import Issue
 from pinky_api.models.work_item import WorkItem
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
+
+_SINCE_MAP = {
+    "1h": timedelta(hours=1),
+    "4h": timedelta(hours=4),
+    "24h": timedelta(hours=24),
+}
+
+
+@router.get("/watch-summary")
+async def watch_summary(since: str = "1h", db: AsyncSession = Depends(get_db)) -> dict:
+    delta = _SINCE_MAP.get(since)
+    if delta is None:
+        raise HTTPException(status_code=400, detail=f"Invalid since value: {since}. Must be one of: 1h, 4h, 24h")
+    cutoff = datetime.now(timezone.utc) - delta
+
+    signals_processed = (await db.execute(
+        text("SELECT COUNT(*) FROM observations WHERE observed_at > :cutoff"),
+        {"cutoff": cutoff},
+    )).scalar_one()
+
+    suppressed = (await db.execute(
+        text("SELECT COUNT(*) FROM issues WHERE status = 'suppressed' AND updated_at > :cutoff"),
+        {"cutoff": cutoff},
+    )).scalar_one()
+
+    investigating = (await db.execute(
+        text("SELECT COUNT(*) FROM executions WHERE execution_type = 'investigation' AND status = 'running'"),
+    )).scalar_one()
+
+    tasks_created = (await db.execute(
+        text("SELECT COUNT(*) FROM work_items WHERE created_at > :cutoff"),
+        {"cutoff": cutoff},
+    )).scalar_one()
+
+    auto_resolved = (await db.execute(
+        text("SELECT COUNT(*) FROM issues WHERE status = 'resolved' AND resolved_at > :cutoff"),
+        {"cutoff": cutoff},
+    )).scalar_one()
+
+    return {
+        "since": since,
+        "signals_processed": signals_processed,
+        "suppressed": suppressed,
+        "investigating": investigating,
+        "tasks_created": tasks_created,
+        "auto_resolved": auto_resolved,
+    }
 
 
 @router.get("/roi")

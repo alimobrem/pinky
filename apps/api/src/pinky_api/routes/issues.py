@@ -126,3 +126,24 @@ async def resolve_issue(
     await emit(db, "issue.resolved", "issue", UUID(issue_id), {"status": "resolved"})
     await db.commit()
     return _serialize(issue)
+
+
+@router.post("/{issue_id}/escalate")
+async def escalate_issue(
+    issue_id: str,
+    db: AsyncSession = Depends(get_db),
+    _principal: dict = Depends(require_authenticated),
+) -> dict:
+    repo = IssueRepository(db)
+    current = await repo.get(UUID(issue_id))
+    if current is None:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    if current.status != "suppressed":
+        raise HTTPException(status_code=409, detail="Issue is not suppressed")
+    await require_cluster_write_access(current.cluster_id, _principal, db)
+    issue = await repo.escalate(UUID(issue_id))
+    if issue is None:
+        raise HTTPException(status_code=404, detail="Issue not found")
+    await emit(db, "issue.escalated", "issue", UUID(issue_id), {"status": "open"})
+    await db.commit()
+    return _serialize(issue)
