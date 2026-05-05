@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Search, LogOut, PanelLeft, User } from "lucide-react";
+import { Search, LogOut, User } from "lucide-react";
 import type { ClusterRegistryEntry, PaginatedResponse } from "@pinky/contracts";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -24,12 +24,7 @@ import {
 import { Kbd } from "@/components/shared/keyboard-shortcut-hint";
 import { useCluster } from "@/hooks/use-cluster";
 
-interface TopBarProps {
-  onTogglePanel?: () => void;
-  panelOpen?: boolean;
-}
-
-export function TopBar({ onTogglePanel, panelOpen }: TopBarProps) {
+export function TopBar() {
   const router = useRouter();
   const clusterId = useCluster();
 
@@ -70,18 +65,6 @@ export function TopBar({ onTogglePanel, panelOpen }: TopBarProps) {
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border-subtle bg-bg-base px-4">
-      {onTogglePanel && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hidden h-7 w-7 text-text-tertiary hover:text-text-secondary xl:flex"
-          onClick={onTogglePanel}
-          aria-label={panelOpen ? "Close sidebar" : "Open sidebar"}
-        >
-          <PanelLeft size={16} />
-        </Button>
-      )}
-
       <Select value={clusterId ?? "all"} onValueChange={handleClusterChange}>
         <SelectTrigger className="h-7 w-auto min-w-[140px] gap-1.5 border-border-subtle bg-bg-surface text-xs">
           <SelectValue placeholder="All clusters" />

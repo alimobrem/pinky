@@ -42,9 +42,9 @@
   --color-env-default:     #3b82f6;
 
   /* ── Borders — visible contrast against surfaces ── */
-  --color-border-default:  #2a2a3a;
-  --color-border-subtle:   #1e1e2e;
-  --color-border-strong:   #3a3a50;
+  --color-border-default:  #303044;
+  --color-border-subtle:   #262638;
+  --color-border-strong:   #44445e;
   --color-border-focus:    #a78bfa;
 
   /* ── shadcn semantic ── */
@@ -63,12 +63,12 @@
   --color-accent:            #222230;
   --color-accent-foreground: #e8e6f0;
   --color-destructive:       #ef6b6b;
-  --color-border:            #2a2a3a;
-  --color-input:             #2a2a3a;
+  --color-border:            #303044;
+  --color-input:             #303044;
   --color-ring:              #a78bfa;
   --color-sidebar:           #07070c;
   --color-sidebar-foreground:#e8e6f0;
-  --color-sidebar-border:    #1e1e2e;
+  --color-sidebar-border:    #262638;
   --color-sidebar-accent:    #1a1a24;
   --color-sidebar-accent-foreground:#e8e6f0;
   --color-sidebar-ring:      #f472b6;
