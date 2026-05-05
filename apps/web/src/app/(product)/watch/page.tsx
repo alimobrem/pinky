@@ -88,7 +88,7 @@ export default function WatchPage() {
         }
       />
 
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-4 py-3 shadow-card">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-5 py-4 shadow-card">
         <Filter size={14} className="text-text-tertiary" />
         <Select value={severityFilter} onValueChange={setSeverityFilter}>
           <SelectTrigger className="w-[140px] h-8 text-xs" aria-label="Filter issues by severity">
@@ -110,7 +110,7 @@ export default function WatchPage() {
       )}
 
       {isLoading && (
-        <div className="mt-2 flex flex-col gap-4">
+        <div className="mt-4 flex flex-col gap-5">
           {[1, 2, 3].map(i => <div key={i} className="skeleton h-28 rounded-2xl" />)}
         </div>
       )}
@@ -125,9 +125,9 @@ export default function WatchPage() {
           action={<Link href="/settings">Configure scanners →</Link>}
         />
       ) : issues.length > 0 ? (
-        <div className="mt-2 flex flex-col gap-4">
+        <div className="mt-4 flex flex-col gap-5">
           {issues.map(issue => (
-            <div key={issue.id} className={`rounded-2xl border border-border-default border-l-[3px] bg-bg-surface p-5 shadow-card transition-all duration-200 hover:bg-bg-hover hover:shadow-card-hover ${SEVERITY_BORDER[issue.severity] || "border-l-border-default"}`}>
+            <div key={issue.id} className={`rounded-2xl border border-border-default border-l-[3px] bg-bg-surface px-6 py-5 shadow-card transition-all duration-200 hover:bg-bg-hover hover:shadow-card-hover ${SEVERITY_BORDER[issue.severity] || "border-l-border-default"}`}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2 flex-1">
                   <Brain size={14} className="text-accent-brain" />

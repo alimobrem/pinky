@@ -440,8 +440,8 @@ export default function TasksPage() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="space-y-6">
-          <div className="rounded-2xl border border-border-default bg-bg-surface p-4 shadow-card">
-            <div className="flex flex-wrap gap-2">
+          <div className="rounded-2xl border border-border-default bg-bg-surface px-5 py-5 shadow-card">
+            <div className="flex flex-wrap gap-2.5">
             {QUEUES.map((queue) => {
               const active = activeQueue === queue.id;
               const count = queueCounts[queue.id] ?? 0;
@@ -466,13 +466,13 @@ export default function TasksPage() {
               );
             })}
             </div>
-            <div className="mt-3 text-sm text-text-secondary">
+            <div className="mt-4 text-sm text-text-secondary">
               <span className="font-medium text-text-primary">{activeQueueConfig.label}:</span>{" "}
               {activeQueueConfig.description}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border-default bg-bg-surface/90 p-4 shadow-card">
+          <div className="rounded-2xl border border-border-default bg-bg-surface/90 px-5 py-5 shadow-card">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="relative w-full lg:max-w-[320px]">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
@@ -587,7 +587,7 @@ export default function TasksPage() {
           ) : null}
 
           {!isLoading && !error && processed.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {processed.map((item) => {
                 const active = item.id === activeTaskId;
                 const clusterName = clusterMap.get(item.cluster_id) ?? item.cluster_id.slice(0, 8);
@@ -597,7 +597,7 @@ export default function TasksPage() {
                   <article
                     key={item.id}
                     className={cn(
-                      "group rounded-2xl border border-border-default bg-bg-surface p-4 shadow-card transition-all duration-150",
+                      "group rounded-2xl border border-border-default bg-bg-surface px-5 py-5 shadow-card transition-all duration-150",
                       active
                         ? "border-accent-brand/35 bg-bg-elevated shadow-[0_0_22px_rgba(244,114,182,0.04)]"
                         : "hover:border-accent-brand/20 hover:bg-bg-elevated",

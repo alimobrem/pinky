@@ -33,8 +33,8 @@ export function NavRail() {
   if (taskCount > 0) badges.tasks = `${taskCount}`;
 
   return (
-    <nav className="hidden h-screen shrink-0 overflow-y-auto border-r border-sidebar-border bg-[linear-gradient(180deg,#0b0a12_0%,#09080f_100%)] md:flex md:w-[72px] md:flex-col xl:w-[248px]">
-      <div className="flex items-center gap-3 px-4 pb-6 pt-6 xl:px-5">
+    <nav className="hidden h-screen shrink-0 overflow-y-auto border-r border-sidebar-border bg-[linear-gradient(180deg,#0b0a12_0%,#09080f_100%)] md:flex md:w-[80px] md:flex-col xl:w-[260px]">
+      <div className="flex items-center gap-3 px-4 pb-6 pt-6 xl:px-6">
         <div className="relative">
           <Brain size={24} className="text-accent-brain drop-shadow-[0_0_12px_rgba(167,139,250,0.5)] transition-all duration-300 hover:drop-shadow-[0_0_20px_rgba(167,139,250,0.7)]" />
           {brainActive && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-status-done animate-brain-pulse" />}
@@ -51,7 +51,7 @@ export function NavRail() {
 
       <div className="mx-4 mb-4 h-px bg-border-subtle" />
 
-      <div className="flex flex-col gap-1 px-2 xl:px-3">
+      <div className="flex flex-col gap-1.5 px-3 xl:px-4">
         <div className="hidden px-2 pb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary xl:block">
           Workbench
         </div>
@@ -60,9 +60,9 @@ export function NavRail() {
         ))}
       </div>
 
-      <div className="mx-4 mb-4 mt-6 h-px bg-border-subtle" />
+      <div className="mt-auto mx-4 mb-4 h-px bg-border-subtle" />
 
-      <div className="flex flex-col gap-1 px-2 pb-6 xl:px-3">
+      <div className="flex flex-col gap-1.5 px-3 pb-6 xl:px-4">
         <div className="hidden px-2 pb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary xl:block">
           System
         </div>
@@ -82,7 +82,7 @@ function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badg
       aria-label={item.label}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex items-center justify-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium no-underline transition-all duration-200 xl:justify-start",
+        "group relative flex items-center justify-center gap-3 rounded-xl px-3.5 py-3 text-[13px] font-medium no-underline transition-all duration-200 xl:justify-start",
         active
           ? "bg-bg-elevated text-text-primary shadow-[0_0_16px_rgba(244,114,182,0.08),0_1px_3px_rgba(0,0,0,0.3)]"
           : "text-text-secondary hover:bg-bg-hover hover:text-text-primary hover:shadow-[0_0_12px_rgba(167,139,250,0.06)]"

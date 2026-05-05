@@ -21,7 +21,7 @@ export function PageHeader({
   return (
     <section
       className={cn(
-        "animate-slide-up relative mb-6 overflow-hidden rounded-2xl border border-border-default bg-[linear-gradient(135deg,rgba(15,14,23,0.98),rgba(24,22,36,0.9))] px-6 py-7 shadow-card sm:px-8 sm:py-8",
+        "animate-slide-up relative mb-8 rounded-2xl border border-border-default bg-[linear-gradient(135deg,rgba(15,14,23,0.98),rgba(24,22,36,0.9))] px-7 py-7 shadow-card sm:px-8 sm:py-8",
         className,
       )}
     >

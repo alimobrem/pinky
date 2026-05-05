@@ -76,7 +76,7 @@ export default function HistoryPage() {
         meta={<span>{filtered.length} events in view</span>}
       />
 
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-4 py-3 shadow-card">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-5 py-4 shadow-card">
         <Filter size={14} className="text-text-tertiary" />
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-[140px] h-8 text-xs" aria-label="Filter history by type">
