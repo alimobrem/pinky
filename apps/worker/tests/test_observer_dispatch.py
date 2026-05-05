@@ -1,0 +1,107 @@
+"""Tests for observer investigation dispatch and error handling."""
+
+from __future__ import annotations
+
+import uuid
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from pinky_worker.issues.correlator import CorrelationResult
+
+
+def _make_obs():
+    obs = MagicMock()
+    obs.fingerprint = "abc123"
+    obs.correlation_key = "test-key"
+    obs.check_id = "crash-loop"
+    obs.resource_kind = "Pod"
+    obs.resource_namespace = "default"
+    obs.resource_name = "test-pod"
+    return obs
+
+
+def _make_decision():
+    decision = MagicMock()
+    decision.action.skill = None
+    return decision
+
+
+@pytest.mark.asyncio
+async def test_dispatch_handles_workflow_already_started():
+    from pinky_worker.observation.observer import _dispatch_investigation
+
+    mock_client = AsyncMock()
+    mock_client.start_workflow = AsyncMock(
+        side_effect=Exception("Workflow execution already started")
+    )
+
+    fake_pool = AsyncMock()
+    fake_pool.fetchrow = AsyncMock(return_value={"id": uuid.uuid4()})
+    fake_pool.execute = AsyncMock()
+
+    result = CorrelationResult(action="created", issue_id=str(uuid.uuid4()), observation_count=1)
+
+    with patch("pinky_worker.db.get_pool", AsyncMock(return_value=fake_pool)):
+        await _dispatch_investigation(
+            mock_client, str(uuid.uuid4()), _make_obs(), result, _make_decision(), MagicMock(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_dispatch_creates_execution_record():
+    from pinky_worker.observation.observer import _dispatch_investigation
+
+    mock_client = AsyncMock()
+    mock_client.start_workflow = AsyncMock()
+
+    work_item_id = uuid.uuid4()
+    fake_pool = AsyncMock()
+    fake_pool.fetchrow = AsyncMock(return_value={"id": work_item_id})
+    fake_pool.execute = AsyncMock()
+
+    result = CorrelationResult(action="created", issue_id=str(uuid.uuid4()), observation_count=1)
+
+    with patch("pinky_worker.db.get_pool", AsyncMock(return_value=fake_pool)):
+        await _dispatch_investigation(
+            mock_client, str(uuid.uuid4()), _make_obs(), result, _make_decision(), MagicMock(),
+        )
+
+    insert_calls = [
+        call for call in fake_pool.execute.call_args_list
+        if "INSERT INTO executions" in str(call)
+    ]
+    assert len(insert_calls) == 1
+
+    mock_client.start_workflow.assert_called_once()
+    wf_id = mock_client.start_workflow.call_args.kwargs["id"]
+    assert wf_id.startswith("investigation-")
+    exec_uuid = wf_id.removeprefix("investigation-")
+    uuid.UUID(exec_uuid)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_marks_failed_on_unexpected_error():
+    from pinky_worker.observation.observer import _dispatch_investigation
+
+    mock_client = AsyncMock()
+    mock_client.start_workflow = AsyncMock(
+        side_effect=Exception("Temporal unavailable")
+    )
+
+    fake_pool = AsyncMock()
+    fake_pool.fetchrow = AsyncMock(return_value={"id": uuid.uuid4()})
+    fake_pool.execute = AsyncMock()
+
+    result = CorrelationResult(action="created", issue_id=str(uuid.uuid4()), observation_count=1)
+
+    with patch("pinky_worker.db.get_pool", AsyncMock(return_value=fake_pool)):
+        await _dispatch_investigation(
+            mock_client, str(uuid.uuid4()), _make_obs(), result, _make_decision(), MagicMock(),
+        )
+
+    failed_calls = [
+        call for call in fake_pool.execute.call_args_list
+        if "UPDATE executions SET status = 'failed'" in str(call)
+    ]
+    assert len(failed_calls) == 1
