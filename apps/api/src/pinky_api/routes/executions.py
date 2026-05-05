@@ -190,6 +190,38 @@ async def start_execution(
     return _serialize(ex)
 
 
+@router.post("/{execution_id}/cancel")
+async def cancel_execution(
+    execution_id: str,
+    db: AsyncSession = Depends(get_db),
+    principal: dict = Depends(require_authenticated),
+) -> dict:
+    from pinky_api.temporal_state import get_client
+
+    repo = ExecutionRepository(db)
+    ex = await repo.get(_parse_uuid(execution_id, "Execution"))
+    if ex is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    await require_cluster_read_access(ex.cluster_id, principal, db, require_binding=True)
+
+    if ex.status not in ("pending", "running"):
+        raise HTTPException(status_code=409, detail=f"Cannot cancel execution in '{ex.status}' state")
+
+    await repo.update_status(ex.id, "cancelled")
+    await emit(db, "execution.cancelled", "execution", ex.id, {}, cluster_id=ex.cluster_id)
+    await db.commit()
+
+    workflow_id = f"{ex.execution_type}-{execution_id}"
+    try:
+        temporal_client = await get_client()
+        handle = temporal_client.get_workflow_handle(workflow_id)
+        await handle.cancel()
+    except Exception:
+        logger.warning("could not cancel Temporal workflow %s (may have already finished)", workflow_id)
+
+    return {"status": "cancelled", "execution_id": execution_id}
+
+
 @router.post("/{execution_id}/approve")
 async def approve_execution(
     execution_id: str, req: ApproveRequest,

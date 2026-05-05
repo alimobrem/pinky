@@ -70,3 +70,13 @@ def test_list_executions_with_work_item_filter(authed_client: TestClient) -> Non
     )
     assert r.status_code == 200
     assert r.json()["items"] == []
+
+
+def test_cancel_nonexistent(authed_client: TestClient) -> None:
+    r = authed_client.post(f"/api/v1/executions/{uuid.uuid4()}/cancel")
+    assert r.status_code == 404
+
+
+def test_cancel_invalid_uuid(authed_client: TestClient) -> None:
+    r = authed_client.post("/api/v1/executions/not-a-uuid/cancel")
+    assert r.status_code == 404
