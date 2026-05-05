@@ -13,7 +13,7 @@ export default async function ProductLayout({ children }: { children: ReactNode 
   await requireServerSession();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(167,139,250,0.08),transparent_28%),radial-gradient(circle_at_top_right,rgba(244,114,182,0.06),transparent_24%),#07060b]">
+    <div className="flex h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(167,139,250,0.08),transparent_28%),radial-gradient(circle_at_top_right,rgba(244,114,182,0.06),transparent_24%),#08070d]">
       <NavRail />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar />

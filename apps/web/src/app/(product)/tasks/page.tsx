@@ -625,9 +625,9 @@ export default function TasksPage() {
                       >
                         {selectedIds.has(item.id) ? <Check size={12} /> : null}
                       </Button>
-                      <div className="min-w-0 flex-1 space-y-2">
-                        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                          <div className="min-w-0 space-y-2">
+                      <div className="min-w-0 flex-1 space-y-3">
+                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                          <div className="min-w-0 space-y-3">
                             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-text-tertiary">
                               <Badge variant="outline" className="rounded-full border-border-subtle bg-bg-elevated/80 text-xs text-text-secondary">
                                 {clusterName}
@@ -637,7 +637,7 @@ export default function TasksPage() {
                                 {item.created_at ? relativeTime(item.created_at) : "recent"}
                               </span>
                             </div>
-                            <div className="space-y-1.5">
+                            <div className="space-y-2">
                               <Link href={`/tasks/${item.id}`} className="block text-[15px] font-semibold leading-snug text-text-primary no-underline hover:text-accent-brand">
                                 {item.title}
                               </Link>

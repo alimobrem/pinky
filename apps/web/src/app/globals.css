@@ -2,11 +2,11 @@
 
 @theme {
   /* ── Surface system — clear visual hierarchy ── */
-  --color-bg-primary:    #07060b;
-  --color-bg-surface:    #0f0e17;
-  --color-bg-elevated:   #181624;
-  --color-bg-hover:      #1f1d2e;
-  --color-bg-active:     #28253a;
+  --color-bg-primary:    #08070d;
+  --color-bg-surface:    #13111f;
+  --color-bg-elevated:   #1c1a2b;
+  --color-bg-hover:      #242138;
+  --color-bg-active:     #2e2b44;
 
   /* ── Text ── */
   --color-text-primary:  #eae8f0;
@@ -35,34 +35,34 @@
   --color-priority-low:      #6b7280;
 
   /* ── Borders ── */
-  --color-border-default:    #3d3660;
-  --color-border-subtle:     #2d2848;
+  --color-border-default:    #4a4270;
+  --color-border-subtle:     #352f54;
   --color-border-focus:      #a78bfa;
   --color-border-brain:      rgba(167, 139, 250, 0.25);
 
   /* ── shadcn semantic ── */
-  --color-background:        #07060b;
+  --color-background:        #08070d;
   --color-foreground:        #eae8f0;
-  --color-card:              #0f0e17;
+  --color-card:              #13111f;
   --color-card-foreground:   #eae8f0;
-  --color-popover:           #181624;
+  --color-popover:           #1c1a2b;
   --color-popover-foreground:#eae8f0;
   --color-primary:           #f472b6;
   --color-primary-foreground:#07060b;
-  --color-secondary:         #181624;
+  --color-secondary:         #1c1a2b;
   --color-secondary-foreground:#eae8f0;
-  --color-muted:             #181624;
+  --color-muted:             #1c1a2b;
   --color-muted-foreground:  #b0adc4;
-  --color-accent:            #1f1d2e;
+  --color-accent:            #242138;
   --color-accent-foreground: #eae8f0;
   --color-destructive:       #ef6b6b;
-  --color-border:            #3d3660;
-  --color-input:             #3d3660;
+  --color-border:            #4a4270;
+  --color-input:             #4a4270;
   --color-ring:              #a78bfa;
-  --color-sidebar:           #0b0a12;
+  --color-sidebar:           #0c0b14;
   --color-sidebar-foreground:#eae8f0;
-  --color-sidebar-border:    #1c1a2d;
-  --color-sidebar-accent:    #181624;
+  --color-sidebar-border:    #2a2644;
+  --color-sidebar-accent:    #1c1a2b;
   --color-sidebar-accent-foreground:#eae8f0;
   --color-sidebar-ring:      #f472b6;
 
@@ -78,8 +78,8 @@
   --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.03);
   --shadow-dropdown: 0 16px 64px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --shadow-brain-glow: 0 0 40px rgba(167, 139, 250, 0.08);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.02);
-  --shadow-card-hover: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-card-hover: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 
   --animate-brain-pulse: brain-pulse 2s ease-in-out infinite;
   --animate-slide-in: slide-in 300ms cubic-bezier(0.16, 1, 0.3, 1);

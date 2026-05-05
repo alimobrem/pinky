@@ -33,7 +33,7 @@ export function NavRail() {
   if (taskCount > 0) badges.tasks = `${taskCount}`;
 
   return (
-    <nav className="hidden h-screen shrink-0 overflow-y-auto border-r border-sidebar-border bg-[linear-gradient(180deg,#0b0a12_0%,#09080f_100%)] md:flex md:w-[80px] md:flex-col xl:w-[260px]">
+    <nav className="hidden h-screen shrink-0 overflow-y-auto border-r border-sidebar-border bg-[linear-gradient(180deg,#0e0c18_0%,#0a0912_100%)] md:flex md:w-[80px] md:flex-col xl:w-[260px]">
       <div className="flex items-center gap-3 px-4 pb-6 pt-6 xl:px-6">
         <div className="relative">
           <Brain size={24} className="text-accent-brain drop-shadow-[0_0_12px_rgba(167,139,250,0.5)] transition-all duration-300 hover:drop-shadow-[0_0_20px_rgba(167,139,250,0.7)]" />
