@@ -13,27 +13,28 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, FileText, Eye } from "lucide-react";
+import { Plus, FileText, Pencil, Eye, Save, Database, HardDrive } from "lucide-react";
 import { DeleteButton } from "./delete-button";
 import { toast } from "sonner";
 import type { Definition } from "@pinky/contracts";
 
-const DEFINITION_KINDS = ["scanner", "tool", "skill", "pipeline", "policy", "redaction"];
+const DEFINITION_KINDS = ["scanner", "tool", "skill", "pipeline", "policy", "redaction-rule"];
 
 export function DefinitionsTab() {
   const qc = useQueryClient();
   const { data } = useQuery(definitionsOptions());
   const [kindFilter, setKindFilter] = useState<string>("all");
   const [createOpen, setCreateOpen] = useState(false);
-  const [viewDef, setViewDef] = useState<Definition | null>(null);
+  const [editDef, setEditDef] = useState<Definition | null>(null);
 
   const items = (data?.items ?? []).filter(
     (d) => kindFilter === "all" || d.kind === kindFilter,
   );
-  const kinds = [...new Set((data?.items ?? []).map((d) => d.kind))];
+  const kinds = [...new Set((data?.items ?? []).map((d) => d.kind))].sort();
 
   const del = useMutation({
     mutationFn: (d: { kind: string; name: string }) =>
@@ -48,9 +49,12 @@ export function DefinitionsTab() {
     <FadeIn>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-sm">Definitions</CardTitle>
+          <CardTitle className="text-sm">
+            Definitions
+            <span className="ml-2 text-xs font-normal text-text-tertiary">({items.length})</span>
+          </CardTitle>
           <div className="flex items-center gap-2">
-            <div className="flex gap-1">
+            <div className="flex flex-wrap gap-1">
               {["all", ...kinds].map((k) => (
                 <Button
                   key={k}
@@ -76,8 +80,9 @@ export function DefinitionsTab() {
                   <TableHead>Name</TableHead>
                   <TableHead>Kind</TableHead>
                   <TableHead>Version</TableHead>
+                  <TableHead>Source</TableHead>
                   <TableHead>Enabled</TableHead>
-                  <TableHead className="w-20" />
+                  <TableHead className="w-24" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -88,6 +93,9 @@ export function DefinitionsTab() {
                       <span className="rounded bg-bg-hover px-1.5 py-0.5 font-mono text-caption">{d.kind}</span>
                     </TableCell>
                     <TableCell className="font-mono text-xs text-text-tertiary">{d.version}</TableCell>
+                    <TableCell>
+                      <SourceBadge source={(d as Definition & { source?: string }).source} />
+                    </TableCell>
                     <TableCell><Switch checked={d.enabled} disabled /></TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -95,14 +103,17 @@ export function DefinitionsTab() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-text-tertiary hover:text-text-secondary"
-                          onClick={() => setViewDef(d)}
+                          onClick={() => setEditDef(d)}
+                          title="View / Edit"
                         >
-                          <Eye size={14} />
+                          <Pencil size={14} />
                         </Button>
-                        <DeleteButton
-                          onConfirm={() => del.mutate({ kind: d.kind, name: d.name })}
-                          label={d.name}
-                        />
+                        {(d as Definition & { source?: string }).source !== "filesystem" && (
+                          <DeleteButton
+                            onConfirm={() => del.mutate({ kind: d.kind, name: d.name })}
+                            label={d.name}
+                          />
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -113,39 +124,150 @@ export function DefinitionsTab() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!viewDef} onOpenChange={(open) => !open && setViewDef(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <span className="rounded bg-bg-hover px-1.5 py-0.5 font-mono text-caption">{viewDef?.kind}</span>
-              {viewDef?.name}
-            </DialogTitle>
-          </DialogHeader>
-          {viewDef && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 text-sm text-text-secondary">
-                <span>Version: <span className="font-mono">{viewDef.version}</span></span>
-                <span>Enabled: {viewDef.enabled ? "Yes" : "No"}</span>
-              </div>
-              {Object.keys(viewDef.frontmatter).length > 0 && (
-                <div>
-                  <Label className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">Frontmatter</Label>
-                  <pre className="mt-1 max-h-48 overflow-auto rounded-lg bg-bg-hover p-3 font-mono text-xs text-text-secondary">
-                    {JSON.stringify(viewDef.frontmatter, null, 2)}
-                  </pre>
-                </div>
-              )}
-              <div>
-                <Label className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">Body</Label>
-                <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-bg-hover p-3 font-mono text-xs text-text-secondary">
-                  {viewDef.body || "(empty)"}
-                </pre>
-              </div>
+      {editDef && (
+        <EditDefinitionDialog
+          definition={editDef}
+          onClose={() => setEditDef(null)}
+        />
+      )}
+    </FadeIn>
+  );
+}
+
+function SourceBadge({ source }: { source?: string }) {
+  if (source === "filesystem") {
+    return (
+      <Badge variant="outline" className="gap-1 text-xs font-normal">
+        <HardDrive size={10} />
+        built-in
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="secondary" className="gap-1 text-xs font-normal">
+      <Database size={10} />
+      custom
+    </Badge>
+  );
+}
+
+function EditDefinitionDialog({
+  definition,
+  onClose,
+}: {
+  definition: Definition;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const isFilesystem = (definition as Definition & { source?: string }).source === "filesystem";
+  const [editing, setEditing] = useState(false);
+  const [frontmatter, setFrontmatter] = useState(JSON.stringify(definition.frontmatter, null, 2));
+  const [body, setBody] = useState(definition.body || "");
+  const [enabled, setEnabled] = useState(definition.enabled);
+
+  const save = useMutation({
+    mutationFn: () =>
+      api.post("/api/v1/definitions", {
+        kind: definition.kind,
+        name: definition.name,
+        version: definition.version,
+        enabled,
+        frontmatter: JSON.parse(frontmatter),
+        body,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.definitions() });
+      setEditing(false);
+      onClose();
+      toast.success(isFilesystem ? "Override saved (DB overrides built-in)" : "Definition updated");
+    },
+    onError: () => toast.error("Failed to save definition"),
+  });
+
+  const validJson = (() => {
+    try { JSON.parse(frontmatter); return true; } catch { return false; }
+  })();
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="rounded bg-bg-hover px-1.5 py-0.5 font-mono text-caption">{definition.kind}</span>
+            {definition.name}
+            <SourceBadge source={(definition as Definition & { source?: string }).source} />
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-4 text-sm text-text-secondary">
+            <span>Version: <span className="font-mono">{definition.version}</span></span>
+            <div className="flex items-center gap-2">
+              <span>Enabled:</span>
+              <Switch checked={enabled} onCheckedChange={setEnabled} disabled={!editing} />
+            </div>
+            {!editing && (
+              <Button size="sm" variant="outline" className="ml-auto gap-1" onClick={() => setEditing(true)}>
+                <Pencil size={12} />
+                {isFilesystem ? "Override" : "Edit"}
+              </Button>
+            )}
+            {editing && (
+              <Button
+                size="sm"
+                className="ml-auto gap-1"
+                onClick={() => save.mutate()}
+                disabled={!validJson || save.isPending}
+              >
+                <Save size={12} />
+                Save
+              </Button>
+            )}
+          </div>
+
+          {isFilesystem && editing && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-300">
+              Saving will create a DB override for this built-in definition. The original file remains unchanged. Delete the override to restore the built-in version.
             </div>
           )}
-        </DialogContent>
-      </Dialog>
-    </FadeIn>
+
+          <div>
+            <Label className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">Frontmatter</Label>
+            {editing ? (
+              <div className="relative mt-1">
+                <Textarea
+                  className="font-mono text-xs min-h-[120px]"
+                  value={frontmatter}
+                  onChange={(e) => setFrontmatter(e.target.value)}
+                />
+                {!validJson && (
+                  <p className="mt-1 text-xs text-red-400">Invalid JSON</p>
+                )}
+              </div>
+            ) : (
+              <pre className="mt-1 max-h-48 overflow-auto rounded-lg bg-bg-hover p-3 font-mono text-xs text-text-secondary">
+                {JSON.stringify(definition.frontmatter, null, 2)}
+              </pre>
+            )}
+          </div>
+
+          <div>
+            <Label className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">Body (Markdown)</Label>
+            {editing ? (
+              <Textarea
+                className="mt-1 font-mono text-xs min-h-[200px]"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+              />
+            ) : (
+              <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-bg-hover p-3 font-mono text-xs text-text-secondary">
+                {definition.body || "(empty)"}
+              </pre>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
