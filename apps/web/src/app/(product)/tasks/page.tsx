@@ -452,7 +452,7 @@ export default function TasksPage() {
                   size="sm"
                   onClick={() => setStatusFilter(queue.status)}
                   className={cn(
-                    "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-colors",
+                    "inline-flex items-center gap-2.5 rounded-xl border px-4 py-2.5 text-sm transition-colors",
                     active
                       ? "border-accent-brand/45 bg-[linear-gradient(135deg,rgba(244,114,182,0.12),rgba(167,139,250,0.08))] text-text-primary"
                       : "border-border-default bg-bg-elevated/70 text-text-secondary hover:border-accent-brand/25 hover:text-text-primary",
@@ -647,7 +647,7 @@ export default function TasksPage() {
                             </div>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2.5">
                             <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-white/90", PRIORITY_BG[item.priority])}>
                               {item.priority}
                             </span>
