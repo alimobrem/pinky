@@ -333,12 +333,14 @@ export default function TaskDetailPage() {
   return (
     <div className="space-y-6">
       <div className="mb-1">
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => router.back()}
-          className="flex cursor-pointer items-center gap-2 border-none bg-transparent text-sm text-text-secondary hover:text-text-primary"
+          className="gap-2 text-text-secondary hover:text-text-primary"
         >
           <ArrowLeft size={16} /> Back to Tasks
-        </button>
+        </Button>
       </div>
 
       <PageHeader
@@ -443,13 +445,15 @@ export default function TaskDetailPage() {
                 ) : null}
                 {inv.root_cause && inv.root_cause !== inv.summary ? (
                   <div>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setShowReasoning(!showReasoning)}
-                      className="mt-1 flex cursor-pointer items-center gap-2 border-none bg-transparent text-sm font-semibold text-accent-brain"
+                      className="mt-1 gap-2 text-sm font-semibold text-accent-brain hover:text-accent-brain"
                     >
                       {showReasoning ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                       View full analysis
-                    </button>
+                    </Button>
                     {showReasoning ? (
                       <div className="mt-3 whitespace-pre-wrap border-t border-border-brain pt-3 text-sm leading-relaxed text-text-secondary">
                         {inv.root_cause}

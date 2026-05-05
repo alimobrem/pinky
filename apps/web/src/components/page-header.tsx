@@ -21,7 +21,7 @@ export function PageHeader({
   return (
     <section
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-border-default bg-[linear-gradient(135deg,rgba(15,14,23,0.98),rgba(24,22,36,0.9))] px-5 py-5 shadow-card sm:px-6 sm:py-6",
+        "animate-slide-up relative overflow-hidden rounded-2xl border border-border-default bg-[linear-gradient(135deg,rgba(15,14,23,0.98),rgba(24,22,36,0.9))] px-6 py-6 shadow-card sm:px-7 sm:py-7",
         className,
       )}
     >
@@ -34,7 +34,7 @@ export function PageHeader({
             </div>
           ) : null}
           <div className="space-y-2">
-            <h1 className="text-2xl font-semibold tracking-tight text-text-primary sm:text-[28px]">
+            <h1 className="text-2xl font-bold tracking-tight text-text-primary sm:text-[28px]">
               {title}
             </h1>
             {description ? (

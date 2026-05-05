@@ -25,6 +25,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSSE } from "@/hooks/use-sse";
 import { api } from "@/lib/api";
 import { relativeTime } from "@/lib/format-date";
@@ -444,9 +445,10 @@ export default function TasksPage() {
               const active = activeQueue === queue.id;
               const count = queueCounts[queue.id] ?? 0;
               return (
-                <button
+                <Button
                   key={queue.id}
-                  type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setStatusFilter(queue.status)}
                   className={cn(
                     "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-colors",
@@ -459,7 +461,7 @@ export default function TasksPage() {
                   <span className={cn("rounded-full px-2 py-0.5 font-mono text-xs tabular", active ? "bg-bg-primary/60 text-text-primary" : "bg-bg-primary/50 text-text-tertiary")}>
                     {count}
                   </span>
-                </button>
+                </Button>
               );
             })}
             </div>
@@ -483,32 +485,33 @@ export default function TasksPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <select
-                  aria-label="Filter tasks by priority"
-                  value={priorityFilter}
-                  onChange={(e) => setPriorityFilter(e.target.value)}
-                  className="w-full rounded-lg border border-border-default bg-bg-elevated px-3 py-2 text-sm text-text-primary transition-colors hover:border-accent-brain/30 focus:outline-none focus:ring-1 focus:ring-ring sm:w-auto"
-                >
-                  <option value="">All priorities</option>
-                  <option value="critical">Critical</option>
-                  <option value="high">High</option>
-                  <option value="medium">Medium</option>
-                  <option value="low">Low</option>
-                </select>
+                <Select value={priorityFilter || "all"} onValueChange={(v) => setPriorityFilter(v === "all" ? "" : v)}>
+                  <SelectTrigger className="w-full sm:w-[150px] h-9 text-sm" aria-label="Filter tasks by priority">
+                    <SelectValue placeholder="All priorities" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All priorities</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
 
                 <div className="flex items-center gap-2 text-sm text-text-tertiary">
                   <ArrowUpDown size={14} />
-                  <select
-                    value={sortMode}
-                    onChange={(e) => setSortMode(e.target.value as SortMode)}
-                    className="rounded-lg border border-border-default bg-bg-elevated px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="urgency">Sort by urgency</option>
-                    <option value="priority">Sort by priority</option>
-                    <option value="newest">Newest first</option>
-                    <option value="oldest">Oldest first</option>
-                    <option value="confidence">Highest confidence</option>
-                  </select>
+                  <Select value={sortMode} onValueChange={(v) => setSortMode(v as SortMode)}>
+                    <SelectTrigger className="w-[170px] h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="urgency">Sort by urgency</SelectItem>
+                      <SelectItem value="priority">Sort by priority</SelectItem>
+                      <SelectItem value="newest">Newest first</SelectItem>
+                      <SelectItem value="oldest">Oldest first</SelectItem>
+                      <SelectItem value="confidence">Highest confidence</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {(statusFilter || priorityFilter || searchQuery) ? (
@@ -602,8 +605,9 @@ export default function TasksPage() {
                     onMouseEnter={() => handleMouseEnter(item.id)}
                   >
                     <div className="flex gap-3">
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         role="checkbox"
                         aria-checked={selectedIds.has(item.id)}
                         aria-label={`Select task: ${item.title}`}
@@ -612,14 +616,14 @@ export default function TasksPage() {
                           toggleSelect(item.id);
                         }}
                         className={cn(
-                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+                          "mt-0.5 h-5 w-5 shrink-0 rounded-full border p-0 transition-colors",
                           selectedIds.has(item.id)
-                            ? "border-accent-brand bg-accent-brand text-text-inverse"
+                            ? "border-accent-brand bg-accent-brand text-text-inverse hover:bg-accent-brand/90"
                             : "border-border-default bg-bg-elevated hover:border-accent-brand/50",
                         )}
                       >
                         {selectedIds.has(item.id) ? <Check size={12} /> : null}
-                      </button>
+                      </Button>
                       <div className="min-w-0 flex-1 space-y-2">
                         <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                           <div className="min-w-0 space-y-2">

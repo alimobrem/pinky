@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, CheckSquare, Eye, Clock, AlertTriangle, Settings, Brain } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -124,14 +125,14 @@ export function CommandPalette() {
               {filtered.filter(i => i.category === cat).map(item => {
                 const globalIndex = filtered.indexOf(item);
                 return (
-                  <button
+                  <Button
                     key={item.id}
+                    variant="ghost"
                     onClick={() => { item.action(); setOpen(false); }}
-                    type="button"
                     role="option"
                     aria-selected={globalIndex === selected}
                     className={cn(
-                      "w-full text-left flex items-center gap-3 px-4 py-2 cursor-pointer transition-colors",
+                      "h-auto w-full justify-start gap-3 rounded-none px-4 py-2 text-left transition-colors",
                       globalIndex === selected ? "bg-bg-hover" : "bg-transparent"
                     )}
                   >
@@ -140,7 +141,7 @@ export function CommandPalette() {
                       <div className="text-sm font-medium">{item.label}</div>
                       {item.description && <div className="text-xs text-text-tertiary">{item.description}</div>}
                     </div>
-                  </button>
+                  </Button>
                 );
               })}
             </div>

@@ -33,8 +33,8 @@ export function NavRail() {
   if (taskCount > 0) badges.tasks = `${taskCount}`;
 
   return (
-    <nav className="hidden h-screen shrink-0 overflow-y-auto border-r border-sidebar-border bg-[linear-gradient(180deg,#0b0a12_0%,#09080f_100%)] md:flex md:w-[96px] md:flex-col xl:w-[248px]">
-      <div className="flex items-center gap-3 px-4 pb-6 pt-5 xl:px-5">
+    <nav className="hidden h-screen shrink-0 overflow-y-auto border-r border-sidebar-border bg-[linear-gradient(180deg,#0b0a12_0%,#09080f_100%)] md:flex md:w-[72px] md:flex-col xl:w-[248px]">
+      <div className="flex items-center gap-3 px-4 pb-6 pt-6 xl:px-5">
         <div className="relative">
           <Brain size={24} className="text-accent-brain drop-shadow-[0_0_8px_rgba(167,139,250,0.4)]" />
           {brainActive && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-status-done animate-brain-pulse" />}
@@ -82,19 +82,19 @@ function NavLink({ item, active, badge }: { item: NavItem; active: boolean; badg
       aria-label={item.label}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex items-center gap-3 rounded-xl px-3 py-3 text-[13px] font-medium no-underline transition-all duration-150",
+        "group relative flex items-center justify-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium no-underline transition-all duration-200 xl:justify-start",
         active
           ? "bg-bg-elevated text-text-primary shadow-card"
           : "text-text-secondary hover:bg-bg-hover hover:text-text-primary"
       )}
     >
       {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-accent-brand" />}
-      <Icon size={18} strokeWidth={active ? 2 : 1.6} className={cn("shrink-0", active ? "text-accent-brand" : "text-text-tertiary group-hover:text-text-secondary")} />
+      <Icon size={18} strokeWidth={active ? 2 : 1.6} className={cn("shrink-0 transition-colors duration-200", active ? "text-accent-brand" : "text-text-tertiary group-hover:text-text-secondary")} />
       <span className="hidden flex-1 xl:block">{item.label}</span>
       {badge != null && badge !== "0" && (
         <>
-          <span className="hidden min-w-[20px] rounded bg-accent-brand/15 px-1.5 py-0.5 text-center font-mono text-xs font-semibold tabular text-accent-brand xl:block">{badge}</span>
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent-brand xl:hidden" />
+          <span className="hidden min-w-[20px] rounded-md bg-accent-brand/15 px-1.5 py-0.5 text-center font-mono text-xs font-semibold tabular text-accent-brand xl:block">{badge}</span>
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent-brand xl:hidden" />
         </>
       )}
     </Link>

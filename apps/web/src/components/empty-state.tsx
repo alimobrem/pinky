@@ -21,17 +21,17 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center rounded-2xl border border-border-default bg-bg-surface px-6 py-14 text-center shadow-card",
+        "animate-fade-in flex flex-col items-center justify-center rounded-2xl border border-border-default bg-bg-surface px-6 py-16 text-center shadow-card",
         className,
       )}
     >
       {icon ? (
-        <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-border-subtle bg-bg-elevated text-text-tertiary">
+        <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-border-subtle bg-bg-elevated text-text-tertiary">
           {icon}
         </div>
       ) : null}
       {eyebrow ? (
-        <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent-brand/75">
+        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-accent-brand/75">
           {eyebrow}
         </div>
       ) : null}
@@ -39,7 +39,7 @@ export function EmptyState({
       <p className="mt-2 max-w-md text-sm leading-relaxed text-text-secondary">
         {description}
       </p>
-      {action ? <div className="mt-5">{action}</div> : null}
+      {action ? <div className="mt-6">{action}</div> : null}
     </div>
   );
 }

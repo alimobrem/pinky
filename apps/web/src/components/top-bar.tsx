@@ -64,8 +64,8 @@ export function TopBar() {
   }));
 
   return (
-    <header className="border-b border-border-subtle bg-bg-primary/95 backdrop-blur supports-[backdrop-filter]:bg-bg-primary/90">
-      <div className="flex flex-col gap-3 px-4 py-3 lg:px-5 min-[1440px]:flex-row min-[1440px]:items-center min-[1440px]:justify-between">
+    <header className="border-b border-border-subtle bg-bg-primary/95 backdrop-blur supports-[backdrop-filter]:bg-bg-primary/85">
+      <div className="flex flex-col gap-3 px-5 py-3 lg:px-6 min-[1440px]:flex-row min-[1440px]:items-center min-[1440px]:justify-between">
         <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:gap-4 min-[1440px]:flex-nowrap">
           {breadcrumbs.length > 0 && (
             <Breadcrumb>

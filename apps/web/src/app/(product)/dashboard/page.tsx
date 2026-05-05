@@ -64,7 +64,7 @@ export default function DashboardPage() {
       <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-12">
 
         {/* Card 1: Task Summary */}
-        <div className="bg-bg-surface border border-border-default rounded-xl p-5 shadow-card xl:col-span-5">
+        <div className="bg-bg-surface border border-border-default rounded-2xl p-5 shadow-card transition-shadow duration-200 hover:shadow-card-hover xl:col-span-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
               <CheckSquare size={15} className="text-accent-brand" />
