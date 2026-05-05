@@ -15,12 +15,17 @@ from pinky_worker.definitions.loader import DefinitionRegistry
 from pinky_worker.issues.db_correlator import DbIssueCorrelator
 from pinky_worker.observation.k8s_client import (
     create_client,
+    list_cronjobs,
+    list_daemonsets,
     list_deployments,
     list_ingresses,
+    list_jobs,
     list_nodes,
     list_pods,
     list_pvcs,
     list_resource_quotas,
+    list_services,
+    list_statefulsets,
     list_tls_secrets,
 )
 from pinky_worker.observation.scanner_runner import SCANNER_RUNNERS
@@ -28,6 +33,12 @@ from pinky_worker.policy.engine import PolicyInput, evaluate, rules_from_definit
 from pinky_worker.queues import INVESTIGATION_QUEUE
 
 logger = structlog.get_logger(__name__)
+
+async def _fetch_jobs_and_cronjobs(api_client):
+    jobs = await list_jobs(api_client)
+    cronjobs = await list_cronjobs(api_client)
+    return jobs + cronjobs
+
 
 SCANNER_FETCHERS = {
     "pod-health": list_pods,
@@ -37,6 +48,10 @@ SCANNER_FETCHERS = {
     "pvc-health": list_pvcs,
     "resource-quotas": list_resource_quotas,
     "ingress-health": list_ingresses,
+    "statefulset-health": list_statefulsets,
+    "job-health": _fetch_jobs_and_cronjobs,
+    "service-endpoints": list_services,
+    "daemonset-health": list_daemonsets,
 }
 
 

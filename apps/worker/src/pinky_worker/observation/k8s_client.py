@@ -173,6 +173,80 @@ async def list_ingresses(api_client: ApiClient, namespace: str = "") -> list[dic
     return [_ingress_summary(i) for i in result.items]
 
 
+async def list_statefulsets(api_client: ApiClient, namespace: str = "") -> list[dict]:
+    apps_v1 = client.AppsV1Api(api_client)
+    try:
+        if namespace:
+            result = await apps_v1.list_namespaced_stateful_set(namespace)
+        else:
+            result = await apps_v1.list_stateful_set_for_all_namespaces()
+    except Exception:
+        logger.warning("failed to list statefulsets")
+        return []
+    return [_statefulset_summary(s) for s in result.items]
+
+
+async def list_jobs(api_client: ApiClient, namespace: str = "") -> list[dict]:
+    batch_v1 = client.BatchV1Api(api_client)
+    try:
+        if namespace:
+            result = await batch_v1.list_namespaced_job(namespace)
+        else:
+            result = await batch_v1.list_job_for_all_namespaces()
+    except Exception:
+        logger.warning("failed to list jobs")
+        return []
+    return [_job_summary(j) for j in result.items]
+
+
+async def list_cronjobs(api_client: ApiClient, namespace: str = "") -> list[dict]:
+    batch_v1 = client.BatchV1Api(api_client)
+    try:
+        if namespace:
+            result = await batch_v1.list_namespaced_cron_job(namespace)
+        else:
+            result = await batch_v1.list_cron_job_for_all_namespaces()
+    except Exception:
+        logger.warning("failed to list cronjobs")
+        return []
+    return [_cronjob_summary(c) for c in result.items]
+
+
+async def list_services(api_client: ApiClient, namespace: str = "") -> list[dict]:
+    v1 = client.CoreV1Api(api_client)
+    try:
+        if namespace:
+            svc_result = await v1.list_namespaced_service(namespace)
+            ep_result = await v1.list_namespaced_endpoints(namespace)
+        else:
+            svc_result = await v1.list_service_for_all_namespaces()
+            ep_result = await v1.list_endpoints_for_all_namespaces()
+    except Exception:
+        logger.warning("failed to list services")
+        return []
+
+    # Index endpoints by namespace/name for lookup
+    ep_map: dict[str, Any] = {}
+    for ep in ep_result.items:
+        key = f"{ep.metadata.namespace or ''}/{ep.metadata.name}"
+        ep_map[key] = ep
+
+    return [_service_summary(s, ep_map) for s in svc_result.items]
+
+
+async def list_daemonsets(api_client: ApiClient, namespace: str = "") -> list[dict]:
+    apps_v1 = client.AppsV1Api(api_client)
+    try:
+        if namespace:
+            result = await apps_v1.list_namespaced_daemon_set(namespace)
+        else:
+            result = await apps_v1.list_daemon_set_for_all_namespaces()
+    except Exception:
+        logger.warning("failed to list daemonsets")
+        return []
+    return [_daemonset_summary(d) for d in result.items]
+
+
 def _pod_summary(pod: Any) -> dict:
     containers = (pod.status.container_statuses or []) if pod.status else []
     created = pod.metadata.creation_timestamp
@@ -307,6 +381,99 @@ def _ingress_summary(ingress: Any) -> dict:
         "name": ingress.metadata.name,
         "namespace": ingress.metadata.namespace or "",
         "rules": parsed_rules,
+    }
+
+
+def _statefulset_summary(sts: Any) -> dict:
+    spec = sts.spec or type("S", (), {"replicas": 1})()
+    status = sts.status or type("S", (), {
+        "ready_replicas": None, "updated_replicas": None, "replicas": None,
+        "current_revision": None, "update_revision": None,
+    })()
+    return {
+        "name": sts.metadata.name,
+        "namespace": sts.metadata.namespace or "",
+        "replicas": spec.replicas or 1,
+        "ready_replicas": status.ready_replicas or 0,
+        "updated_replicas": status.updated_replicas or 0,
+        "current_replicas": status.replicas or 0,
+        "current_revision": getattr(status, "current_revision", None) or "",
+        "update_revision": getattr(status, "update_revision", None) or "",
+    }
+
+
+def _job_summary(job: Any) -> dict:
+    status = job.status or type("S", (), {
+        "succeeded": None, "failed": None, "conditions": None,
+    })()
+    spec = job.spec or type("S", (), {"backoff_limit": 6})()
+    conditions = status.conditions or []
+    return {
+        "kind": "Job",
+        "name": job.metadata.name,
+        "namespace": job.metadata.namespace or "",
+        "succeeded": status.succeeded or 0,
+        "failed": status.failed or 0,
+        "backoff_limit": getattr(spec, "backoff_limit", 6) or 6,
+        "conditions": [
+            {"type": c.type, "status": c.status, "reason": c.reason or ""}
+            for c in conditions
+        ],
+    }
+
+
+def _cronjob_summary(cj: Any) -> dict:
+    status = cj.status or type("S", (), {"last_schedule_time": None})()
+    spec = cj.spec or type("S", (), {"schedule": ""})()
+    last_schedule = status.last_schedule_time
+    return {
+        "kind": "CronJob",
+        "name": cj.metadata.name,
+        "namespace": cj.metadata.namespace or "",
+        "schedule": getattr(spec, "schedule", "") or "",
+        "last_schedule_time": last_schedule.isoformat() if last_schedule else None,
+    }
+
+
+def _service_summary(svc: Any, ep_map: dict[str, Any]) -> dict:
+    spec = svc.spec or type("S", (), {"selector": None, "type": "ClusterIP"})()
+    ns = svc.metadata.namespace or ""
+    name = svc.metadata.name
+    selector = dict(spec.selector) if spec.selector else {}
+
+    ep_key = f"{ns}/{name}"
+    ep = ep_map.get(ep_key)
+    ready_count = 0
+    not_ready_count = 0
+    if ep:
+        for subset in (ep.subsets or []):
+            ready_count += len(subset.addresses or [])
+            not_ready_count += len(subset.not_ready_addresses or [])
+
+    return {
+        "name": name,
+        "namespace": ns,
+        "type": getattr(spec, "type", "ClusterIP") or "ClusterIP",
+        "selector": selector,
+        "ready_endpoints": ready_count,
+        "not_ready_endpoints": not_ready_count,
+    }
+
+
+def _daemonset_summary(ds: Any) -> dict:
+    status = ds.status or type("S", (), {
+        "desired_number_scheduled": 0, "current_number_scheduled": 0,
+        "number_ready": 0, "number_unavailable": None,
+        "number_misscheduled": 0,
+    })()
+    return {
+        "name": ds.metadata.name,
+        "namespace": ds.metadata.namespace or "",
+        "desired": status.desired_number_scheduled or 0,
+        "current": status.current_number_scheduled or 0,
+        "ready": status.number_ready or 0,
+        "number_unavailable": getattr(status, "number_unavailable", None) or 0,
+        "number_misscheduled": status.number_misscheduled or 0,
     }
 
 

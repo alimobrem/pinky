@@ -538,6 +538,335 @@ def run_ingress_health_checks(ingresses: list[dict], cluster_id: str, scanner_de
     return observations
 
 
+def run_statefulset_health_checks(
+    statefulsets: list[dict], cluster_id: str, scanner_def: Definition,
+) -> list[RawObservation]:
+    observations: list[RawObservation] = []
+    now = datetime.now(UTC)
+
+    for sts in statefulsets:
+        ns = sts.get("namespace", "")
+        name = sts.get("name", "")
+        replicas = sts.get("replicas", 1)
+        ready_replicas = sts.get("ready_replicas", 0)
+        updated_replicas = sts.get("updated_replicas", 0)
+        current_revision = sts.get("current_revision", "")
+        update_revision = sts.get("update_revision", "")
+
+        if (
+            updated_replicas < replicas
+            and current_revision
+            and update_revision
+            and current_revision != update_revision
+        ):
+            fp = compute_observation_fingerprint(
+                cluster_id, "statefulset-health", "sts-rollout-stuck", "StatefulSet", ns, name,
+            )
+            ck = compute_correlation_key(
+                cluster_id, "StatefulSet", ns, name, "statefulset-health", "sts-rollout-stuck",
+            )
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="statefulset-health",
+                scanner_version=scanner_def.version,
+                check_id="sts-rollout-stuck",
+                severity="high",
+                resource_kind="StatefulSet",
+                resource_namespace=ns,
+                resource_name=name,
+                title=f"StatefulSet {ns}/{name} rollout stuck",
+                payload={
+                    "updated_replicas": updated_replicas,
+                    "replicas": replicas,
+                    "current_revision": current_revision,
+                    "update_revision": update_revision,
+                },
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+
+        if ready_replicas < replicas:
+            fp = compute_observation_fingerprint(
+                cluster_id, "statefulset-health", "sts-replicas-unavailable", "StatefulSet", ns, name,
+            )
+            ck = compute_correlation_key(
+                cluster_id, "StatefulSet", ns, name, "statefulset-health", "sts-replicas-unavailable",
+            )
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="statefulset-health",
+                scanner_version=scanner_def.version,
+                check_id="sts-replicas-unavailable",
+                severity="high",
+                resource_kind="StatefulSet",
+                resource_namespace=ns,
+                resource_name=name,
+                title=f"StatefulSet {ns}/{name} has {ready_replicas}/{replicas} ready replicas",
+                payload={"ready_replicas": ready_replicas, "replicas": replicas},
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+
+        # TODO: sts-ordinal-stuck check needs per-pod ordinal inspection,
+        # cannot be reliably detected from list data alone.
+
+    return observations
+
+
+CRONJOB_MISSED_THRESHOLD = timedelta(hours=2)
+
+
+def run_job_health_checks(
+    jobs: list[dict], cluster_id: str, scanner_def: Definition,
+) -> list[RawObservation]:
+    """Check health of Jobs and CronJobs (distinguished by 'kind' field)."""
+    observations: list[RawObservation] = []
+    now = datetime.now(UTC)
+
+    for item in jobs:
+        kind = item.get("kind", "Job")
+        ns = item.get("namespace", "")
+        name = item.get("name", "")
+
+        if kind == "Job":
+            failed = item.get("failed", 0)
+            backoff_limit = item.get("backoff_limit", 6)
+
+            if failed >= backoff_limit:
+                fp = compute_observation_fingerprint(
+                    cluster_id, "job-health", "job-failed", "Job", ns, name,
+                )
+                ck = compute_correlation_key(
+                    cluster_id, "Job", ns, name, "job-health", "job-failed",
+                )
+                observations.append(RawObservation(
+                    cluster_id=cluster_id,
+                    scanner="job-health",
+                    scanner_version=scanner_def.version,
+                    check_id="job-failed",
+                    severity="high",
+                    resource_kind="Job",
+                    resource_namespace=ns,
+                    resource_name=name,
+                    title=f"Job {ns}/{name} failed (attempts: {failed}/{backoff_limit})",
+                    payload={"failed": failed, "backoff_limit": backoff_limit},
+                    observed_at=now,
+                    fingerprint=fp,
+                    correlation_key=ck,
+                ))
+
+            for cond in item.get("conditions", []):
+                if cond.get("type") == "DeadlineExceeded" and cond.get("status") == "True":
+                    fp = compute_observation_fingerprint(
+                        cluster_id, "job-health", "job-deadline-exceeded", "Job", ns, name,
+                    )
+                    ck = compute_correlation_key(
+                        cluster_id, "Job", ns, name, "job-health", "job-deadline-exceeded",
+                    )
+                    observations.append(RawObservation(
+                        cluster_id=cluster_id,
+                        scanner="job-health",
+                        scanner_version=scanner_def.version,
+                        check_id="job-deadline-exceeded",
+                        severity="high",
+                        resource_kind="Job",
+                        resource_namespace=ns,
+                        resource_name=name,
+                        title=f"Job {ns}/{name} exceeded deadline",
+                        payload={"reason": cond.get("reason", "")},
+                        observed_at=now,
+                        fingerprint=fp,
+                        correlation_key=ck,
+                    ))
+                    break
+
+        elif kind == "CronJob":
+            last_schedule_str = item.get("last_schedule_time")
+            if last_schedule_str:
+                last_schedule = datetime.fromisoformat(last_schedule_str)
+                if (now - last_schedule) > CRONJOB_MISSED_THRESHOLD:
+                    fp = compute_observation_fingerprint(
+                        cluster_id, "job-health", "cronjob-missed", "CronJob", ns, name,
+                    )
+                    ck = compute_correlation_key(
+                        cluster_id, "CronJob", ns, name, "job-health", "cronjob-missed",
+                    )
+                    observations.append(RawObservation(
+                        cluster_id=cluster_id,
+                        scanner="job-health",
+                        scanner_version=scanner_def.version,
+                        check_id="cronjob-missed",
+                        severity="medium",
+                        resource_kind="CronJob",
+                        resource_namespace=ns,
+                        resource_name=name,
+                        title=f"CronJob {ns}/{name} last scheduled >2h ago",
+                        payload={
+                            "last_schedule_time": last_schedule_str,
+                            "schedule": item.get("schedule", ""),
+                        },
+                        observed_at=now,
+                        fingerprint=fp,
+                        correlation_key=ck,
+                    ))
+
+    return observations
+
+
+def run_service_endpoint_checks(
+    services: list[dict], cluster_id: str, scanner_def: Definition,
+) -> list[RawObservation]:
+    observations: list[RawObservation] = []
+    now = datetime.now(UTC)
+
+    for svc in services:
+        ns = svc.get("namespace", "")
+        name = svc.get("name", "")
+        selector = svc.get("selector", {})
+        ready = svc.get("ready_endpoints", 0)
+        not_ready = svc.get("not_ready_endpoints", 0)
+        total = ready + not_ready
+
+        # Only check services that have a selector (skip ExternalName, headless without selector)
+        if not selector:
+            continue
+
+        if ready == 0:
+            fp = compute_observation_fingerprint(
+                cluster_id, "service-endpoints", "service-no-endpoints", "Service", ns, name,
+            )
+            ck = compute_correlation_key(
+                cluster_id, "Service", ns, name, "service-endpoints", "service-no-endpoints",
+            )
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="service-endpoints",
+                scanner_version=scanner_def.version,
+                check_id="service-no-endpoints",
+                severity="high",
+                resource_kind="Service",
+                resource_namespace=ns,
+                resource_name=name,
+                title=f"Service {ns}/{name} has no ready endpoints",
+                payload={"ready": ready, "not_ready": not_ready},
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+        elif total > 0 and not_ready > total * 0.5:
+            fp = compute_observation_fingerprint(
+                cluster_id, "service-endpoints", "service-partial-endpoints", "Service", ns, name,
+            )
+            ck = compute_correlation_key(
+                cluster_id, "Service", ns, name, "service-endpoints", "service-partial-endpoints",
+            )
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="service-endpoints",
+                scanner_version=scanner_def.version,
+                check_id="service-partial-endpoints",
+                severity="medium",
+                resource_kind="Service",
+                resource_namespace=ns,
+                resource_name=name,
+                title=f"Service {ns}/{name} has >50% endpoints not ready ({not_ready}/{total})",
+                payload={"ready": ready, "not_ready": not_ready, "total": total},
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+
+    return observations
+
+
+def run_daemonset_health_checks(
+    daemonsets: list[dict], cluster_id: str, scanner_def: Definition,
+) -> list[RawObservation]:
+    observations: list[RawObservation] = []
+    now = datetime.now(UTC)
+
+    for ds in daemonsets:
+        ns = ds.get("namespace", "")
+        name = ds.get("name", "")
+        desired = ds.get("desired", 0)
+        current = ds.get("current", 0)
+        number_unavailable = ds.get("number_unavailable", 0)
+        number_misscheduled = ds.get("number_misscheduled", 0)
+
+        if number_unavailable > 0:
+            fp = compute_observation_fingerprint(
+                cluster_id, "daemonset-health", "daemonset-unavailable", "DaemonSet", ns, name,
+            )
+            ck = compute_correlation_key(
+                cluster_id, "DaemonSet", ns, name, "daemonset-health", "daemonset-unavailable",
+            )
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="daemonset-health",
+                scanner_version=scanner_def.version,
+                check_id="daemonset-unavailable",
+                severity="high",
+                resource_kind="DaemonSet",
+                resource_namespace=ns,
+                resource_name=name,
+                title=f"DaemonSet {ns}/{name} has {number_unavailable} unavailable",
+                payload={"number_unavailable": number_unavailable, "desired": desired},
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+
+        if number_misscheduled > 0:
+            fp = compute_observation_fingerprint(
+                cluster_id, "daemonset-health", "daemonset-misscheduled", "DaemonSet", ns, name,
+            )
+            ck = compute_correlation_key(
+                cluster_id, "DaemonSet", ns, name, "daemonset-health", "daemonset-misscheduled",
+            )
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="daemonset-health",
+                scanner_version=scanner_def.version,
+                check_id="daemonset-misscheduled",
+                severity="medium",
+                resource_kind="DaemonSet",
+                resource_namespace=ns,
+                resource_name=name,
+                title=f"DaemonSet {ns}/{name} has {number_misscheduled} misscheduled",
+                payload={"number_misscheduled": number_misscheduled},
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+
+        if desired != current:
+            fp = compute_observation_fingerprint(
+                cluster_id, "daemonset-health", "daemonset-desired-mismatch", "DaemonSet", ns, name,
+            )
+            ck = compute_correlation_key(
+                cluster_id, "DaemonSet", ns, name, "daemonset-health", "daemonset-desired-mismatch",
+            )
+            observations.append(RawObservation(
+                cluster_id=cluster_id,
+                scanner="daemonset-health",
+                scanner_version=scanner_def.version,
+                check_id="daemonset-desired-mismatch",
+                severity="medium",
+                resource_kind="DaemonSet",
+                resource_namespace=ns,
+                resource_name=name,
+                title=f"DaemonSet {ns}/{name} desired={desired} current={current}",
+                payload={"desired": desired, "current": current},
+                observed_at=now,
+                fingerprint=fp,
+                correlation_key=ck,
+            ))
+
+    return observations
+
+
 SCANNER_RUNNERS = {
     "pod-health": run_pod_health_checks,
     "node-conditions": run_node_condition_checks,
@@ -546,4 +875,8 @@ SCANNER_RUNNERS = {
     "pvc-health": run_pvc_health_checks,
     "resource-quotas": run_resource_quota_checks,
     "ingress-health": run_ingress_health_checks,
+    "statefulset-health": run_statefulset_health_checks,
+    "job-health": run_job_health_checks,
+    "service-endpoints": run_service_endpoint_checks,
+    "daemonset-health": run_daemonset_health_checks,
 }
