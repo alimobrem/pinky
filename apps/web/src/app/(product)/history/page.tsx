@@ -68,7 +68,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <PageHeader
         eyebrow="Operational memory"
         title="History"
@@ -76,7 +76,7 @@ export default function HistoryPage() {
         meta={<span>{filtered.length} events in view</span>}
       />
 
-      <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-4 py-3 shadow-card">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-4 py-3 shadow-card">
         <Filter size={14} className="text-text-tertiary" />
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-[140px] h-8 text-xs" aria-label="Filter history by type">
@@ -90,17 +90,17 @@ export default function HistoryPage() {
         <span className="ml-auto text-xs text-text-tertiary">{filtered.length} events</span>
       </div>
 
-      {error && <div className="p-3 px-4 mb-4 rounded-md bg-status-blocked/10 border border-status-blocked/30 text-status-blocked text-sm">{error.message}</div>}
+      {error && <div className="mt-4 rounded-2xl border border-status-blocked/30 bg-status-blocked/10 px-4 py-3 text-sm text-status-blocked">{error.message}</div>}
 
       {isLoading && (
-        <div className="flex flex-col gap-2">
-          {[1, 2, 3].map(i => <div key={i} className="skeleton h-12 rounded-lg" />)}
+        <div className="mt-4 flex flex-col gap-3">
+          {[1, 2, 3, 4, 5].map(i => <div key={i} className="skeleton h-14 rounded-2xl" />)}
         </div>
       )}
 
       {!isLoading && filtered.length === 0 && (
         <EmptyState
-          className="mt-6"
+          className="mt-4"
           eyebrow="No history yet"
           icon={<Clock size={20} />}
           title="No operational history yet."
@@ -110,7 +110,7 @@ export default function HistoryPage() {
       )}
 
       {filtered.length > 0 && (
-        <div className="mt-6 rounded-2xl border border-border-default bg-bg-surface shadow-card">
+        <div className="mt-4 rounded-2xl border border-border-default bg-bg-surface shadow-card">
           {filtered.map((e, i) => {
             const navTarget = getNavTarget(e);
             const isExpanded = expandedId === e.id;
@@ -138,7 +138,7 @@ export default function HistoryPage() {
                 </div>
                 {isExpanded && !navTarget && e.payload && Object.keys(e.payload).length > 0 && (
                   <div className={cn("px-4 pb-4 pl-10", i < filtered.length - 1 && "border-b border-border-subtle")}>
-                    <pre className="text-xs font-mono text-text-secondary bg-bg-elevated p-3 rounded-md overflow-auto max-h-[200px] whitespace-pre-wrap break-words">
+                    <pre className="max-h-[200px] overflow-auto whitespace-pre-wrap break-words rounded-xl bg-bg-elevated p-3 font-mono text-xs text-text-secondary">
                       {JSON.stringify(e.payload, null, 2)}
                     </pre>
                   </div>

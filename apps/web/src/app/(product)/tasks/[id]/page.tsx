@@ -269,10 +269,19 @@ export default function TaskDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className={`skeleton rounded-2xl ${i === 1 ? "h-[96px]" : "h-[220px]"}`} />
-        ))}
+      <div className="animate-fade-in flex flex-col gap-4">
+        <div className="skeleton h-[96px] rounded-2xl" />
+        <div className="skeleton h-[160px] rounded-2xl" />
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-4">
+            <div className="skeleton h-[200px] rounded-2xl" />
+            <div className="skeleton h-[180px] rounded-2xl" />
+          </div>
+          <div className="space-y-4">
+            <div className="skeleton h-[160px] rounded-2xl" />
+            <div className="skeleton h-[120px] rounded-2xl" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -331,7 +340,7 @@ export default function TaskDetailPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="animate-fade-in space-y-6">
       <div className="mb-1">
         <Button
           variant="ghost"

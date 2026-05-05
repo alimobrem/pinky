@@ -35,7 +35,7 @@ export default function AlertsPage() {
   const filtered = alerts;
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <PageHeader
         eyebrow="Raw signal feed"
         title="Alerts"
@@ -43,7 +43,7 @@ export default function AlertsPage() {
         meta={<span>{filtered.length} alerts in view</span>}
       />
 
-      <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-4 py-3 shadow-card">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-4 py-3 shadow-card">
         <Filter size={14} className="text-text-tertiary" />
         <Select value={severityFilter} onValueChange={setSeverityFilter}>
           <SelectTrigger className="w-[140px] h-8 text-xs" aria-label="Filter alerts by severity">
@@ -60,17 +60,17 @@ export default function AlertsPage() {
         <span className="ml-auto text-xs text-text-tertiary">{filtered.length} alerts</span>
       </div>
 
-      {error && <div className="p-3 px-4 mb-4 rounded-md bg-status-blocked/10 border border-status-blocked/30 text-status-blocked text-sm">{error.message}</div>}
+      {error && <div className="mt-4 rounded-2xl border border-status-blocked/30 bg-status-blocked/10 px-4 py-3 text-sm text-status-blocked">{error.message}</div>}
 
       {isLoading && (
-        <div className="flex flex-col gap-2">
-          {[1, 2, 3].map(i => <div key={i} className="skeleton h-16 rounded-lg" />)}
+        <div className="mt-4 flex flex-col gap-4">
+          {[1, 2, 3, 4].map(i => <div key={i} className="skeleton h-20 rounded-2xl" />)}
         </div>
       )}
 
       {!isLoading && filtered.length === 0 && (
         <EmptyState
-          className="mt-6"
+          className="mt-4"
           eyebrow="Raw feed is clear"
           icon={<AlertTriangle size={20} />}
           title="No active alerts."
@@ -80,12 +80,12 @@ export default function AlertsPage() {
       )}
 
       {filtered.length > 0 && (
-        <div className="mt-6 flex flex-col gap-3">
+        <div className="mt-4 flex flex-col gap-4">
           {filtered.map(a => {
             const isExpanded = expandedId === a.id;
             return (
               <div key={a.id} onClick={() => setExpandedId(isExpanded ? null : a.id)}
-                className={`bg-bg-surface border border-border-default rounded-xl border-l-[3px] p-4 sm:px-5 shadow-card transition-all duration-200 ${SEVERITY_BORDER[a.severity] || "border-l-border-default"} cursor-pointer transition-colors hover:bg-bg-hover`}>
+                className={`cursor-pointer rounded-2xl border border-border-default border-l-[3px] bg-bg-surface p-4 shadow-card transition-all duration-200 hover:bg-bg-hover hover:shadow-card-hover sm:px-5 ${SEVERITY_BORDER[a.severity] || "border-l-border-default"}`}>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     {isExpanded ? <ChevronDown size={14} className="text-text-tertiary" /> : <ChevronRight size={14} className="text-text-tertiary" />}
@@ -103,7 +103,7 @@ export default function AlertsPage() {
                 {isExpanded && a.payload && Object.keys(a.payload).length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border-subtle pl-6">
                     <div className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-2">Payload</div>
-                    <pre className="text-xs font-mono text-text-secondary bg-bg-elevated p-3 rounded-md overflow-auto max-h-[200px] whitespace-pre-wrap break-words">
+                    <pre className="max-h-[200px] overflow-auto whitespace-pre-wrap break-words rounded-xl bg-bg-elevated p-3 font-mono text-xs text-text-secondary">
                       {JSON.stringify(a.payload, null, 2)}
                     </pre>
                   </div>

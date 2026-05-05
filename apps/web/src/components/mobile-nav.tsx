@@ -10,8 +10,8 @@ export function MobileNav() {
   const items = NAV_ITEMS;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border-subtle bg-bg-primary/95 px-2 pb-[env(safe-area-inset-bottom,0px)] pt-1 backdrop-blur md:hidden">
-      <div className="mx-auto flex max-w-full gap-0.5 overflow-x-auto">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border-subtle bg-bg-primary/90 px-2 pb-[env(safe-area-inset-bottom,0px)] pt-1.5 backdrop-blur-lg md:hidden">
+      <div className="mx-auto flex max-w-full gap-1 overflow-x-auto">
         {items.map((item) => {
           const Icon = item.icon;
           const active = pathname.startsWith(item.path);

@@ -17,7 +17,7 @@ export default async function ProductLayout({ children }: { children: ReactNode 
       <NavRail />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar />
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-6 pb-24 sm:px-6 sm:py-7 sm:pb-24 lg:px-8 lg:py-8 lg:pb-8 xl:px-10">
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-5 py-7 pb-24 sm:px-6 sm:py-8 sm:pb-24 md:pb-8 lg:px-8 lg:py-8 xl:px-10">
           <div className="mx-auto flex min-w-0 w-full max-w-[1440px] flex-col">
             {children}
           </div>

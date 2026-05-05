@@ -81,7 +81,7 @@ export default function DashboardPage() {
         }
       />
 
-      <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-12">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
 
         {/* Card 1: Task Summary */}
         <div className="rounded-2xl border border-border-default bg-bg-surface p-5 shadow-card transition-shadow duration-200 hover:shadow-card-hover xl:col-span-5">

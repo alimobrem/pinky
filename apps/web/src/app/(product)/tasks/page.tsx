@@ -438,8 +438,8 @@ export default function TasksPage() {
         }
       />
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="space-y-5">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="space-y-6">
           <div className="rounded-2xl border border-border-default bg-bg-surface p-4 shadow-card">
             <div className="flex flex-wrap gap-2">
             {QUEUES.map((queue) => {
@@ -587,7 +587,7 @@ export default function TasksPage() {
           ) : null}
 
           {!isLoading && !error && processed.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {processed.map((item) => {
                 const active = item.id === activeTaskId;
                 const clusterName = clusterMap.get(item.cluster_id) ?? item.cluster_id.slice(0, 8);
