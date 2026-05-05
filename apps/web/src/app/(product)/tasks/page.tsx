@@ -250,8 +250,9 @@ export default function TasksPage() {
     },
   });
   const { data: clustersData } = useQuery({
-    queryKey: ["task-clusters"],
-    queryFn: () => api.get<PaginatedResponse<ClusterRegistryEntry>>("/api/v1/clusters?limit=100"),
+    queryKey: ["clusters"],
+    queryFn: () => api.get<PaginatedResponse<ClusterRegistryEntry>>("/api/v1/clusters"),
+    staleTime: 30_000,
   });
 
   const items = data?.items ?? EMPTY_ITEMS;

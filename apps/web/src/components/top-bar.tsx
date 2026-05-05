@@ -2,7 +2,7 @@
 
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Search, Brain, ChevronDown, LogOut } from "lucide-react";
+import { Search, Brain, LogOut } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import type { ClusterRegistryEntry, PaginatedResponse } from "@pinky/contracts";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";

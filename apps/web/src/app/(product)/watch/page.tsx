@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Brain, Eye, EyeOff, CheckCircle, Filter } from "lucide-react";
 import { toast } from "sonner";
@@ -15,12 +14,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useSSE } from "@/hooks/use-sse";
 import { api } from "@/lib/api";
+import { useCluster } from "@/hooks/use-cluster";
 import { relativeTime } from "@/lib/format-date";
 import { SEVERITY_VARIANT, SEVERITY_BORDER } from "@/lib/status-colors";
 
 export default function WatchPage() {
-  const searchParams = useSearchParams();
-  const cluster = searchParams.get("cluster");
+  const cluster = useCluster();
   const queryClient = useQueryClient();
   const [actingId, setActingId] = useState<string | null>(null);
   const [severityFilter, setSeverityFilter] = useState("all");
@@ -107,12 +106,12 @@ export default function WatchPage() {
       </div>
 
       {fetchError && (
-        <div className="mt-6 p-3 px-4 rounded-md bg-status-blocked/10 border border-status-blocked/30 text-status-blocked text-sm">{fetchError.message}</div>
+        <div className="mt-6 rounded-2xl border border-status-blocked/30 bg-status-blocked/10 px-4 py-3 text-sm text-status-blocked">{fetchError.message}</div>
       )}
 
       {isLoading && (
         <div className="mt-6 flex flex-col gap-3">
-          {[1, 2, 3].map(i => <div key={i} className="skeleton h-24 rounded-xl" />)}
+          {[1, 2, 3].map(i => <div key={i} className="skeleton h-28 rounded-2xl" />)}
         </div>
       )}
 
@@ -128,7 +127,7 @@ export default function WatchPage() {
       ) : issues.length > 0 ? (
         <div className="mt-6 flex flex-col gap-3">
           {issues.map(issue => (
-            <div key={issue.id} className={`bg-bg-surface border border-border-default rounded-xl border-l-[3px] p-5 shadow-card transition-all duration-200 hover:shadow-card-hover ${SEVERITY_BORDER[issue.severity] || "border-l-border-default"}`}>
+            <div key={issue.id} className={`rounded-2xl border border-border-default border-l-[3px] bg-bg-surface p-5 shadow-card transition-all duration-200 hover:bg-bg-hover hover:shadow-card-hover ${SEVERITY_BORDER[issue.severity] || "border-l-border-default"}`}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2 flex-1">
                   <Brain size={14} className="text-accent-brain" />

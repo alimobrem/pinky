@@ -91,21 +91,20 @@ export default function SettingsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async () => {
-      if (!deleteTarget) return;
-      if (deleteTarget.type === "cluster") await api.del(`/api/v1/clusters/${deleteTarget.id}`);
-      else if (deleteTarget.type === "definition") await api.del(`/api/v1/definitions/${deleteTarget.id}`);
-      else if (deleteTarget.type === "webhook") await api.del(`/api/v1/webhook-subscriptions/${deleteTarget.id}`);
-      else if (deleteTarget.type === "rule") await api.del(`/api/v1/policy-rules/${deleteTarget.id}`);
-      else if (deleteTarget.type === "binding") await api.del(`/api/v1/cluster-bindings/${deleteTarget.id}`);
+    mutationFn: async (target: { id: string; type: string }) => {
+      if (target.type === "cluster") await api.del(`/api/v1/clusters/${target.id}`);
+      else if (target.type === "definition") await api.del(`/api/v1/definitions/${target.id}`);
+      else if (target.type === "webhook") await api.del(`/api/v1/webhook-subscriptions/${target.id}`);
+      else if (target.type === "rule") await api.del(`/api/v1/policy-rules/${target.id}`);
+      else if (target.type === "binding") await api.del(`/api/v1/cluster-bindings/${target.id}`);
     },
-    onSuccess: () => { toast.success(`${deleteTarget?.type} deleted`); refresh(); },
+    onSuccess: (_data, target) => { toast.success(`${target.type} deleted`); refresh(); },
     onError: () => toast.error("Failed to delete"),
     onSettled: () => setDeleteTarget(null),
   });
 
   return (
-    <div className="space-y-6">
+    <div className="animate-fade-in space-y-6">
       <PageHeader
         eyebrow="System configuration"
         title="Settings"
@@ -465,7 +464,7 @@ export default function SettingsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteMutation.mutate()} className="bg-status-blocked hover:bg-status-blocked/90">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)} className="bg-status-blocked hover:bg-status-blocked/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

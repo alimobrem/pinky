@@ -15,15 +15,15 @@ export function NavRail() {
   const { data: taskData } = useQuery({
     queryKey: ["nav-badge-tasks"],
     queryFn: () => api.get<PaginatedResponse<unknown>>("/api/v1/work-items?status=ready&limit=1"),
-    staleTime: 15_000,
-    refetchInterval: 30_000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 
   const { data: issueData } = useQuery({
     queryKey: ["nav-badge-issues"],
     queryFn: () => api.get<PaginatedResponse<unknown>>("/api/v1/issues?status=open&limit=1"),
-    staleTime: 15_000,
-    refetchInterval: 30_000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 
   const taskCount = taskData?.total_count ?? taskData?.items?.length ?? 0;
