@@ -293,11 +293,22 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
     from pinky_worker.db import get_pool
 
     pool = await get_pool()
+
+    # Find the execution linked to this issue
+    exec_row = await pool.fetchrow(
+        "SELECT e.id FROM executions e "
+        "JOIN work_items w ON e.work_item_id = w.id "
+        "WHERE w.issue_id = $1::uuid AND e.execution_type = 'investigation' "
+        "ORDER BY e.created_at DESC LIMIT 1",
+        artifact.issue_id,
+    )
+    exec_uuid = exec_row["id"] if exec_row else uuid4()
+
     await pool.execute(
         """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)
            VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT DO NOTHING""",
-        uuid4(), UUID(artifact.artifact_id), "investigation_completed", 999,
+        uuid4(), exec_uuid, "investigation_completed", 999,
         json.dumps({
             "artifact_id": artifact.artifact_id,
             "issue_id": artifact.issue_id,
