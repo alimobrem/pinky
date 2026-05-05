@@ -8,13 +8,14 @@ import type { Observation, PaginatedResponse } from "@pinky/contracts";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { useCluster } from "@/hooks/use-cluster";
 import { relativeTime } from "@/lib/format-date";
 import { SEVERITY_VARIANT, SEVERITY_BORDER } from "@/lib/status-colors";
 
 export default function AlertsPage() {
-  const [severityFilter, setSeverityFilter] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const cluster = useCluster();
 
@@ -23,7 +24,7 @@ export default function AlertsPage() {
     queryFn: () => {
       const params = new URLSearchParams();
       if (cluster) params.set("cluster_id", cluster);
-      if (severityFilter) params.set("severity", severityFilter);
+      if (severityFilter && severityFilter !== "all") params.set("severity", severityFilter);
       params.set("limit", "100");
       const url = `/api/v1/alerts?${params.toString()}`;
       return api.get<PaginatedResponse<Observation>>(url);
@@ -44,13 +45,18 @@ export default function AlertsPage() {
 
       <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-4 py-3 shadow-card">
         <Filter size={14} className="text-text-tertiary" />
-        <select aria-label="Filter alerts by severity" value={severityFilter} onChange={e => setSeverityFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
-          <option value="">All Severities</option>
-          <option value="critical">Critical</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
+        <Select value={severityFilter} onValueChange={setSeverityFilter}>
+          <SelectTrigger className="w-[140px] h-8 text-xs" aria-label="Filter alerts by severity">
+            <SelectValue placeholder="All Severities" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Severities</SelectItem>
+            <SelectItem value="critical">Critical</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="low">Low</SelectItem>
+          </SelectContent>
+        </Select>
         <span className="ml-auto text-xs text-text-tertiary">{filtered.length} alerts</span>
       </div>
 

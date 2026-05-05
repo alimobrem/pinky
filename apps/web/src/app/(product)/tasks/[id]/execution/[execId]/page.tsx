@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Execution } from "@pinky/contracts";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { ExecutionMonitor } from "@/components/execution-monitor";
 import { relativeTime } from "@/lib/format-date";
@@ -41,9 +42,9 @@ export default function ExecutionDetailPage() {
   return (
     <div>
       <div className="flex items-center mb-5">
-        <button onClick={() => router.push(`/tasks/${taskId}`)} className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary bg-transparent border-none cursor-pointer">
+        <Button variant="ghost" size="sm" onClick={() => router.push(`/tasks/${taskId}`)} className="gap-2 text-text-secondary hover:text-text-primary">
           <ArrowLeft size={16} /> Back to Task
-        </button>
+        </Button>
       </div>
 
       <div className="mb-6">

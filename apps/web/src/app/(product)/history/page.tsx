@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { HistoryEvent, PaginatedResponse } from "@pinky/contracts";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { useCluster } from "@/hooks/use-cluster";
 import { relativeTime } from "@/lib/format-date";
@@ -39,7 +40,7 @@ function getHistoryHeadline(e: HistoryEvent): string {
 }
 
 export default function HistoryPage() {
-  const [typeFilter, setTypeFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const cluster = useCluster();
   const router = useRouter();
@@ -49,7 +50,7 @@ export default function HistoryPage() {
     queryFn: () => {
       const params = new URLSearchParams();
       if (cluster) params.set("cluster_id", cluster);
-      if (typeFilter) params.set("aggregate_type", typeFilter);
+      if (typeFilter && typeFilter !== "all") params.set("aggregate_type", typeFilter);
       params.set("limit", "100");
       const url = `/api/v1/history?${params.toString()}`;
       return api.get<PaginatedResponse<HistoryEvent>>(url);
@@ -77,10 +78,15 @@ export default function HistoryPage() {
 
       <div className="mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border-default bg-bg-surface px-4 py-3 shadow-card">
         <Filter size={14} className="text-text-tertiary" />
-        <select aria-label="Filter history by type" value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="bg-bg-surface text-text-primary border border-border-default rounded-lg px-2.5 py-1.5 text-xs cursor-pointer hover:border-accent-brain/30 transition-colors focus:outline-none focus:ring-1 focus:ring-ring">
-          <option value="">All Types</option>
-          {types.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-[140px] h-8 text-xs" aria-label="Filter history by type">
+            <SelectValue placeholder="All Types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            {types.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <span className="ml-auto text-xs text-text-tertiary">{filtered.length} events</span>
       </div>
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const SHORTCUT_GROUPS = [
   {
@@ -62,9 +63,9 @@ export function KeyboardHelp() {
       <div onClick={e => e.stopPropagation()} className="w-[480px] bg-popover border border-border rounded-xl shadow-dropdown p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-base font-semibold">Keyboard Shortcuts</h2>
-          <button onClick={() => setOpen(false)} aria-label="Close" className="text-text-tertiary hover:text-text-primary bg-transparent border-none cursor-pointer">
+          <Button variant="ghost" size="sm" onClick={() => setOpen(false)} aria-label="Close" className="text-text-tertiary hover:text-text-primary h-8 w-8 p-0">
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         <div className="space-y-6">

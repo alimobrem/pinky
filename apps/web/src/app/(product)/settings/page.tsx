@@ -183,7 +183,7 @@ export default function SettingsPage() {
           {clusters.length === 0 ? (
             <div className="text-center py-10 text-text-secondary">
               No clusters registered.{" "}
-              <button onClick={() => setClusterOpen(true)} className="text-accent-brand font-semibold hover:underline">+ Add first cluster</button>
+              <Button variant="link" onClick={() => setClusterOpen(true)} className="text-accent-brand font-semibold hover:underline p-0 h-auto">+ Add first cluster</Button>
             </div>
           ) : (
             <div className="flex flex-col gap-3">

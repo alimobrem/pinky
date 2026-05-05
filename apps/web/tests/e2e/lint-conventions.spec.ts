@@ -44,15 +44,14 @@ test.describe("Convention enforcement", () => {
     }
   });
 
-  test("no new raw <select> elements (use shadcn Select)", () => {
-    const KNOWN_RAW_SELECTS = 2; // alerts severity filter, history type filter
+  test("no raw <select> elements (use shadcn Select)", () => {
     const violations = grepFiles("<select ", SRC_DIR).filter(
       (line) => !line.includes("components/ui/")
     );
     expect(
-      violations.length,
-      `Found ${violations.length} raw <select> elements (expected ${KNOWN_RAW_SELECTS}):\n${violations.join("\n")}`
-    ).toBeLessThanOrEqual(KNOWN_RAW_SELECTS);
+      violations,
+      `Found ${violations.length} raw <select> elements — use shadcn Select:\n${violations.join("\n")}`
+    ).toHaveLength(0);
   });
 
   test("no raw <input> elements (use shadcn Input)", () => {
@@ -65,14 +64,13 @@ test.describe("Convention enforcement", () => {
     ).toHaveLength(0);
   });
 
-  test("no new raw <button> elements (use shadcn Button)", () => {
-    const KNOWN_RAW_BUTTONS = 3; // settings CTA, execution back, keyboard help close
+  test("no raw <button> elements (use shadcn Button)", () => {
     const violations = grepFiles("<button ", SRC_DIR).filter(
       (line) => !line.includes("components/ui/")
     );
     expect(
-      violations.length,
-      `Found ${violations.length} raw <button> elements (expected ${KNOWN_RAW_BUTTONS}):\n${violations.join("\n")}`
-    ).toBeLessThanOrEqual(KNOWN_RAW_BUTTONS);
+      violations,
+      `Found ${violations.length} raw <button> elements — use shadcn Button:\n${violations.join("\n")}`
+    ).toHaveLength(0);
   });
 });
