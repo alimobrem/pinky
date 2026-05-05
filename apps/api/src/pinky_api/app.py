@@ -1,7 +1,9 @@
-import logging
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import sqlalchemy
+import structlog
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -11,8 +13,10 @@ from pinky_api.auth.middleware import get_current_principal
 from pinky_api.auth.routes import router as auth_router
 from pinky_api.config import get_settings
 from pinky_api.fleet.routes import router as fleet_router
+from pinky_api.logging_config import configure_logging
 from pinky_api.routes.alerts import router as alerts_router
 from pinky_api.routes.analytics import router as analytics_router
+from pinky_api.routes.api_tokens import router as api_tokens_router
 from pinky_api.routes.definitions import router as definitions_router
 from pinky_api.routes.executions import router as executions_router
 from pinky_api.routes.history import router as history_router
@@ -23,7 +27,8 @@ from pinky_api.routes.webhooks import router as webhooks_router
 from pinky_api.routes.work_items import router as work_items_router
 from pinky_api.security.headers import SecurityHeadersMiddleware
 
-logger = logging.getLogger(__name__)
+configure_logging()
+logger = structlog.get_logger(__name__)
 
 
 @asynccontextmanager
@@ -69,6 +74,16 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
 )
 
+
+@app.middleware("http")
+async def logging_context_middleware(request: Request, call_next):  # noqa: ANN201
+    request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(request_id=request_id)
+    response = await call_next(request)
+    return response
+
+
 app.include_router(auth_router)
 app.include_router(fleet_router)
 app.include_router(work_items_router)
@@ -81,6 +96,7 @@ app.include_router(definitions_router)
 app.include_router(webhooks_router)
 app.include_router(policy_rules_router)
 app.include_router(analytics_router)
+app.include_router(api_tokens_router)
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -132,3 +148,32 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 @app.get("/api/v1/healthz")
 async def healthz() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/api/v1/readyz")
+async def readyz() -> JSONResponse:
+    import pinky_api.auth._state as auth_state
+    from pinky_api.db.engine import get_engine
+
+    checks: dict[str, str] = {"db": "fail", "redis": "fail"}
+
+    try:
+        engine = get_engine()
+        async with engine.connect() as conn:
+            await conn.execute(sqlalchemy.text("SELECT 1"))
+        checks["db"] = "ok"
+    except Exception:
+        logger.warning("readyz: DB check failed", exc_info=True)
+
+    try:
+        store = auth_state.session_store
+        if store is not None:
+            await store._redis.ping()
+            checks["redis"] = "ok"
+    except Exception:
+        logger.warning("readyz: Redis check failed", exc_info=True)
+
+    all_ok = all(v == "ok" for v in checks.values())
+    status_code = 200 if all_ok else 503
+    body: dict[str, object] = {"status": "ready"} if all_ok else {"status": "not_ready", "checks": checks}
+    return JSONResponse(content=body, status_code=status_code)

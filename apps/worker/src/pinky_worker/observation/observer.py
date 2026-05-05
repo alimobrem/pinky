@@ -139,6 +139,7 @@ async def observe_cluster(
     scan_interval: int = 60,
     max_cycles: int = 0,
     temporal_client=None,
+    shutdown_event: asyncio.Event | None = None,
 ) -> None:
     scanner_defs = registry.list_by_kind("scanner")
     policy_defs = registry.list_by_kind("policy")
@@ -164,6 +165,9 @@ async def observe_cluster(
             logger.info("prometheus client not available — PromQL checks disabled")
 
         while max_cycles == 0 or cycle < max_cycles:
+            if shutdown_event and shutdown_event.is_set():
+                logger.info("shutdown requested, stopping observer", cluster_id=cluster_id)
+                break
             cycle += 1
             logger.info("scan cycle", cluster_id=cluster_id, cycle=cycle)
 

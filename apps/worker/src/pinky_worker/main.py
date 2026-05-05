@@ -9,6 +9,7 @@ Starts three concurrent tasks:
 import asyncio
 import logging
 import os
+import signal
 from pathlib import Path
 
 import structlog
@@ -78,7 +79,11 @@ async def run_temporal_workers() -> None:
             await asyncio.sleep(retry_seconds)
 
 
-async def run_observer(registry: DefinitionRegistry, correlator: DbIssueCorrelator) -> None:
+async def run_observer(
+    registry: DefinitionRegistry,
+    correlator: DbIssueCorrelator,
+    shutdown_event: asyncio.Event | None = None,
+) -> None:
     scan_interval = int(os.environ.get("PINKY_SCAN_INTERVAL", "60"))
     temporal_enabled = os.environ.get("PINKY_TEMPORAL_ENABLED", "true") == "true"
 
@@ -97,6 +102,10 @@ async def run_observer(registry: DefinitionRegistry, correlator: DbIssueCorrelat
     logger.info("starting observer daemon", scan_interval=scan_interval)
 
     while True:
+        if shutdown_event and shutdown_event.is_set():
+            logger.info("shutdown requested, stopping observer daemon")
+            break
+
         try:
             pool = await get_pool()
             async with pool.acquire() as conn:
@@ -107,6 +116,8 @@ async def run_observer(registry: DefinitionRegistry, correlator: DbIssueCorrelat
                 logger.info("no clusters registered — waiting")
             else:
                 for cluster_id in cluster_ids:
+                    if shutdown_event and shutdown_event.is_set():
+                        break
                     try:
                         await observe_cluster(
                             cluster_id=cluster_id,
@@ -115,6 +126,7 @@ async def run_observer(registry: DefinitionRegistry, correlator: DbIssueCorrelat
                             scan_interval=scan_interval,
                             max_cycles=1,
                             temporal_client=temporal_client,
+                            shutdown_event=shutdown_event,
                         )
                     except Exception:
                         logger.exception("observer scan failed", cluster_id=cluster_id)
@@ -126,6 +138,11 @@ async def run_observer(registry: DefinitionRegistry, correlator: DbIssueCorrelat
 
 async def run() -> None:
     logger.info("pinky-worker starting")
+
+    shutdown_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, shutdown_event.set)
 
     await get_pool()
     logger.info("database pool initialized")
@@ -146,7 +163,7 @@ async def run() -> None:
     if temporal_enabled:
         tasks.append(run_temporal_workers())
     if observer_enabled:
-        tasks.append(run_observer(registry, correlator))
+        tasks.append(run_observer(registry, correlator, shutdown_event=shutdown_event))
     if webhooks_enabled:
         from pinky_worker.webhooks.delivery import run_delivery_loop
         tasks.append(run_delivery_loop())

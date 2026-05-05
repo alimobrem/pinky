@@ -190,7 +190,7 @@ spec:
             periodSeconds: 15
           readinessProbe:
             httpGet:
-              path: /api/v1/healthz
+              path: /api/v1/readyz
               port: 8000
             initialDelaySeconds: 5
             periodSeconds: 5

@@ -81,13 +81,13 @@ def test_binding_status_requires_cluster_id(authed_client: TestClient) -> None:
     assert r.status_code == 200
 
 
-def test_bearer_token_returns_501(unauthed_client: TestClient) -> None:
+def test_bearer_token_invalid_returns_error(unauthed_client: TestClient) -> None:
     r = unauthed_client.get(
         "/api/v1/work-items",
         headers={"Authorization": "Bearer some-api-token"},
     )
-    assert r.status_code == 501
-    assert "not implemented" in r.json()["error"]["message"].lower()
+    # 401 (invalid token) or 503 (DB not available in test) — never 501
+    assert r.status_code in (401, 503)
 
 
 def test_paginated_endpoints_return_items_shape(authed_client: TestClient) -> None:

@@ -1,13 +1,18 @@
 """Auth middleware — session validation, CSRF, principal injection."""
 
+import logging
 import os
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import APIKeyCookie, APIKeyHeader
+from sqlalchemy import select, update
 
 if TYPE_CHECKING:
     from pinky_api.auth.session_store import SessionStore
+
+logger = logging.getLogger(__name__)
 
 SESSION_COOKIE_NAME = "pinky_session"
 CSRF_HEADER_NAME = "x-csrf-token"
@@ -17,6 +22,7 @@ bearer_scheme = APIKeyHeader(name="Authorization", auto_error=False)
 
 UNPROTECTED_PATHS = {
     "/api/v1/healthz",
+    "/api/v1/readyz",
     "/api/v1/auth/login",
     "/api/v1/auth/callback",
 }
@@ -49,8 +55,8 @@ async def get_current_principal(
 
     # API token auth (CLI/CI)
     if auth_header and auth_header.startswith("Bearer "):
-        _api_token = auth_header[7:]
-        raise HTTPException(status_code=501, detail="API token authentication not implemented — use session auth")
+        raw_token = auth_header[7:]
+        return await _validate_api_token(raw_token)
 
     # Session cookie auth
     if not session_token:
@@ -75,3 +81,66 @@ async def get_current_principal(
             raise HTTPException(status_code=403, detail="CSRF token invalid")
 
     return principal
+
+
+async def _validate_api_token(raw_token: str) -> dict:
+    from pinky_api.db.engine import get_session_factory
+    from pinky_api.models.extensibility import ApiToken
+    from pinky_api.models.principal import Principal
+    from pinky_api.security.crypto import hash_token
+
+    try:
+        factory = get_session_factory()
+    except RuntimeError:
+        raise HTTPException(status_code=503, detail="Database not initialized") from None
+
+    token_hash_value = hash_token(raw_token)
+
+    async with factory() as db:
+        stmt = select(ApiToken).where(ApiToken.token_hash == token_hash_value)
+        result = await db.execute(stmt)
+        token_row = result.scalar_one_or_none()
+
+        if token_row is None:
+            raise HTTPException(status_code=401, detail="Invalid API token")
+
+        if token_row.revoked_at is not None:
+            raise HTTPException(status_code=401, detail="API token has been revoked")
+
+        now = datetime.utcnow()  # noqa: DTZ003 — DB uses TIMESTAMP WITHOUT TIME ZONE
+        expires_at = token_row.expires_at
+        if expires_at is not None:
+            # Normalize to naive UTC for comparison (asyncpg may return tz-aware)
+            if expires_at.tzinfo is not None:
+                expires_at = expires_at.replace(tzinfo=None)
+            if expires_at <= now:
+                raise HTTPException(status_code=401, detail="API token has expired")
+
+        # Update last_used_at
+        await db.execute(
+            update(ApiToken)
+            .where(ApiToken.id == token_row.id)
+            .values(last_used_at=now)
+        )
+
+        # Look up the principal to build context
+        principal_stmt = select(Principal).where(Principal.id == token_row.principal_id)
+        principal_result = await db.execute(principal_stmt)
+        principal_row = principal_result.scalar_one_or_none()
+
+        await db.commit()
+
+    if principal_row is None:
+        logger.error("API token references nonexistent principal %s", token_row.principal_id)
+        raise HTTPException(status_code=401, detail="Invalid API token")
+
+    groups = principal_row.groups if principal_row.groups else []
+    return {
+        "id": str(principal_row.id),
+        "provider": principal_row.provider,
+        "email": principal_row.email or "",
+        "groups": groups,
+        "is_admin": "pinky-admins" in groups,
+        "auth_method": "api_token",
+        "token_scopes": list(token_row.scopes) if token_row.scopes else [],
+    }

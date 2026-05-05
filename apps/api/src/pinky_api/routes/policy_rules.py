@@ -22,6 +22,15 @@ class PolicyRuleCreateRequest(BaseModel):
     action: dict
 
 
+class PolicyRuleUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    priority: int | None = None
+    enabled: bool | None = None
+    conditions: dict | None = None
+    action: dict | None = None
+
+
 class PolicyRuleEvalRequest(BaseModel):
     scanner: str = ""
     check_id: str = ""
@@ -72,10 +81,19 @@ async def create_policy_rule(
 
 @router.put("/{rule_id}")
 async def update_policy_rule(
-    rule_id: str, req: PolicyRuleCreateRequest,
+    rule_id: str, req: PolicyRuleUpdateRequest,
     db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin),
 ) -> dict:
-    raise HTTPException(status_code=501, detail="Policy rule update not implemented")
+    repo = PolicyRuleRepository(db)
+    rule = await repo.get(UUID(rule_id))
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Policy rule not found")
+    updates = req.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(rule, field, value)
+    await db.flush()
+    await db.commit()
+    return _serialize(rule)
 
 
 @router.delete("/{rule_id}", status_code=204)

@@ -48,16 +48,17 @@ async def seeded():
     wi2_id = uuid4()
 
     async with _factory() as s:
-        s.add(
-            Principal(
-                id=UUID("00000000-0000-0000-0000-000000000010"),
-                provider="test",
-                subject="test-admin",
-                email="t@t",
-                display_name="Test Admin",
-                groups=["pinky-admins"],
-            )
-        )
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        stmt = pg_insert(Principal).values(
+            id=UUID("00000000-0000-0000-0000-000000000010"),
+            provider="test",
+            subject="test-admin",
+            email="t@t",
+            display_name="Test Admin",
+            groups=["pinky-admins"],
+        ).on_conflict_do_nothing(index_elements=["id"])
+        await s.execute(stmt)
+        await s.flush()
         s.add(ClusterRegistry(
             id=cluster_id, display_name="int-test-cluster",
             api_endpoint="https://test", onboarding_state="ready",
