@@ -175,6 +175,7 @@ describe("contracts type instantiation", () => {
       enabled: true,
       frontmatter: { timeout: 30 },
       body: "# Scanner body",
+      source: "database",
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
     };

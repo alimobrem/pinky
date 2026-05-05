@@ -17,6 +17,7 @@ dependencies = [
     "structlog>=24.4.0",
     "python-multipart>=0.0.18",
     "temporalio>=1.9.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
