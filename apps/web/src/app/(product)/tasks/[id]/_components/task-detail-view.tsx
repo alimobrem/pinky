@@ -99,8 +99,14 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   useEffect(() => {
     if (!executions?.items || investigationState === "starting") return;
 
-    // If we already have investigation results, don't show analyzing for new runs
-    if (investigation?.has_investigation) return;
+    // If investigation results arrived, reset to idle (hides progress card)
+    if (investigation?.has_investigation) {
+      if (investigationState !== "idle" && investigationState !== "completed") {
+        setInvestigationState("idle");
+        setActiveExecId(null);
+      }
+      return;
+    }
 
     const runningExec = executions.items.find(
       (e) =>
