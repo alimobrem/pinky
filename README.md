@@ -364,7 +364,7 @@ make dev
 
 ## API
 
-74 endpoints across auth, fleet, operations, extensibility, analytics, and API tokens. Cursor-based pagination (default 50, max 200).
+63 endpoints across auth, fleet, operations, extensibility, analytics, and API tokens. Cursor-based pagination (default 50, max 200).
 
 ```
 Auth:        /v1/auth/{login,callback,logout,session}
@@ -389,7 +389,7 @@ pinky analytics roi [--since 30d] [--format json]
 
 ## Testing
 
-~750+ tests across 6 packages:
+~884 tests across 6 packages:
 
 ```bash
 make verify             # lint + typecheck + test (all packages)
@@ -397,13 +397,13 @@ make verify             # lint + typecheck + test (all packages)
 
 | Layer | Tests | Command |
 |-------|------:|---------|
-| API | 245 | `cd apps/api && pytest tests/ --ignore=tests/benchmark -v` |
-| Worker unit | 426 | `cd apps/worker && pytest tests/ --ignore=tests/integration -v` |
+| API | 247 | `cd apps/api && pytest tests/ --ignore=tests/benchmark -v` |
+| Worker unit | 452 | `cd apps/worker && pytest tests/ -v` |
 | Worker integration | 26 | `cd apps/worker && pytest tests/integration/ -v` |
 | CLI | 18 | `cd apps/cli && pytest tests/ -v` |
 | Contracts | 11 | `pnpm --filter @pinky/contracts test` |
-| Web E2E | 20 | `cd apps/web && npx playwright test` |
-| **Total** | **746** | |
+| Web E2E | 130 | `cd apps/web && npx playwright test` |
+| **Total** | **884** | |
 
 **Additional (weekly CI):**
 - LLM eval: 36 deterministic graders (`cd apps/worker && pytest evals/ -v`)
@@ -449,8 +449,8 @@ Pre-commit and pre-push hooks block accidental secret commits.
 ## CI
 
 **Every PR** (`.github/workflows/ci.yml`):
-- `api-tests` — lint + 245 tests against Postgres
-- `worker-tests` — lint + 426 unit tests
+- `api-tests` — lint + 247 tests against Postgres
+- `worker-tests` — lint + 452 unit tests
 - `worker-integration` — 26 tests against Postgres + Temporal
 - `web-checks` — typecheck + build
 

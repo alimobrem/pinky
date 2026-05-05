@@ -56,7 +56,7 @@ make temporal-init      # Create pinky namespace
 ### Monorepo Layout
 ```
 apps/web/          → Next.js UI (Dashboard, Tasks, Watch, History, Alerts, Settings, Login)
-apps/api/          → FastAPI API server (74 endpoints across /api/v1/*)
+apps/api/          → FastAPI API server (63 endpoints across /api/v1/*)
 apps/worker/       → Temporal workflows + observers + projectors
 apps/cli/          → CLI wrapping REST API
 packages/contracts/ → Shared TypeScript domain types
@@ -70,11 +70,15 @@ infra/helm/        → Helm chart
 - **Auth:** Global `get_current_principal` dependency on all routes. Unprotected paths in `UNPROTECTED_PATHS` set. Session cookies (HTTP-only, Secure, SameSite=Strict) + API tokens for CLI.
 - **Authz:** 3-layer model in `auth/authz.py` — product authz, cluster authz, execution authz. Observer reads vs user-sensitive reads vs user writes.
 - **Crypto:** `security/crypto.py` — AES-256-GCM with key version prefix + AAD binding. HMAC-SHA256 for token hashing. Never `# type: ignore`.
-- **Definitions:** Markdown files with YAML frontmatter. Loaded from `definitions/` directory. DB overrides via API. Worker loads via `DefinitionRegistry`. 49 definitions ship out of box: 13 scanners, 8 tools, 11 skills, 14 policies, 3 pipelines, 2 redaction rules.
+- **Definitions:** Markdown files with YAML frontmatter. Loaded from `definitions/` directory. DB overrides via API. Worker loads via `DefinitionRegistry`. 53 definitions ship out of box: 13 scanners, 8 tools, 11 skills, 16 policies, 3 pipelines, 2 redaction rules.
 - **Policy:** Declarative rules in `policy/engine.py`. Priority-ordered, first-match-wins. No LLM in the policy pipeline. Supports 8 condition fields and 5 action types. Observer dispatches Temporal workflows on `investigate` decisions.
 - **Observation:** Generic scanner executor in `generic_scanner.py` — interprets structured YAML checks in scanner frontmatter. 18 operators (eq, gt, condition_status, age_gt, cert_expires_within, quantity_gte, promql_gt, etc.), compound conditions (all/any), nested iteration. No hardcoded runner functions — operators add scanners with just markdown. Recurrence counting via observation count per correlation key. Prometheus integration via `prom_client.py` for PromQL-based checks.
 - **Workflows:** 4 Temporal workflows (Investigation, Remediation, Approval, Verification). Activities in `execution/activities.py`. Workflow ID derived from issue fingerprint to prevent duplicates. `gather_evidence` is skill-aware — reads the skill's `tools` list and calls tool-specific K8s API functions (logs, top, describe, rollout, helm-history).
 - **SSE:** Heartbeat every 15s. Reconnect with `Last-Event-ID`. Auth-expired/binding-expired sentinel events.
+- **API Tokens:** CRUD at `/v1/api-tokens`. HMAC-SHA256 hashed, plaintext returned once on creation. Bearer auth in middleware alongside session cookies.
+- **Logging:** structlog for structured JSON logging in production, console in dev. Request ID bound to context per request via `logging_config.py`.
+- **Health:** `/healthz` (always 200) + `/readyz` (checks DB + Redis connectivity). Helm readiness probe uses `/readyz`.
+- **Graceful Shutdown:** Worker handles SIGTERM/SIGINT. Observer checks shutdown event before each scan cycle.
 - **Models:** SQLAlchemy 2 declarative in `models/`. Alembic for migrations. 23 tables including extensibility (definitions, service_bindings, domain_events, webhooks, policy_rules, api_tokens).
 
 ### Secret Management
@@ -97,11 +101,11 @@ infra/helm/        → Helm chart
 ## Testing
 
 ```bash
-# API tests (~245 unit/integration + 10 benchmarks)
+# API tests (247 unit/integration + 10 benchmarks)
 cd apps/api && .venv/bin/pytest tests/ --ignore=tests/benchmark -v
 cd apps/api && .venv/bin/pytest tests/benchmark/ -v --benchmark-only  # perf only
 
-# Worker tests (426 unit + 26 integration + 36 evals)
+# Worker tests (452 unit + 26 integration + 36 evals)
 cd apps/worker && .venv/bin/pytest tests/ -v                          # unit + integration
 cd apps/worker && .venv/bin/pytest evals/ -v                          # LLM eval graders
 
