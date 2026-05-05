@@ -108,7 +108,7 @@ export function CommandPalette() {
             placeholder="Search tasks, navigate, run actions..."
             className="flex-1 bg-transparent border-none outline-none text-text-primary text-[15px] font-sans"
           />
-          <kbd className="bg-bg-active rounded-sm px-1.5 py-0.5 text-[11px] text-text-tertiary">ESC</kbd>
+          <kbd className="bg-bg-active rounded-sm px-1.5 py-0.5 text-xs text-text-tertiary">ESC</kbd>
         </div>
 
         <div className="overflow-y-auto max-h-[380px]" role="listbox" aria-label="Command palette results">
@@ -120,7 +120,7 @@ export function CommandPalette() {
 
           {categories.map(cat => (
             <div key={cat}>
-              <div className="px-4 py-2 text-[11px] font-semibold text-text-tertiary uppercase tracking-wider">{cat}</div>
+              <div className="px-4 py-2 text-xs font-semibold text-text-tertiary uppercase tracking-wider">{cat}</div>
               {filtered.filter(i => i.category === cat).map(item => {
                 const globalIndex = filtered.indexOf(item);
                 return (

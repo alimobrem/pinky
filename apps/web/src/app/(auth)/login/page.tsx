@@ -66,7 +66,7 @@ export default function LoginPage() {
         </div>
 
         {/* Status */}
-        <div className="flex items-center justify-center gap-2.5 mt-10 text-[11px] text-text-tertiary">
+        <div className="flex items-center justify-center gap-2.5 mt-10 text-xs text-text-tertiary">
           <span className="w-1.5 h-1.5 rounded-full bg-status-done animate-brain-pulse" />
           <span className="font-mono tracking-wider">brain online — monitoring clusters</span>
         </div>

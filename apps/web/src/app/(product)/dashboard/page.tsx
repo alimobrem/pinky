@@ -168,10 +168,10 @@ export default function DashboardPage() {
           ) : (
             <div className="flex flex-col gap-2.5">
               {issues.slice(0, 5).map(i => (
-                <div key={i.id} className="flex items-center justify-between">
-                  <span className="text-sm text-text-primary truncate pr-3">{i.title}</span>
+                <Link key={i.id} href="/watch" className="flex items-center justify-between no-underline group">
+                  <span className="text-sm text-text-primary truncate pr-3 group-hover:text-accent-brand transition-colors">{i.title}</span>
                   <span className="text-xs font-mono text-text-tertiary">{i.severity}</span>
-                </div>
+                </Link>
               ))}
               {issues.length > 5 && <span className="text-xs text-text-tertiary text-center">+{issues.length - 5} more</span>}
             </div>
@@ -210,12 +210,16 @@ export default function DashboardPage() {
               <Brain size={15} />
               The Brain
             </div>
-            <span className="w-2 h-2 rounded-full bg-status-done animate-brain-pulse" />
+            <span className={cn("w-2 h-2 rounded-full", clusters.length > 0 ? "bg-status-done animate-brain-pulse" : "bg-text-tertiary")} />
           </div>
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
               <span className="text-text-tertiary">Status</span>
-              <span className="text-text-primary font-medium">Online — monitoring</span>
+              <span className="text-text-primary font-medium">
+                {clusters.length > 0
+                  ? `Online — monitoring ${clusters.length} cluster${clusters.length === 1 ? "" : "s"}`
+                  : "Idle — no clusters"}
+              </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-text-tertiary">Clusters</span>

@@ -97,7 +97,7 @@ export default function WatchPage() {
                   <Brain size={14} className="text-accent-brain" />
                   <span className="font-semibold text-sm">{issue.title}</span>
                 </div>
-                <Badge variant={SEVERITY_VARIANT[issue.severity] || "outline"} className="uppercase text-[11px]">{issue.severity}</Badge>
+                <Badge variant={SEVERITY_VARIANT[issue.severity] || "outline"} className="uppercase text-xs">{issue.severity}</Badge>
               </div>
               <div className="text-xs text-text-tertiary mt-2 pl-6">
                 {issue.status} — last seen {issue.last_seen_at ? relativeTime(issue.last_seen_at) : "unknown"}

@@ -130,7 +130,7 @@ export default function HistoryPage() {
                     <div className={cn(navTarget ? "text-sm text-accent-brand" : "text-sm text-text-primary")}>
                       {getHistoryHeadline(e)}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-text-tertiary">
+                    <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.16em] text-text-tertiary">
                       <span className={TYPE_TEXT[e.aggregate_type] || "text-text-secondary"}>{e.aggregate_type}</span>
                       <span>{e.aggregate_id.slice(0, 8)}</span>
                     </div>

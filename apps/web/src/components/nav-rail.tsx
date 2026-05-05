@@ -42,7 +42,7 @@ export function NavRail() {
           <div className="bg-gradient-to-r from-accent-brand to-accent-brain bg-clip-text text-[17px] font-bold tracking-[0.1em] text-transparent">
             PINKY
           </div>
-          <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-text-tertiary">
+          <div className="mt-1 text-xs uppercase tracking-[0.16em] text-text-tertiary">
             Ops Inbox
           </div>
         </div>
@@ -52,7 +52,7 @@ export function NavRail() {
 
       {/* Primary nav */}
       <div className="flex flex-col gap-1 px-2 xl:px-3">
-        <div className="hidden px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary xl:block">
+        <div className="hidden px-2 pb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary xl:block">
           Workbench
         </div>
         {NAV_ITEMS.filter(i => i.section === "primary").map(item => (
@@ -64,7 +64,7 @@ export function NavRail() {
 
       {/* Secondary nav */}
       <div className="flex flex-col gap-1 px-2 pb-6 xl:px-3">
-        <div className="hidden px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary xl:block">
+        <div className="hidden px-2 pb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary xl:block">
           System
         </div>
         {NAV_ITEMS.filter(i => i.section === "secondary").map(item => (

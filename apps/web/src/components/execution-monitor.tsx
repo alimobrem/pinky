@@ -154,7 +154,7 @@ export function ExecutionMonitor({ executionId, onComplete }: ExecutionMonitorPr
                   <span className="text-xs text-text-secondary">{evt.payload?.passed ? "Verification passed" : "Verification failed"}</span>
                 )}
               </div>
-              <span className="font-mono text-[11px] text-text-tertiary tabular shrink-0">{shortTime(evt.occurred_at)}</span>
+              <span className="font-mono text-xs text-text-tertiary tabular shrink-0">{shortTime(evt.occurred_at)}</span>
             </div>
           );
         })}

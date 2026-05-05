@@ -51,7 +51,7 @@ export default function ExecutionDetailPage() {
         <h1 className="text-xl font-bold tracking-tight mb-3">Execution</h1>
         <div className="flex gap-3 items-center">
           <Badge variant={STATUS_VARIANT[execution.status] || "outline"}>{execution.status}</Badge>
-          <span className="text-[11px] px-1.5 py-0.5 bg-bg-elevated rounded-sm text-text-secondary">{execution.execution_type}</span>
+          <span className="text-xs px-1.5 py-0.5 bg-bg-elevated rounded-sm text-text-secondary">{execution.execution_type}</span>
           <span className="text-xs text-text-tertiary">Started {execution.started_at ? relativeTime(execution.started_at) : "pending"}</span>
         </div>
       </div>

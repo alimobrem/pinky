@@ -148,7 +148,7 @@ export default function TaskDetailPage() {
   });
 
   const approveMutation = useMutation({
-    mutationFn: () => api.post(`/api/v1/executions/${pendingExecution!.id}/approve`, { changeset_digest: "approved" }),
+    mutationFn: () => api.post(`/api/v1/executions/${pendingExecution!.id}/approve`, { changeset_digest: pendingExecution!.id }),
     onSuccess: () => {
       toast.success("Approved");
       setApproveOpen(false);
@@ -334,7 +334,7 @@ export default function TaskDetailPage() {
     <div className="space-y-6">
       <div className="mb-1">
         <button
-          onClick={() => router.push("/tasks")}
+          onClick={() => router.back()}
           className="flex cursor-pointer items-center gap-2 border-none bg-transparent text-sm text-text-secondary hover:text-text-primary"
         >
           <ArrowLeft size={16} /> Back to Tasks
@@ -368,7 +368,7 @@ export default function TaskDetailPage() {
         {Object.entries(item.labels).map(([k, v]) => (
           <span
             key={k}
-            className="rounded-full border border-border-subtle bg-bg-elevated px-2 py-1 text-[11px] text-text-secondary"
+            className="rounded-full border border-border-subtle bg-bg-elevated px-2 py-1 text-xs text-text-secondary"
           >
             {k}={v}
           </span>
@@ -378,7 +378,7 @@ export default function TaskDetailPage() {
             href={item.annotations.ticket_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-full border border-border-subtle bg-bg-elevated px-2 py-1 text-[11px] text-accent-brand no-underline"
+            className="inline-flex items-center gap-1 rounded-full border border-border-subtle bg-bg-elevated px-2 py-1 text-xs text-accent-brand no-underline"
           >
             <Link2 size={12} /> {item.annotations.ticket_url.replace(/^https?:\/\//, "").slice(0, 40)}
           </a>
@@ -411,7 +411,7 @@ export default function TaskDetailPage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-3 py-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">
                     Status
                   </div>
                   <div className="mt-2 text-sm font-semibold text-text-primary">
@@ -419,7 +419,7 @@ export default function TaskDetailPage() {
                   </div>
                 </div>
                 <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-3 py-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">
                     Priority
                   </div>
                   <div className="mt-2 text-sm font-semibold text-text-primary">
@@ -494,7 +494,7 @@ export default function TaskDetailPage() {
                         )}
                       />
                     </div>
-                    <span className="font-mono text-[11px] text-text-tertiary tabular">
+                    <span className="font-mono text-xs text-text-tertiary tabular">
                       {shortTime(event.occurred_at)}
                     </span>
                     <div className="min-w-0">
@@ -534,7 +534,7 @@ export default function TaskDetailPage() {
                   <div className={cn("font-mono text-lg font-bold tabular", confColor((inv?.confidence ?? item.confidence)!))}>
                     {Math.round((inv?.confidence ?? item.confidence)! * 100)}%
                   </div>
-                  <div className="text-[11px] text-text-tertiary">
+                  <div className="text-xs text-text-tertiary">
                     {confLabel((inv?.confidence ?? item.confidence)!)}
                   </div>
                 </div>
@@ -558,7 +558,7 @@ export default function TaskDetailPage() {
           </div>
 
           <div className="rounded-2xl border border-border-default bg-bg-surface p-4 shadow-card">
-            <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+            <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
               Next moves
             </div>
             <div className="space-y-2">
@@ -618,8 +618,8 @@ export default function TaskDetailPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Reassign Task</DialogTitle></DialogHeader>
           <div className="space-y-2">
-            <Label>Assignee ID *</Label>
-            <Input value={reassignId} onChange={(e) => setReassignId(e.target.value)} placeholder="UUID of the new assignee" />
+            <Label>Assignee *</Label>
+            <Input value={reassignId} onChange={(e) => setReassignId(e.target.value)} placeholder="Enter username or email" />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setReassignOpen(false); setReassignId(""); }}>Cancel</Button>

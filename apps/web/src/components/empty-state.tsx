@@ -31,7 +31,7 @@ export function EmptyState({
         </div>
       ) : null}
       {eyebrow ? (
-        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-brand/75">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent-brand/75">
           {eyebrow}
         </div>
       ) : null}

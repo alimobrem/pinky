@@ -20,7 +20,7 @@ export function MobileNav() {
               key={item.id}
               href={item.path}
               className={cn(
-                "flex min-w-[88px] flex-1 flex-col items-center gap-1 rounded-xl px-3 py-2 text-[11px] font-medium no-underline transition-colors",
+                "flex min-w-[88px] flex-1 flex-col items-center gap-1 rounded-xl px-3 py-2 text-xs font-medium no-underline transition-colors",
                 active
                   ? "bg-bg-elevated text-text-primary"
                   : "text-text-tertiary hover:bg-bg-surface hover:text-text-secondary",

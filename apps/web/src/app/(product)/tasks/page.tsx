@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -155,7 +155,7 @@ function TaskPreviewPanel({
           <div className="rounded-xl border border-border-subtle bg-bg-elevated/80 px-3 py-3">
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">Created</div>
             <div className="mt-2 text-sm font-semibold text-text-primary">
-              {task.created_at ? new Date(task.created_at).toLocaleDateString() : "Recent"}
+              {task.created_at ? relativeTime(task.created_at) : "Recent"}
             </div>
           </div>
         </div>
@@ -222,6 +222,7 @@ export default function TasksPage() {
   const [sortMode, setSortMode] = useState<SortMode>("urgency");
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const lastKeyboardNavRef = useRef(0);
   const router = useRouter();
   const searchParams = useSearchParams();
   const cluster = searchParams.get("cluster");
@@ -297,6 +298,12 @@ export default function TasksPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const handleMouseEnter = useCallback((id: string) => {
+    if (Date.now() - lastKeyboardNavRef.current > 800) {
+      setActiveTaskId(id);
+    }
+  }, []);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -382,10 +389,12 @@ export default function TasksPage() {
       if (e.key === "j" && processed.length > 0) {
         const nextIndex = Math.min(currentIndex < 0 ? 0 : currentIndex + 1, processed.length - 1);
         setActiveTaskId(processed[nextIndex].id);
+        lastKeyboardNavRef.current = Date.now();
       }
       if (e.key === "k" && processed.length > 0) {
         const nextIndex = Math.max(currentIndex < 0 ? 0 : currentIndex - 1, 0);
         setActiveTaskId(processed[nextIndex].id);
+        lastKeyboardNavRef.current = Date.now();
       }
       if (e.key === "Enter" && activeTask) router.push(`/tasks/${activeTask.id}`);
       if (e.key === "x" && activeTask) toggleSelect(activeTask.id);
@@ -427,7 +436,7 @@ export default function TasksPage() {
         }
       />
 
-      <div className="mt-6 grid gap-5 2xl:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="space-y-5">
           <div className="rounded-2xl border border-border-default bg-bg-surface p-4 shadow-card">
             <div className="flex flex-wrap gap-2">
@@ -590,7 +599,7 @@ export default function TasksPage() {
                         : "hover:border-accent-brand/20 hover:bg-bg-elevated",
                     )}
                     onClick={() => setActiveTaskId(item.id)}
-                    onMouseEnter={() => setActiveTaskId(item.id)}
+                    onMouseEnter={() => handleMouseEnter(item.id)}
                   >
                     <div className="flex gap-3">
                       <button
@@ -714,7 +723,7 @@ export default function TasksPage() {
           ) : null}
         </div>
 
-        <aside className="hidden 2xl:block">
+        <aside className="hidden xl:block">
           <div className="sticky top-6 space-y-4">
             {activeTask ? (
               <TaskPreviewPanel

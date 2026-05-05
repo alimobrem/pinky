@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { relativeTime } from "@/lib/format-date";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -249,7 +250,7 @@ export default function SettingsPage() {
                 <Card key={d.id} className="rounded-2xl border-border-default bg-bg-elevated/50 p-4 sm:px-5">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div className="flex min-w-0 items-center gap-3">
-                    <Badge variant="outline" className="uppercase text-[11px]">{d.kind}</Badge>
+                    <Badge variant="outline" className="uppercase text-xs">{d.kind}</Badge>
                     <span className="font-semibold">{d.name}</span>
                     <span className="text-xs text-text-tertiary">v{d.version}</span>
                     </div>
@@ -277,7 +278,7 @@ export default function SettingsPage() {
                 <div className="flex flex-col gap-4">
                   <div className="space-y-2"><Label>Name *</Label><Input value={webhookForm.name} onChange={e => setWebhookForm(f => ({ ...f, name: e.target.value }))} placeholder="slack-alerts" /></div>
                   <div className="space-y-2"><Label>URL *</Label><Input value={webhookForm.url} onChange={e => setWebhookForm(f => ({ ...f, url: e.target.value }))} placeholder="https://hooks.slack.com/..." /></div>
-                  <div className="space-y-2"><Label>Event Patterns</Label><Input value={webhookForm.event_patterns} onChange={e => setWebhookForm(f => ({ ...f, event_patterns: e.target.value }))} placeholder="work_item.*, issue.*" /><p className="text-[11px] text-text-tertiary">Comma-separated patterns</p></div>
+                  <div className="space-y-2"><Label>Event Patterns</Label><Input value={webhookForm.event_patterns} onChange={e => setWebhookForm(f => ({ ...f, event_patterns: e.target.value }))} placeholder="work_item.*, issue.*" /><p className="text-xs text-text-tertiary">Comma-separated patterns</p></div>
                   <div className="space-y-2">
                     <Label>Formatter</Label>
                     <Select value={webhookForm.formatter} onValueChange={v => setWebhookForm(f => ({ ...f, formatter: v }))}>
@@ -309,7 +310,7 @@ export default function SettingsPage() {
                     <div title={w.url} className="max-w-full truncate text-xs text-text-tertiary font-mono md:max-w-[420px]">{w.url}</div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge variant="outline" className="uppercase text-[11px]">{w.formatter}</Badge>
+                    <Badge variant="outline" className="uppercase text-xs">{w.formatter}</Badge>
                     <Button variant="ghost" size="icon" onClick={() => setDeleteTarget({ id: w.id, type: "webhook", label: w.name })}>
                       <Trash2 size={14} className="text-text-tertiary" />
                     </Button>
@@ -332,7 +333,7 @@ export default function SettingsPage() {
                 <div className="flex flex-col gap-4">
                   <div className="space-y-2"><Label>Name *</Label><Input value={ruleForm.name} onChange={e => setRuleForm(f => ({ ...f, name: e.target.value }))} placeholder="auto-investigate-critical" /></div>
                   <div className="space-y-2"><Label>Description</Label><Input value={ruleForm.description} onChange={e => setRuleForm(f => ({ ...f, description: e.target.value }))} placeholder="Optional" /></div>
-                  <div className="space-y-2"><Label>Priority</Label><Input type="number" value={ruleForm.priority} onChange={e => setRuleForm(f => ({ ...f, priority: e.target.value }))} /><p className="text-[11px] text-text-tertiary">Lower = higher priority</p></div>
+                  <div className="space-y-2"><Label>Priority</Label><Input type="number" value={ruleForm.priority} onChange={e => setRuleForm(f => ({ ...f, priority: e.target.value }))} /><p className="text-xs text-text-tertiary">Lower = higher priority</p></div>
                   <div className="space-y-2"><Label>Conditions (JSON)</Label><Textarea value={ruleForm.conditions} onChange={e => setRuleForm(f => ({ ...f, conditions: e.target.value }))} className="font-mono text-xs" rows={4} /></div>
                   <div className="space-y-2"><Label>Action (JSON)</Label><Textarea value={ruleForm.action} onChange={e => setRuleForm(f => ({ ...f, action: e.target.value }))} className="font-mono text-xs" rows={4} /></div>
                 </div>
@@ -388,7 +389,7 @@ export default function SettingsPage() {
                     <div className="min-w-0">
                       <div className="font-semibold text-sm">{cluster?.display_name ?? b.cluster_id}</div>
                       <div className="text-xs text-text-tertiary">
-                        {b.binding_method} · {b.cluster_username || "no username"} · expires {b.expires_at ? new Date(b.expires_at).toLocaleString() : "never"}
+                        {b.binding_method} · {b.cluster_username || "no username"} · expires {b.expires_at ? relativeTime(b.expires_at) : "never"}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">

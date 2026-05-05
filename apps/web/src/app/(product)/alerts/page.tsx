@@ -92,17 +92,17 @@ export default function AlertsPage() {
                     <span className="font-semibold text-sm">{a.scanner}</span>
                     {a.check_id && <span className="text-text-tertiary text-sm">/ {a.check_id}</span>}
                   </div>
-                  <Badge variant={SEVERITY_VARIANT[a.severity] || "outline"} className="uppercase text-[11px]">{a.severity}</Badge>
+                  <Badge variant={SEVERITY_VARIANT[a.severity] || "outline"} className="uppercase text-xs">{a.severity}</Badge>
                 </div>
                 {a.resource_name && (
                   <div className="text-sm text-text-secondary mt-1 pl-6">
                     <span className="font-mono text-xs">{a.resource_kind}/{a.resource_namespace}/{a.resource_name}</span>
                   </div>
                 )}
-                <div className="text-[11px] text-text-tertiary mt-1 tabular pl-6">{relativeTime(a.observed_at)}</div>
+                <div className="text-xs text-text-tertiary mt-1 tabular pl-6">{relativeTime(a.observed_at)}</div>
                 {isExpanded && a.payload && Object.keys(a.payload).length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border-subtle pl-6">
-                    <div className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2">Payload</div>
+                    <div className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-2">Payload</div>
                     <pre className="text-xs font-mono text-text-secondary bg-bg-elevated p-3 rounded-md overflow-auto max-h-[200px] whitespace-pre-wrap break-words">
                       {JSON.stringify(a.payload, null, 2)}
                     </pre>
