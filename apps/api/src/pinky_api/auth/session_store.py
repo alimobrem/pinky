@@ -93,9 +93,9 @@ class SessionStore:
 
     async def ping(self) -> bool:
         """Health check — returns True if Redis is reachable."""
-        from typing import Any, cast
-        coro = cast(Any, self._redis.ping())
-        result = await coro
+        from collections.abc import Coroutine
+        from typing import cast
+        result = await cast("Coroutine[object, object, bool]", self._redis.ping())
         return bool(result)
 
     async def get_session_age_minutes(self, raw_token: str) -> int:
