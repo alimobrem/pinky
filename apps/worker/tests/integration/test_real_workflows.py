@@ -71,7 +71,7 @@ async def _seed_issue_and_work_item(conn: asyncpg.Connection, cluster_id: str) -
 
 
 @activity.defn(name="gather_evidence")
-async def mock_gather(issue_id: str, cluster_id: str, skill_tools: list[str] | None = None) -> EvidenceBundle:
+async def mock_gather(issue_id: str, cluster_id: str, skill_tools: list[str] | None = None, execution_id: str = "") -> EvidenceBundle:
     return EvidenceBundle(
         issue_id=issue_id,
         cluster_id=cluster_id,
@@ -413,7 +413,7 @@ async def test_investigation_workflow_failure_marks_failed(
     """When an activity fails, the workflow emits a failed event and the execution is marked failed."""
 
     @activity.defn(name="gather_evidence")
-    async def failing_gather(issue_id: str, cluster_id: str, skill_tools: list[str] | None = None) -> EvidenceBundle:
+    async def failing_gather(issue_id: str, cluster_id: str, skill_tools: list[str] | None = None, execution_id: str = "") -> EvidenceBundle:
         raise RuntimeError("K8s cluster unreachable")
 
     activities = [emit_execution_event, failing_gather, check_artifact_cache, mock_llm, store_artifact]

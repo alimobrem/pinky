@@ -13,6 +13,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID, uuid4
 
 from temporalio import activity
@@ -64,9 +65,30 @@ def compute_evidence_hash(sections: dict[str, str]) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
+async def _emit_tool_event(pool: Any, execution_id: str, tool_name: str, seq: int) -> None:
+    if not execution_id:
+        return
+    try:
+        await pool.execute(
+            """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)
+               VALUES ($1, $2, 'tool_used', $3, $4, $5)
+               ON CONFLICT DO NOTHING""",
+            uuid4(), UUID(execution_id), seq,
+            json.dumps({"tool_name": tool_name}),
+            datetime.now(UTC),
+        )
+        await pool.execute(
+            "SELECT pg_notify($1, $2)", "pinky_watch",
+            json.dumps({"event_type": "tool_used", "execution_id": execution_id}),
+        )
+    except Exception:
+        logger.debug("tool event emission skipped")
+
+
 @activity.defn
 async def gather_evidence(
     issue_id: str, cluster_id: str, skill_tools: list[str] | None = None,
+    execution_id: str = "",
 ) -> EvidenceBundle:
     """Gather evidence from cluster using observer identity.
 
@@ -107,6 +129,7 @@ async def gather_evidence(
             from pinky_worker.db import get_pool
 
             pool = await get_pool()
+            tool_seq = 100
             wi = await pool.fetchrow(
                 "SELECT title, labels FROM work_items WHERE issue_id = $1::uuid LIMIT 1",
                 issue_id,
@@ -130,6 +153,8 @@ async def gather_evidence(
                     sections["pod_logs"] = current_logs
                 if previous_logs:
                     sections["pod_logs_previous"] = previous_logs
+                tool_seq += 1
+                await _emit_tool_event(pool, execution_id, "kubectl-logs", tool_seq)
 
             if "kubectl-top" in skill_tools:
                 top_pods = await get_top_pods(k8s, resource_namespace)
@@ -138,11 +163,15 @@ async def gather_evidence(
                     sections["resource_usage_pods"] = json.dumps(top_pods, default=str)
                 if top_nodes:
                     sections["resource_usage_nodes"] = json.dumps(top_nodes, default=str)
+                tool_seq += 1
+                await _emit_tool_event(pool, execution_id, "kubectl-top", tool_seq)
 
             if "kubectl-describe" in skill_tools and resource_namespace and resource_name:
                 detail = await describe_resource(k8s, resource_kind, resource_namespace, resource_name)
                 if detail:
                     sections["resource_detail"] = json.dumps(detail, default=str)
+                tool_seq += 1
+                await _emit_tool_event(pool, execution_id, "kubectl-describe", tool_seq)
 
             if "kubectl-events" in skill_tools and resource_name:
                 resource_events = [
@@ -151,16 +180,22 @@ async def gather_evidence(
                 ]
                 if resource_events:
                     sections["resource_events"] = json.dumps(resource_events, default=str)
+                tool_seq += 1
+                await _emit_tool_event(pool, execution_id, "kubectl-events", tool_seq)
 
             if "kubectl-rollout" in skill_tools and resource_namespace and resource_name:
                 rollout = await get_rollout_status(k8s, resource_namespace, resource_name)
                 if rollout:
                     sections["rollout_status"] = json.dumps(rollout, default=str)
+                tool_seq += 1
+                await _emit_tool_event(pool, execution_id, "kubectl-rollout", tool_seq)
 
             if "helm-history" in skill_tools and resource_namespace:
                 helm = await get_helm_releases(k8s, resource_namespace)
                 if helm:
                     sections["helm_releases"] = json.dumps(helm, default=str)
+                tool_seq += 1
+                await _emit_tool_event(pool, execution_id, "helm-history", tool_seq)
 
             if "prometheus-query" in skill_tools and resource_namespace and resource_name:
                 from pinky_worker.observation.prom_client import PromClient
@@ -183,6 +218,8 @@ async def gather_evidence(
                         logger.warning("prometheus query failed", extra={"metric": metric_name})
                 if prom_results:
                     sections["prometheus_metrics"] = json.dumps(prom_results, default=str)
+                tool_seq += 1
+                await _emit_tool_event(pool, execution_id, "prometheus-query", tool_seq)
 
         await k8s.close()
     except Exception:

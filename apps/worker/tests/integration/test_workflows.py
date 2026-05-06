@@ -37,7 +37,7 @@ async def mock_emit(event: ExecutionEventPayload) -> None:
 
 
 @activity.defn(name="gather_evidence")
-async def mock_gather(issue_id: str, cluster_id: str, skill_tools: list[str] | None = None) -> EvidenceBundle:
+async def mock_gather(issue_id: str, cluster_id: str, skill_tools: list[str] | None = None, execution_id: str = "") -> EvidenceBundle:
     return EvidenceBundle(
         issue_id=issue_id,
         cluster_id=cluster_id,

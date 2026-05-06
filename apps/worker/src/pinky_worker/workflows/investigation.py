@@ -56,11 +56,37 @@ class InvestigationWorkflow:
         )
 
         try:
+            await workflow.execute_activity(
+                emit_execution_event,
+                ExecutionEventPayload(
+                    execution_id=exec_id,
+                    event_type="progress",
+                    sequence=1,
+                    payload={
+                        "step_description": "Gathering evidence from cluster",
+                        "progress": 0.1,
+                        "tools": input.skill_tools,
+                    },
+                ),
+                start_to_close_timeout=timedelta(seconds=30),
+            )
+
             evidence = await workflow.execute_activity(
                 gather_evidence,
-                args=[input.issue_id, input.cluster_id, input.skill_tools],
+                args=[input.issue_id, input.cluster_id, input.skill_tools, exec_id],
                 start_to_close_timeout=timedelta(seconds=180),
                 retry_policy=RetryPolicy(maximum_attempts=3),
+            )
+
+            await workflow.execute_activity(
+                emit_execution_event,
+                ExecutionEventPayload(
+                    execution_id=exec_id,
+                    event_type="progress",
+                    sequence=2,
+                    payload={"step_description": "Checking analysis cache", "progress": 0.3},
+                ),
+                start_to_close_timeout=timedelta(seconds=30),
             )
 
             cached = await workflow.execute_activity(
@@ -75,7 +101,7 @@ class InvestigationWorkflow:
                     ExecutionEventPayload(
                         execution_id=exec_id,
                         event_type="completed",
-                        sequence=1,
+                        sequence=10,
                         payload={"artifact_id": cached.artifact_id, "cached": True},
                     ),
                     start_to_close_timeout=timedelta(seconds=30),
@@ -89,12 +115,34 @@ class InvestigationWorkflow:
                     cached=True,
                 )
 
+            await workflow.execute_activity(
+                emit_execution_event,
+                ExecutionEventPayload(
+                    execution_id=exec_id,
+                    event_type="progress",
+                    sequence=3,
+                    payload={"step_description": "Analyzing with The Brain", "progress": 0.5},
+                ),
+                start_to_close_timeout=timedelta(seconds=30),
+            )
+
             artifact = await workflow.execute_activity(
                 run_investigation,
                 args=[evidence, input.skill_body, exec_id],
                 start_to_close_timeout=timedelta(seconds=300),
                 heartbeat_timeout=timedelta(seconds=60),
                 retry_policy=RetryPolicy(maximum_attempts=2),
+            )
+
+            await workflow.execute_activity(
+                emit_execution_event,
+                ExecutionEventPayload(
+                    execution_id=exec_id,
+                    event_type="progress",
+                    sequence=4,
+                    payload={"step_description": "Storing investigation results", "progress": 0.9},
+                ),
+                start_to_close_timeout=timedelta(seconds=30),
             )
 
             await workflow.execute_activity(
@@ -108,7 +156,7 @@ class InvestigationWorkflow:
                 ExecutionEventPayload(
                     execution_id=exec_id,
                     event_type="completed",
-                    sequence=1,
+                    sequence=10,
                     payload={"artifact_id": artifact.artifact_id, "confidence": artifact.confidence},
                 ),
                 start_to_close_timeout=timedelta(seconds=30),
