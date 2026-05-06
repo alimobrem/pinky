@@ -131,19 +131,6 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     onError: () => toast.error("Failed to start investigation"),
   });
 
-  if (!task) return null;
-
-  // Derived state — no useState, no useEffect, no state machine
-  const activeExec = executions?.items?.find(
-    (e) => (e.status === "running" || e.status === "pending") && e.execution_type === "investigation",
-  );
-  const pendingExec = executions?.items?.find(
-    (e) => e.status === "waiting_for_approval",
-  );
-  const events = timeline?.items ?? [];
-  const hasResults = investigation?.has_investigation === true;
-  const isInvestigating = !hasResults && (!!activeExec || investigate.isPending);
-
   const resourceInfo = useMemo(() => {
     if (!task) return null;
     const labels = task.labels ?? {};
@@ -160,6 +147,19 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     }
     return kind && ns && name ? { kind, namespace: ns, name, clusterId: task.cluster_id } : null;
   }, [task]);
+
+  if (!task) return null;
+
+  // Derived state — no useState, no useEffect, no state machine
+  const activeExec = executions?.items?.find(
+    (e) => (e.status === "running" || e.status === "pending") && e.execution_type === "investigation",
+  );
+  const pendingExec = executions?.items?.find(
+    (e) => e.status === "waiting_for_approval",
+  );
+  const events = timeline?.items ?? [];
+  const hasResults = investigation?.has_investigation === true;
+  const isInvestigating = !hasResults && (!!activeExec || investigate.isPending);
 
   return (
     <div className="space-y-6">
