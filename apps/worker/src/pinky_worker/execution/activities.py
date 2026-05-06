@@ -415,10 +415,11 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
         _, sql = status_map[event.event_type]
         await pool.execute(sql, exec_uuid, occurred)
 
-    notify_payload = json.dumps({"event_type": event.event_type, "execution_id": str(exec_uuid)})
     try:
-        await pool.execute("SELECT pg_notify($1, $2)", "pinky_watch", notify_payload)
-        await pool.execute("SELECT pg_notify($1, $2)", "pinky_work_items", notify_payload)
+        await pool.execute(
+            "SELECT pg_notify($1, $2)", "pinky_watch",
+            json.dumps({"event_type": event.event_type, "execution_id": str(exec_uuid)}),
+        )
     except Exception:
         logger.debug("NOTIFY skipped in execution event emission")
 

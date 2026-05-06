@@ -1,11 +1,16 @@
 """Work item routes — the core task-first API."""
 
+import logging
+import re
 from typing import Any
 from uuid import UUID
 
+import anthropic
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from pinky_api.auth.deps import (
     principal_uuid,
@@ -338,13 +343,7 @@ async def chat_with_brain(
     messages.append({"role": "user", "content": req.message})
 
     try:
-        import re
-        import anthropic
-
-        client = anthropic.AsyncAnthropicVertex(
-            region="global",
-        )
-
+        client = anthropic.AsyncAnthropicVertex(region="global")
         api_messages = [{"role": m["role"], "content": m["content"]} for m in messages if m["role"] != "system"]
         system_msg = next((m["content"] for m in messages if m["role"] == "system"), "")
 

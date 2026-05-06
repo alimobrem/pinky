@@ -33,62 +33,13 @@ def _raw_pg_url() -> str:
     return url.replace("postgresql+asyncpg://", "postgresql://")
 
 
-async def _sse_with_notify(request: Request, channel: str) -> AsyncGenerator[str, None]:
-    """SSE generator that listens to Postgres NOTIFY on a channel."""
+async def _sse_with_channels(request: Request, channels: list[str]) -> AsyncGenerator[str, None]:
+    """SSE generator that listens to one or more Postgres NOTIFY channels."""
     sequence = 0
     last_event_id = request.headers.get("last-event-id")
     if last_event_id:
         with contextlib.suppress(ValueError):
             sequence = int(last_event_id)
-    conn: asyncpg.Connection | None = None
-
-    try:
-        conn = await asyncpg.connect(_raw_pg_url())
-        assert conn is not None
-        await conn.add_listener(channel, lambda *_: None)
-
-        queue: asyncio.Queue[str] = asyncio.Queue(maxsize=100)
-
-        def _on_notify(conn: asyncpg.Connection, pid: int, channel: str, payload: str) -> None:
-            with contextlib.suppress(asyncio.QueueFull):
-                queue.put_nowait(payload)
-
-        await conn.remove_listener(channel, lambda *_: None)
-        await conn.add_listener(channel, _on_notify)
-
-        while True:
-            if await request.is_disconnected():
-                break
-
-            try:
-                payload = await asyncio.wait_for(queue.get(), timeout=HEARTBEAT_INTERVAL)
-                sequence += 1
-                payload_data = json.loads(payload)
-                envelope = {
-                    "event_id": payload_data.get("event_id", ""),
-                    "stream": channel,
-                    "aggregate_id": payload_data.get("aggregate_id", ""),
-                    "type": payload_data.get("event_type", "update"),
-                    "occurred_at": datetime.now(UTC).isoformat(),
-                    "sequence": sequence,
-                    "payload": payload_data,
-                }
-                yield f"id: {sequence}\nevent: update\ndata: {json.dumps(envelope)}\n\n"
-            except TimeoutError:
-                heartbeat = json.dumps({"ts": datetime.now(UTC).isoformat()})
-                yield f"event: heartbeat\ndata: {heartbeat}\n\n"
-
-    except Exception:
-        error = json.dumps({"error": "stream_error", "message": "Connection to event source failed"})
-        yield f"event: error\ndata: {error}\n\n"
-    finally:
-        if conn and not conn.is_closed():
-            await conn.close()
-
-
-async def _sse_multi_channel(request: Request, channels: list[str]) -> AsyncGenerator[str, None]:
-    """SSE generator that listens to multiple Postgres NOTIFY channels."""
-    sequence = 0
     conn: asyncpg.Connection | None = None
 
     try:
@@ -144,12 +95,12 @@ async def _sse_poll(request: Request, stream_name: str) -> AsyncGenerator[str, N
         await asyncio.sleep(HEARTBEAT_INTERVAL)
 
 
-def _make_stream(request: Request, channel: str) -> StreamingResponse:
+def _make_stream(request: Request, *channels: str) -> StreamingResponse:
     try:
         _raw_pg_url()
-        generator = _sse_with_notify(request, channel)
+        generator = _sse_with_channels(request, list(channels))
     except Exception:
-        generator = _sse_poll(request, channel)
+        generator = _sse_poll(request, channels[0] if channels else "events")
 
     return StreamingResponse(generator, media_type="text/event-stream", headers=SSE_HEADERS)
 
@@ -157,13 +108,7 @@ def _make_stream(request: Request, channel: str) -> StreamingResponse:
 @router.get("/events")
 async def stream_all_events(request: Request) -> StreamingResponse:
     """Unified SSE stream — listens to ALL Postgres NOTIFY channels at once."""
-    channels = ["pinky_work_items", "pinky_watch", "pinky_issues"]
-    try:
-        _raw_pg_url()
-        generator = _sse_multi_channel(request, channels)
-    except Exception:
-        generator = _sse_poll(request, "events")
-    return StreamingResponse(generator, media_type="text/event-stream", headers=SSE_HEADERS)
+    return _make_stream(request, "pinky_work_items", "pinky_watch", "pinky_issues")
 
 
 @router.get("/work-items")
