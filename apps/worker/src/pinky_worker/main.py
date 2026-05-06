@@ -136,6 +136,38 @@ async def run_observer(
         await asyncio.sleep(scan_interval)
 
 
+async def run_investigation_consumer(shutdown_event: asyncio.Event) -> None:
+    """Poll for pending investigations and run them directly — no Temporal."""
+    from pinky_worker.execution.investigator import run_investigation
+
+    logger.info("investigation consumer starting")
+    pool = await get_pool()
+
+    while not shutdown_event.is_set():
+        try:
+            row = await pool.fetchrow(
+                "SELECT e.id, e.cluster_id::text, w.issue_id::text "
+                "FROM executions e "
+                "JOIN work_items w ON e.work_item_id = w.id "
+                "WHERE e.status = 'pending' AND e.execution_type = 'investigation' "
+                "ORDER BY e.created_at "
+                "LIMIT 1 "
+                "FOR UPDATE SKIP LOCKED",
+            )
+            if row:
+                logger.info("processing investigation", execution_id=str(row["id"]))
+                await run_investigation(
+                    pool, row["id"], row["issue_id"], row["cluster_id"],
+                )
+            else:
+                await asyncio.sleep(2)
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            logger.exception("investigation consumer error")
+            await asyncio.sleep(5)
+
+
 async def run() -> None:
     logger.info("pinky-worker starting")
 
@@ -164,6 +196,7 @@ async def run() -> None:
         tasks.append(run_temporal_workers())
     if observer_enabled:
         tasks.append(run_observer(registry, correlator, shutdown_event=shutdown_event))
+    tasks.append(run_investigation_consumer(shutdown_event))
     if webhooks_enabled:
         from pinky_worker.webhooks.delivery import run_delivery_loop
         tasks.append(run_delivery_loop())
