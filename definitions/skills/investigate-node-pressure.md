@@ -3,7 +3,7 @@ name: investigate-node-pressure
 kind: skill
 version: 1.0.0
 description: Investigate node resource pressure and evictions
-tools: [kubectl-get, kubectl-describe, kubectl-top, kubectl-events]
+tools: [kubectl-get, kubectl-describe, kubectl-top, kubectl-events, prometheus-query]
 model_tier: reasoning
 timeout_seconds: 120
 ---
@@ -42,3 +42,10 @@ When investigating node resource pressure (MemoryPressure, DiskPressure, PIDPres
 - If memory leak suspected → recommend profiling and short-term restart
 - If disk pressure → recommend log rotation, image pruning, or storage expansion
 - If widespread → recommend cluster autoscaler review
+
+## Key PromQL queries
+
+- **Node memory utilization:** `1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)`
+- **Node CPU utilization:** `1 - avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[5m]))`
+- **Pod eviction rate:** `rate(kube_pod_status_reason{reason="Evicted"}[1h])`
+- **Disk usage:** `1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})`

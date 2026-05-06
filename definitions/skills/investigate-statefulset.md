@@ -3,7 +3,7 @@ name: investigate-statefulset
 kind: skill
 version: 1.0.0
 description: Investigate StatefulSet rollout and availability issues
-tools: [kubectl-get, kubectl-describe, kubectl-events, kubectl-logs]
+tools: [kubectl-get, kubectl-describe, kubectl-events, kubectl-logs, prometheus-query]
 model_tier: reasoning
 timeout_seconds: 120
 ---
@@ -39,3 +39,10 @@ StatefulSets have ordered startup/shutdown. A stuck ordinal blocks everything af
 - If PVC pending → recommend storage class or capacity fix
 - If partition set → check if intentional canary, recommend completing rollout
 - If data issue → recommend rollback + data recovery plan
+
+## Key PromQL queries
+
+- **PVC usage:** `kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes`
+- **Replica readiness duration:** `kube_pod_status_ready_time - kube_pod_start_time`
+- **Restart trend per ordinal:** `rate(kube_pod_container_status_restarts_total{namespace="NS",pod=~"STS.*"}[1h])`
+- **StatefulSet replicas vs ready:** `kube_statefulset_replicas - kube_statefulset_status_replicas_ready`

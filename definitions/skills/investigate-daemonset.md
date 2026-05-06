@@ -3,7 +3,7 @@ name: investigate-daemonset
 kind: skill
 version: 1.0.0
 description: Investigate DaemonSet availability and scheduling issues
-tools: [kubectl-get, kubectl-describe, kubectl-events, kubectl-top]
+tools: [kubectl-get, kubectl-describe, kubectl-events, kubectl-top, prometheus-query]
 model_tier: utility
 timeout_seconds: 60
 ---
@@ -39,3 +39,9 @@ or CNI is missing from some nodes.
 - If taint mismatch → recommend adding toleration to DaemonSet
 - If node-specific crash → recommend investigating the specific node
 - If misscheduled → recommend tightening node selector
+
+## Key PromQL queries
+
+- **DaemonSet pod restart rate:** `rate(kube_pod_container_status_restarts_total{namespace="NS",pod=~"DAEMONSET.*"}[1h])`
+- **Per-node resource pressure:** `kube_node_status_condition{condition="MemoryPressure",status="true"}`
+- **DaemonSet desired vs available:** `kube_daemonset_status_desired_number_scheduled - kube_daemonset_status_number_available`

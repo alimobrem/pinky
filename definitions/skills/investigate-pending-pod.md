@@ -3,7 +3,7 @@ name: investigate-pending-pod
 kind: skill
 version: 1.0.0
 description: Investigate pods stuck in Pending state
-tools: [kubectl-get, kubectl-describe, kubectl-events, kubectl-top]
+tools: [kubectl-get, kubectl-describe, kubectl-events, kubectl-top, prometheus-query]
 model_tier: utility
 timeout_seconds: 60
 ---
@@ -41,3 +41,9 @@ When investigating pods stuck in Pending state (>5 minutes):
 - If scheduling constraint → recommend relaxing constraints or adding matching nodes
 - If PVC pending → recommend creating the PV or fixing the storage class
 - If affinity conflict → recommend adjusting affinity rules
+
+## Key PromQL queries
+
+- **Node allocatable vs requested CPU:** `kube_node_status_allocatable{resource="cpu"} - on(node) sum by(node)(kube_pod_container_resource_requests{resource="cpu"})`
+- **Node allocatable vs requested memory:** `kube_node_status_allocatable{resource="memory"} - on(node) sum by(node)(kube_pod_container_resource_requests{resource="memory"})`
+- **Namespace quota usage:** `kube_resourcequota{type="used"} / on(resourcequota,namespace) kube_resourcequota{type="hard"}`

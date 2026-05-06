@@ -3,7 +3,7 @@ name: investigate-crashloop
 kind: skill
 version: 1.0.0
 description: Investigate CrashLoopBackOff containers
-tools: [kubectl-get, kubectl-describe, kubectl-logs, kubectl-events]
+tools: [kubectl-get, kubectl-describe, kubectl-logs, kubectl-events, prometheus-query]
 model_tier: reasoning
 timeout_seconds: 120
 ---
@@ -45,3 +45,9 @@ When investigating a CrashLoopBackOff:
 - If missing config/secret → recommend creating the missing resource
 - If resource limits → recommend limit increase with specific values based on actual usage
 - If application bug → recommend rollback + escalation to application team
+
+## Key PromQL queries
+
+- **Restart rate trend:** `rate(kube_pod_container_status_restarts_total{namespace="NS",pod=~"POD.*"}[1h])`
+- **Memory at crash time:** `container_memory_working_set_bytes{namespace="NS",pod=~"POD.*"}`
+- **CPU throttling:** `rate(container_cpu_cfs_throttled_periods_total{namespace="NS",pod=~"POD.*"}[5m])`
