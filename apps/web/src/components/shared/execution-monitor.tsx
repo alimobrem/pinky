@@ -124,6 +124,16 @@ export function ExecutionMonitor({
                   />
                 </div>
               )}
+              {event.event_type === "investigation_completed" && payload.system_prompt && (
+                <details className="mx-4 mb-3 rounded border border-border-subtle">
+                  <summary className="cursor-pointer px-3 py-1.5 text-caption text-text-tertiary hover:text-text-secondary">
+                    View prompt {payload.skill_used ? `(${String(payload.skill_used).slice(0, 60)})` : ""}
+                  </summary>
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap px-3 py-2 font-mono text-caption text-text-secondary">
+                    {String(payload.system_prompt)}
+                  </pre>
+                </details>
+              )}
             </div>
           );
         })}

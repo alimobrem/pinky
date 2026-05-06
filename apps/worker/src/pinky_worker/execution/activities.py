@@ -51,6 +51,8 @@ class InvestigationArtifact:
     evidence_hash: str
     created_at: str = ""
     execution_id: str = ""
+    system_prompt: str = ""
+    skill_used: str = ""
     remediation_steps: list[dict] = field(default_factory=list)
     manual_commands: list[str] = field(default_factory=list)
 
@@ -406,6 +408,8 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str, execution
     content = response.content
     structured = _parse_structured_response(content)
 
+    system_prompt = messages[0]["content"] if messages else ""
+
     return InvestigationArtifact(
         artifact_id=str(uuid4()),
         issue_id=evidence.issue_id,
@@ -419,6 +423,8 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str, execution
         execution_id=execution_id,
         remediation_steps=structured.get("remediation_steps", []),
         manual_commands=structured.get("manual_commands", []),
+        system_prompt=system_prompt,
+        skill_used=effective_skill[:200],
     )
 
 
@@ -458,6 +464,8 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
             "created_at": artifact.created_at,
             "remediation_steps": artifact.remediation_steps,
             "manual_commands": artifact.manual_commands,
+            "system_prompt": artifact.system_prompt,
+            "skill_used": artifact.skill_used,
         }),
         datetime.now(UTC),
     )
