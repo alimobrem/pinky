@@ -28,6 +28,7 @@ const EVENT_CONFIG: Record<string, { icon: LucideIcon; color: string; phase?: st
   approval_required: { icon: ShieldAlert, color: "text-status-approval", phase: "Mitigation" },
   approval_granted: { icon: CheckCircle2, color: "text-status-done", phase: "Mitigation" },
   approval_rejected: { icon: XCircle, color: "text-status-blocked", phase: "Mitigation" },
+  investigation_completed: { icon: CheckCircle2, color: "text-status-done", phase: "Investigation" },
   completed: { icon: CheckCircle2, color: "text-status-done", phase: "Resolution" },
   failed: { icon: XCircle, color: "text-status-blocked", phase: "Resolution" },
   verified: { icon: CheckCircle2, color: "text-status-done", phase: "Resolution" },
@@ -152,6 +153,7 @@ function eventLabel(type: string, payload: Record<string, string | number | unde
     case "approval_required": return "Approval required to proceed";
     case "approval_granted": return "Approved";
     case "approval_rejected": return payload.reason ? `Rejected: ${payload.reason}` : "Rejected";
+    case "investigation_completed": return payload.summary ? String(payload.summary) : "Investigation complete";
     case "completed": return "Execution completed successfully";
     case "failed": return payload.error ? `Failed: ${payload.error}` : "Execution failed";
     case "verified": return "Changes verified";

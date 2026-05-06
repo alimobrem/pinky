@@ -33,6 +33,10 @@ class EvidenceBundle:
     metrics: list[dict] = field(default_factory=list)
     truncated: bool = False
     gathered_at: str = ""
+    issue_title: str = ""
+    resource_namespace: str = ""
+    resource_name: str = ""
+    resource_kind: str = ""
 
 
 @dataclass(frozen=True)
@@ -97,6 +101,7 @@ async def gather_evidence(
     """
     activity.heartbeat("gathering evidence")
 
+    from pinky_worker.db import get_pool
     from pinky_worker.llm.redaction import redact_evidence_sections
     from pinky_worker.observation.k8s_client import (
         create_client,
@@ -110,39 +115,53 @@ async def gather_evidence(
         list_pods,
     )
 
+    pool = await get_pool()
+    wi = await pool.fetchrow(
+        "SELECT title, labels FROM work_items WHERE issue_id = $1::uuid LIMIT 1",
+        issue_id,
+    )
+
+    issue_title = ""
+    resource_namespace = ""
+    resource_name = ""
+    resource_kind = "pod"
+    if wi:
+        issue_title = wi["title"] or ""
+        if wi["labels"]:
+            labels = json.loads(wi["labels"]) if isinstance(wi["labels"], str) else wi["labels"]
+            resource_namespace = labels.get("namespace", "")
+            resource_name = labels.get("name", "")
+            resource_kind = labels.get("kind", "pod")
+        if not resource_name and issue_title:
+            import re
+            m = re.match(r"(\w+)\s+(\S+)/(\S+)\s+", issue_title)
+            if m:
+                resource_kind = m.group(1).lower()
+                resource_namespace = resource_namespace or m.group(2)
+                resource_name = m.group(3)
+
     try:
         k8s = await create_client()
-        pods = await list_pods(k8s)
-        events = await list_events(k8s, limit=50)
+        pods = await list_pods(k8s, namespace=resource_namespace)
+        events = await list_events(k8s, namespace=resource_namespace, limit=50)
 
         sections: dict[str, str] = {
-            "pods": json.dumps(pods[:20], indent=2, default=str),
-            "events": json.dumps(events[:20], indent=2, default=str),
             "cluster_id": cluster_id,
             "issue_id": issue_id,
+            "issue_title": issue_title,
         }
+        if resource_name:
+            target_pods = [p for p in pods if p.get("name") == resource_name]
+            other_pods = [p for p in pods if p.get("name") != resource_name]
+            sections["target_resource"] = json.dumps(target_pods, indent=2, default=str)
+            sections["namespace_pods"] = json.dumps(other_pods[:10], indent=2, default=str)
+        else:
+            sections["pods"] = json.dumps(pods[:20], indent=2, default=str)
+        sections["events"] = json.dumps(events[:20], indent=2, default=str)
 
         # ----- skill-aware evidence -----
+        tool_seq = 100
         if skill_tools:
-            activity.heartbeat("gathering skill-specific evidence")
-
-            from pinky_worker.db import get_pool
-
-            pool = await get_pool()
-            tool_seq = 100
-            wi = await pool.fetchrow(
-                "SELECT title, labels FROM work_items WHERE issue_id = $1::uuid LIMIT 1",
-                issue_id,
-            )
-
-            resource_namespace = ""
-            resource_name = ""
-            resource_kind = "pod"
-            if wi and wi["labels"]:
-                labels = json.loads(wi["labels"]) if isinstance(wi["labels"], str) else wi["labels"]
-                resource_namespace = labels.get("namespace", "")
-                resource_name = labels.get("name", "")
-                resource_kind = labels.get("kind", "pod")
 
             if "kubectl-logs" in skill_tools and resource_namespace and resource_name:
                 current_logs = await get_pod_logs(k8s, resource_namespace, resource_name)
@@ -239,6 +258,10 @@ async def gather_evidence(
         evidence_hash=compute_evidence_hash(redacted),
         sections=redacted,
         gathered_at=datetime.now(UTC).isoformat(),
+        issue_title=issue_title,
+        resource_namespace=resource_namespace,
+        resource_name=resource_name,
+        resource_kind=resource_kind,
     )
 
 
@@ -290,6 +313,17 @@ def _parse_structured_response(content: str) -> dict:
     return {}
 
 
+_GENERIC_SKILL_BODY = (
+    "Investigate the issue by examining the evidence provided. "
+    "Look for: container restarts, OOMKilled events, image pull errors, "
+    "missing resource limits/requests, failed health checks, pending PVCs, "
+    "certificate expiration, and replica mismatches. "
+    "Identify the root cause and suggest specific remediation steps."
+)
+
+_MAX_EVIDENCE_CHARS = 8000
+
+
 @activity.defn
 async def run_investigation(evidence: EvidenceBundle, skill_body: str, execution_id: str = "") -> InvestigationArtifact:
     """Run LLM-powered investigation using the matching skill definition."""
@@ -301,12 +335,28 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str, execution
 
     redacted = redact_evidence_sections(evidence.sections)
     evidence_text = "\n\n".join(f"## {k}\n{v}" for k, v in redacted.items())
+    if len(evidence_text) > _MAX_EVIDENCE_CHARS:
+        evidence_text = evidence_text[:_MAX_EVIDENCE_CHARS] + "\n\n[evidence truncated]"
+
+    issue_context = ""
+    if evidence.issue_title:
+        issue_context = (
+            f"You are investigating a SPECIFIC issue:\n\n"
+            f"  Issue: {evidence.issue_title}\n"
+            f"  Resource: {evidence.resource_kind}/{evidence.resource_namespace}/{evidence.resource_name}\n\n"
+            f"Focus ONLY on this resource. Do not analyze unrelated resources or issues "
+            f"found in the evidence. The evidence may contain other resources for context, "
+            f"but your analysis must be about the specific issue above.\n\n"
+        )
+
+    effective_skill = skill_body or _GENERIC_SKILL_BODY
 
     messages = [
         {
             "role": "system",
             "content": (
                 "You are The Brain, an SRE agent embedded in Pinky. "
+                f"{issue_context}"
                 "Investigate the issue using the skill instructions and evidence below.\n\n"
                 "Provide your analysis in clear sections, then end with a JSON block "
                 "containing structured remediation steps.\n\n"
@@ -338,7 +388,7 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str, execution
         },
         {
             "role": "user",
-            "content": f"# Skill Instructions\n\n{skill_body}\n\n# Evidence\n\n{evidence_text}",
+            "content": f"# Skill Instructions\n\n{effective_skill}\n\n# Evidence\n\n{evidence_text}",
         },
     ]
 
