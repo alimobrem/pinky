@@ -29,6 +29,7 @@ import {
 } from "../queries";
 import { useSSE } from "@/hooks/use-sse";
 import { MarkdownContent } from "@/components/shared/markdown-content";
+import { RemediationPlan } from "./remediation-plan";
 import { StatusIndicator } from "@/components/shared/status-indicator";
 import { PriorityBadge } from "@/components/shared/priority-badge";
 import { ConfidenceBadge } from "@/components/shared/confidence-badge";
@@ -400,6 +401,14 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                   </CardContent>
                 </Card>
               )}
+
+            {investigation?.has_investigation && (
+              <RemediationPlan
+                steps={investigation.remediation_steps ?? []}
+                manualCommands={investigation.manual_commands ?? []}
+                clusterName={task?.cluster_id}
+              />
+            )}
 
             {events.length > 0 && (
               <Card>
