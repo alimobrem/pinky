@@ -172,6 +172,7 @@ async def start_execution(
                 "correlation_key": str(wi.id),
                 "evidence_hash": "",
                 "skill_body": "",
+                "execution_id": str(ex.id),
             }
 
             await temporal_client.start_workflow(
