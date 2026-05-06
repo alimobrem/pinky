@@ -48,6 +48,53 @@ async def get_resource(
         return resp.json()
 
 
+async def list_resources(
+    api_endpoint: str, token: str, namespace: str, kind: str,
+) -> dict[str, Any]:
+    kind_lower = kind.lower()
+    api_prefix, plural = _KIND_TO_API.get(kind_lower, ("api/v1", f"{kind_lower}s"))
+    if namespace:
+        url = f"{api_endpoint}/{api_prefix}/namespaces/{namespace}/{plural}"
+    else:
+        url = f"{api_endpoint}/{api_prefix}/{plural}"
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+    async with httpx.AsyncClient(verify=False) as client:
+        resp = await client.get(url, headers=headers, timeout=30)
+        if resp.status_code == 403:
+            return {"error": "forbidden", "status": 403}
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def get_nodes(
+    api_endpoint: str, token: str,
+) -> dict[str, Any]:
+    url = f"{api_endpoint}/api/v1/nodes"
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+    async with httpx.AsyncClient(verify=False) as client:
+        resp = await client.get(url, headers=headers, timeout=30)
+        if resp.status_code == 403:
+            return {"error": "forbidden", "status": 403}
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def get_events(
+    api_endpoint: str, token: str, namespace: str,
+) -> dict[str, Any]:
+    url = f"{api_endpoint}/api/v1/namespaces/{namespace}/events" if namespace else f"{api_endpoint}/api/v1/events"
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+    async with httpx.AsyncClient(verify=False) as client:
+        resp = await client.get(url, headers=headers, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        items = data.get("items", [])[-20:]
+        return {"items": items}
+
+
 async def apply_resource(
     api_endpoint: str, token: str, namespace: str, kind: str, name: str,
     manifest: dict[str, Any],

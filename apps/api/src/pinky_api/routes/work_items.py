@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.auth.deps import (
+    get_cluster_binding_for_principal,
     principal_uuid,
     require_authenticated,
     require_cluster_read_access,
@@ -359,8 +360,67 @@ async def chat_with_brain(
         messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
     messages.append({"role": "user", "content": req.message})
 
+    from pinky_api.k8s import get_events, get_nodes, get_resource, list_resources
+    from pinky_api.repositories.clusters import ClusterRepository
+
+    cluster_repo = ClusterRepository(db)
+    cluster = await cluster_repo.get(item.cluster_id)
+    api_endpoint = cluster.api_endpoint if cluster else ""
+
+    binding = await get_cluster_binding_for_principal(item.cluster_id, principal, db)
+    cluster_token = ""
+    if binding and binding.encrypted_token:
+        from pinky_api.security.crypto import decrypt
+        cluster_token = decrypt(
+            binding.encrypted_token, aad=f"cluster_identity_bindings:{binding.id}",
+        ).decode()
+
+    tools: list[anthropic.types.ToolParam] = [
+        {
+            "name": "get_resource",
+            "description": "Get a specific K8s resource as JSON. Use for deployments, pods, statefulsets, etc.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "namespace": {"type": "string", "description": "K8s namespace"},
+                    "kind": {"type": "string", "description": "Resource kind (pod, deployment, node, etc.)"},
+                    "name": {"type": "string", "description": "Resource name"},
+                },
+                "required": ["namespace", "kind", "name"],
+            },
+        },
+        {
+            "name": "list_resources",
+            "description": "List K8s resources of a given kind in a namespace. Use to find pods, deployments, etc.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "namespace": {"type": "string", "description": "K8s namespace (empty for cluster-scoped)"},
+                    "kind": {"type": "string", "description": "Resource kind (pod, deployment, node, etc.)"},
+                },
+                "required": ["kind"],
+            },
+        },
+        {
+            "name": "get_nodes",
+            "description": "Get all cluster nodes with taints, conditions, capacity, and allocatable resources.",
+            "input_schema": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "get_events",
+            "description": "Get recent K8s events in a namespace. Shows scheduling failures, warnings, errors.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "namespace": {"type": "string", "description": "K8s namespace (empty for all)"},
+                },
+            },
+        },
+    ]
+
     try:
         from anthropic.lib.vertex import AsyncAnthropicVertex
+        from anthropic.types import TextBlock, ToolUseBlock
         client = AsyncAnthropicVertex(region="global")
         api_messages: list[anthropic.types.MessageParam] = [
             {"role": "user" if m["role"] == "user" else "assistant", "content": m["content"]}
@@ -368,16 +428,65 @@ async def chat_with_brain(
         ]
         system_msg = next((m["content"] for m in messages if m["role"] == "system"), "")
 
+        tool_fns = {
+            "get_resource": lambda inp: get_resource(
+                api_endpoint, cluster_token, inp["namespace"], inp["kind"], inp["name"],
+            ),
+            "list_resources": lambda inp: list_resources(
+                api_endpoint, cluster_token, inp.get("namespace", ""), inp["kind"],
+            ),
+            "get_nodes": lambda _inp: get_nodes(api_endpoint, cluster_token),
+            "get_events": lambda inp: get_events(
+                api_endpoint, cluster_token, inp.get("namespace", ""),
+            ),
+        }
+
+        remaining_rounds = 5
         response = await client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=1024,
+            max_tokens=4096,
             system=system_msg,
             messages=api_messages,
+            tools=tools,
         )
 
-        from anthropic.types import TextBlock
-        block = response.content[0]
-        content = block.text if isinstance(block, TextBlock) else str(block)
+        while response.stop_reason == "tool_use" and remaining_rounds > 0:
+            remaining_rounds -= 1
+            tool_results = []
+            for block in response.content:
+                if isinstance(block, ToolUseBlock):
+                    fn = tool_fns.get(block.name)
+                    if fn and cluster_token:
+                        try:
+                            result = await fn(block.input)
+                            import json as _json
+                            result_text = _json.dumps(result, default=str)[:8000]
+                        except Exception as exc:
+                            result_text = f"Error: {exc}"
+                    else:
+                        result_text = "Tool unavailable — no cluster binding"
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result_text,
+                    })
+
+            api_messages.append({"role": "assistant", "content": response.content})
+            api_messages.append({"role": "user", "content": tool_results})
+            response = await client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=4096,
+                system=system_msg,
+                messages=api_messages,
+                tools=tools,
+            )
+
+        text_parts = []
+        for block in response.content:
+            if isinstance(block, TextBlock):
+                text_parts.append(block.text)
+        content = "\n".join(text_parts)
+
         commands: list[str] = []
         for match in re.finditer(r"`(oc\s[^`]+|kubectl\s[^`]+)`", content):
             commands.append(match.group(1))
