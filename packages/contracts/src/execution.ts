@@ -51,6 +51,16 @@ export interface TimelineEvent {
   occurred_at: string;
 }
 
+export interface RemediationStep {
+  action: string;
+  description: string;
+  resource_kind: string;
+  resource_namespace: string;
+  resource_name: string;
+  params: Record<string, unknown>;
+  risk: "low" | "medium" | "high";
+}
+
 export interface Investigation {
   has_investigation: boolean;
   summary?: string;
@@ -59,6 +69,8 @@ export interface Investigation {
   confidence?: number;
   tool_calls?: string[];
   created_at?: string;
+  remediation_steps?: RemediationStep[];
+  manual_commands?: string[];
 }
 
 export type ApprovalStatus =

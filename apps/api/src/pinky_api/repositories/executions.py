@@ -112,4 +112,6 @@ class ExecutionRepository(BaseRepository):
             "tool_calls": payload.get("tool_calls", []),
             "evidence_hash": payload.get("evidence_hash", ""),
             "created_at": payload.get("created_at", event.occurred_at.isoformat() if event.occurred_at else ""),
+            "remediation_steps": payload.get("remediation_steps", []),
+            "manual_commands": payload.get("manual_commands", []),
         }

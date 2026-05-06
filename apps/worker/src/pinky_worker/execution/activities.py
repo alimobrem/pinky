@@ -45,6 +45,8 @@ class InvestigationArtifact:
     tool_calls: list[str]
     evidence_hash: str
     created_at: str = ""
+    remediation_steps: list[dict] = field(default_factory=list)
+    manual_commands: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -233,7 +235,21 @@ async def check_artifact_cache(evidence_hash: str, correlation_key: str) -> Inve
         tool_calls=data.get("tool_calls", []),
         evidence_hash=evidence_hash,
         created_at=data.get("created_at", ""),
+        remediation_steps=data.get("remediation_steps", []),
+        manual_commands=data.get("manual_commands", []),
     )
+
+
+def _parse_structured_response(content: str) -> dict:
+    """Extract JSON block from LLM response. Falls back to empty dict."""
+    import re
+    match = re.search(r"```json\s*\n(.*?)\n```", content, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError:
+            logger.warning("failed to parse JSON from LLM response")
+    return {}
 
 
 @activity.defn
@@ -253,8 +269,33 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str) -> Invest
             "role": "system",
             "content": (
                 "You are The Brain, an SRE agent embedded in Pinky. "
-                "Investigate the issue using the skill instructions and evidence below. "
-                "Respond with a structured analysis: summary, root_cause, recommended_action, confidence (0-1)."
+                "Investigate the issue using the skill instructions and evidence below.\n\n"
+                "Provide your analysis in clear sections, then end with a JSON block "
+                "containing structured remediation steps.\n\n"
+                "Your response must end with exactly one ```json code block:\n"
+                "```json\n"
+                '{\n'
+                '  "summary": "One paragraph summary of the situation",\n'
+                '  "root_cause": "Root cause explanation",\n'
+                '  "recommended_action": "Primary recommended action in plain English",\n'
+                '  "confidence": 0.85,\n'
+                '  "remediation_steps": [\n'
+                '    {\n'
+                '      "action": "patch|scale|delete_pod|rollback",\n'
+                '      "description": "What this step does",\n'
+                '      "resource_kind": "Deployment|StatefulSet|Pod",\n'
+                '      "resource_namespace": "namespace",\n'
+                '      "resource_name": "name",\n'
+                '      "params": {},\n'
+                '      "risk": "low|medium|high"\n'
+                '    }\n'
+                '  ],\n'
+                '  "manual_commands": ["oc get pods -n default", "oc describe deploy/web -n default"],\n'
+                '  "verification": {"check_delay_seconds": 60, "success_criteria": "description"}\n'
+                '}\n'
+                "```\n\n"
+                "If no automated remediation is possible, set remediation_steps to [] "
+                "and provide manual_commands the operator should run."
             ),
         },
         {
@@ -269,21 +310,26 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str) -> Invest
     response = await router.complete(LLMRequest(
         messages=messages,
         model_tier=ModelTier.REASONING,
-        max_tokens=2048,
+        max_tokens=4096,
     ))
 
     activity.heartbeat("parsing response")
 
+    content = response.content
+    structured = _parse_structured_response(content)
+
     return InvestigationArtifact(
         artifact_id=str(uuid4()),
         issue_id=evidence.issue_id,
-        summary=response.content[:500],
-        root_cause=response.content,
-        recommended_action="See investigation summary",
-        confidence=0.7,
+        summary=structured.get("summary", content[:500]),
+        root_cause=structured.get("root_cause", content),
+        recommended_action=structured.get("recommended_action", "See investigation summary"),
+        confidence=structured.get("confidence", 0.7),
         tool_calls=[],
         evidence_hash=evidence.evidence_hash,
         created_at=datetime.now(UTC).isoformat(),
+        remediation_steps=structured.get("remediation_steps", []),
+        manual_commands=structured.get("manual_commands", []),
     )
 
 
@@ -319,6 +365,8 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
             "evidence_hash": artifact.evidence_hash,
             "tool_calls": artifact.tool_calls,
             "created_at": artifact.created_at,
+            "remediation_steps": artifact.remediation_steps,
+            "manual_commands": artifact.manual_commands,
         }),
         datetime.now(UTC),
     )
