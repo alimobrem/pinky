@@ -42,7 +42,7 @@ export function TasksView() {
   const isDesktop = useIsDesktop();
   const qc = useQueryClient();
 
-  useSSE("/api/v1/streams/work-items", {
+  useSSE("/api/v1/streams/events", {
     onEvent: {
       update: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks() }),
     },

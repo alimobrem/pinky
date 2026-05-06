@@ -73,7 +73,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const { data: task } = useQuery(taskOptions(taskId));
   const { data: executions } = useQuery({
     ...executionsOptions(taskId),
-    refetchInterval: 5_000,
+    
   });
 
   const hasActiveExec = executions?.items?.some(
@@ -98,7 +98,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   };
 
   // SSE: real-time updates for this work item
-  useSSE("/api/v1/streams/work-items", {
+  useSSE("/api/v1/streams/events", {
     onEvent: { update: () => invalidateAll() },
   });
 

@@ -700,7 +700,7 @@ export function WatchView() {
     staleTime: 15_000,
   });
 
-  const { state, lastUpdated } = useSSE("/api/v1/streams/issues", {
+  const { state, lastUpdated } = useSSE("/api/v1/streams/events", {
     onEvent: {
       update: () => {
         qc.invalidateQueries({ queryKey: QUERY_KEYS.issues() });

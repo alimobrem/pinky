@@ -32,7 +32,7 @@ export function ExecutionDetailView({ taskId, execId }: ExecutionDetailViewProps
   };
 
   // SSE: work-items stream for broad updates
-  useSSE("/api/v1/streams/work-items", {
+  useSSE("/api/v1/streams/events", {
     onEvent: { update: () => invalidateAll() },
   });
 

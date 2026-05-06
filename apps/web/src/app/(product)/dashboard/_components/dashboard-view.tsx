@@ -34,7 +34,7 @@ import { QUERY_KEYS } from "@/lib/constants";
 export function DashboardView() {
   const qc = useQueryClient();
 
-  useSSE("/api/v1/streams/work-items", {
+  useSSE("/api/v1/streams/events", {
     onEvent: {
       update: () => {
         qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks() });
