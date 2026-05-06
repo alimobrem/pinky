@@ -194,6 +194,23 @@ async def reassign_work_item(
     return _serialize(item)
 
 
+@router.post("/{work_item_id}/take")
+async def take_work_item(
+    work_item_id: str,
+    db: AsyncSession = Depends(get_db),
+    principal: dict = Depends(require_authenticated),
+) -> dict:
+    repo = WorkItemRepository(db)
+    current = await repo.get(UUID(work_item_id))
+    if current is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+    item = await repo.reassign(UUID(work_item_id), principal_uuid(principal))
+    if item is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+    await db.commit()
+    return _serialize(item)
+
+
 class BulkActionRequest(BaseModel):
     ids: list[str]
     action: str

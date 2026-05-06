@@ -54,7 +54,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
@@ -69,7 +68,6 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const router = useRouter();
   const qc = useQueryClient();
   const [blockReason, setBlockReason] = useState("");
-  const [reassignId, setReassignId] = useState("");
 
   const { data: task } = useQuery(taskOptions(taskId));
   const { data: executions } = useQuery(executionsOptions(taskId));
@@ -106,10 +104,10 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
       api.post(`/api/v1/work-items/${taskId}/block`, { reason }),
     onSuccess: () => { invalidateAll(); setBlockReason(""); toast.success("Task blocked"); },
   });
-  const reassign = useMutation({
-    mutationFn: (assigneeId: string) =>
-      api.post(`/api/v1/work-items/${taskId}/reassign?assignee_id=${assigneeId}`),
-    onSuccess: () => { invalidateAll(); setReassignId(""); toast.success("Task reassigned"); },
+  const take = useMutation({
+    mutationFn: () => api.post(`/api/v1/work-items/${taskId}/take`),
+    onSuccess: () => { invalidateAll(); toast.success("Task assigned to you"); },
+    onError: () => toast.error("Failed to take task"),
   });
   const approve = useMutation({
     mutationFn: (execId: string) => api.post(`/api/v1/executions/${execId}/approve`),
@@ -438,34 +436,16 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                   </Button>
                 )}
 
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="w-full justify-start gap-2 text-text-secondary"
-                    >
-                      <UserPlus size={14} />
-                      Reassign
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Reassign task</DialogTitle>
-                    </DialogHeader>
-                    <Input
-                      value={reassignId}
-                      onChange={(e) => setReassignId(e.target.value)}
-                      placeholder="Assignee"
-                    />
-                    <Button
-                      onClick={() => reassign.mutate(reassignId)}
-                      disabled={!reassignId || reassign.isPending}
-                    >
-                      Reassign
-                    </Button>
-                  </DialogContent>
-                </Dialog>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="w-full justify-start gap-2 text-text-secondary"
+                  onClick={() => take.mutate()}
+                  disabled={take.isPending}
+                >
+                  <UserPlus size={14} />
+                  {take.isPending ? "Assigning..." : "Take this task"}
+                </Button>
               </CardContent>
             </Card>
 
