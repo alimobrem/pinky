@@ -71,9 +71,23 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const [reassignId, setReassignId] = useState("");
 
   const { data: task } = useQuery(taskOptions(taskId));
-  const { data: executions } = useQuery(executionsOptions(taskId));
-  const { data: investigation } = useQuery(investigationOptions(taskId));
-  const { data: timeline } = useQuery(timelineOptions(taskId));
+  const { data: executions } = useQuery({
+    ...executionsOptions(taskId),
+    refetchInterval: 5_000,
+  });
+
+  const hasActiveExec = executions?.items?.some(
+    (e) => (e.status === "running" || e.status === "pending") && e.execution_type === "investigation",
+  ) ?? false;
+
+  const { data: investigation } = useQuery({
+    ...investigationOptions(taskId),
+    refetchInterval: hasActiveExec ? 3_000 : false,
+  });
+  const { data: timeline } = useQuery({
+    ...timelineOptions(taskId),
+    refetchInterval: hasActiveExec ? 3_000 : false,
+  });
 
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: QUERY_KEYS.task(taskId) });
