@@ -7,7 +7,8 @@ export const executionOptions = (id: string) =>
   queryOptions({
     queryKey: QUERY_KEYS.execution(id),
     queryFn: () => api.get<Execution>(`/api/v1/executions/${id}`),
-    staleTime: 5_000,
+    staleTime: 3_000,
+    refetchInterval: 5_000,
   });
 
 export const executionEventsOptions = (workItemId: string) =>
@@ -17,5 +18,6 @@ export const executionEventsOptions = (workItemId: string) =>
       api.get<{ items: TimelineEvent[] }>(
         `/api/v1/work-items/${workItemId}/events`,
       ),
-    staleTime: 5_000,
+    staleTime: 3_000,
+    refetchInterval: 5_000,
   });
