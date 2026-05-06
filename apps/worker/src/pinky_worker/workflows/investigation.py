@@ -59,7 +59,7 @@ class InvestigationWorkflow:
             evidence = await workflow.execute_activity(
                 gather_evidence,
                 args=[input.issue_id, input.cluster_id, input.skill_tools],
-                start_to_close_timeout=timedelta(seconds=60),
+                start_to_close_timeout=timedelta(seconds=180),
                 retry_policy=RetryPolicy(maximum_attempts=3),
             )
 
@@ -92,8 +92,8 @@ class InvestigationWorkflow:
             artifact = await workflow.execute_activity(
                 run_investigation,
                 args=[evidence, input.skill_body, exec_id],
-                start_to_close_timeout=timedelta(seconds=120),
-                heartbeat_timeout=timedelta(seconds=30),
+                start_to_close_timeout=timedelta(seconds=300),
+                heartbeat_timeout=timedelta(seconds=60),
                 retry_policy=RetryPolicy(maximum_attempts=2),
             )
 

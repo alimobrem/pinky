@@ -139,6 +139,26 @@ async def test_dispatch_skips_on_cooldown():
 
 
 @pytest.mark.asyncio
+async def test_dispatch_skips_on_recent_failure():
+    from pinky_worker.observation.observer import _dispatch_investigation
+
+    mock_client = AsyncMock()
+
+    fake_pool = AsyncMock()
+    fake_pool.fetchrow = AsyncMock(return_value={"id": uuid.uuid4(), "status": "failed"})
+    fake_pool.execute = AsyncMock()
+
+    result = CorrelationResult(action="created", issue_id=str(uuid.uuid4()), observation_count=1)
+
+    with patch("pinky_worker.db.get_pool", AsyncMock(return_value=fake_pool)):
+        await _dispatch_investigation(
+            mock_client, str(uuid.uuid4()), _make_obs(), result, _make_decision(), MagicMock(),
+        )
+
+    mock_client.start_workflow.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_observer_retries_temporal_connection():
     """run_observer retries Temporal connection on subsequent cycles after initial failure."""
     from pinky_worker.main import run_observer

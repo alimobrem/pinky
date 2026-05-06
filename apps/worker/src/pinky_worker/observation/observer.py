@@ -100,7 +100,7 @@ async def _dispatch_investigation(
         "SELECT id, status FROM executions WHERE work_item_id IN "
         "(SELECT id FROM work_items WHERE issue_id = $1::uuid) "
         "AND (status IN ('pending', 'running') "
-        "     OR (status = 'completed' AND completed_at > now() - interval '1 hour')) "
+        "     OR (status IN ('completed', 'failed') AND completed_at > now() - interval '1 hour')) "
         "ORDER BY created_at DESC LIMIT 1",
         result.issue_id,
     )
