@@ -338,20 +338,25 @@ async def chat_with_brain(
     messages.append({"role": "user", "content": req.message})
 
     try:
-        from pinky_worker.llm.provider import LLMRequest, LLMRouter, ModelTier
-        from pinky_worker.llm.vertex_provider import VertexProvider
-
-        router = LLMRouter()
-        router.register(VertexProvider())
-        response = await router.complete(LLMRequest(
-            messages=messages,
-            model_tier=ModelTier.INTERACTIVE,
-            max_tokens=1024,
-        ))
-
-        content = response.content
-        commands: list[str] = []
         import re
+        import anthropic
+
+        client = anthropic.AsyncAnthropicVertex(
+            region="global",
+        )
+
+        api_messages = [{"role": m["role"], "content": m["content"]} for m in messages if m["role"] != "system"]
+        system_msg = next((m["content"] for m in messages if m["role"] == "system"), "")
+
+        response = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1024,
+            system=system_msg,
+            messages=api_messages,
+        )
+
+        content = response.content[0].text
+        commands: list[str] = []
         for match in re.finditer(r"`(oc\s[^`]+|kubectl\s[^`]+)`", content):
             commands.append(match.group(1))
 
