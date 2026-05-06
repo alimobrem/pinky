@@ -53,6 +53,7 @@ class InvestigationArtifact:
     execution_id: str = ""
     system_prompt: str = ""
     skill_used: str = ""
+    prompt_version: str = ""
     remediation_steps: list[dict] = field(default_factory=list)
     manual_commands: list[str] = field(default_factory=list)
 
@@ -324,6 +325,7 @@ _GENERIC_SKILL_BODY = (
 )
 
 _MAX_EVIDENCE_CHARS = 8000
+_PROMPT_VERSION = "v2"
 
 
 @activity.defn
@@ -425,6 +427,7 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str, execution
         manual_commands=structured.get("manual_commands", []),
         system_prompt=system_prompt,
         skill_used=effective_skill[:200],
+        prompt_version=_PROMPT_VERSION,
     )
 
 
@@ -466,6 +469,7 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
             "manual_commands": artifact.manual_commands,
             "system_prompt": artifact.system_prompt,
             "skill_used": artifact.skill_used,
+            "prompt_version": artifact.prompt_version,
         }),
         datetime.now(UTC),
     )

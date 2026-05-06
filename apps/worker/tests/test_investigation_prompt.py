@@ -14,6 +14,7 @@ from pinky_worker.execution.activities import (
     EvidenceBundle,
     _GENERIC_SKILL_BODY,
     _MAX_EVIDENCE_CHARS,
+    _PROMPT_VERSION,
     run_investigation,
 )
 
@@ -134,3 +135,4 @@ async def test_artifact_includes_prompt_metadata(mock_llm):
     assert "The Brain" in result.system_prompt
     assert "SPECIFIC issue" in result.system_prompt
     assert result.skill_used == skill
+    assert result.prompt_version == _PROMPT_VERSION
