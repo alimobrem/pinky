@@ -30,6 +30,7 @@ import {
 import { useSSE } from "@/hooks/use-sse";
 import { MarkdownContent } from "@/components/shared/markdown-content";
 import { RemediationPlan } from "./remediation-plan";
+import { BrainChat } from "./brain-chat";
 import { StatusIndicator } from "@/components/shared/status-indicator";
 import { PriorityBadge } from "@/components/shared/priority-badge";
 import { ConfidenceBadge } from "@/components/shared/confidence-badge";
@@ -409,6 +410,8 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                 clusterName={task?.cluster_id}
               />
             )}
+
+            <BrainChat taskId={taskId} />
 
             {events.length > 0 && (
               <Card>

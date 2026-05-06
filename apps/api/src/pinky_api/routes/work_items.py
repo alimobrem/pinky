@@ -286,3 +286,76 @@ async def get_work_item_investigation(
     if investigation is None:
         return {"has_investigation": False}
     return {"has_investigation": True, **investigation}
+
+
+class ChatRequest(BaseModel):
+    message: str
+    history: list[dict] = []
+
+
+@router.post("/{work_item_id}/chat")
+async def chat_with_brain(
+    work_item_id: str,
+    req: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+    principal: dict = Depends(require_authenticated),
+) -> dict:
+    work_item_repo = WorkItemRepository(db)
+    item = await work_item_repo.get(UUID(work_item_id))
+    if item is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+    await require_cluster_read_access(item.cluster_id, principal, db, require_binding=True)
+
+    from pinky_api.repositories.executions import ExecutionRepository
+    repo = ExecutionRepository(db)
+    investigation = await repo.get_investigation_for_work_item(UUID(work_item_id))
+
+    context_parts = [f"Task: {item.title}"]
+    if item.why_now:
+        context_parts.append(f"Situation: {item.why_now}")
+    if investigation:
+        if investigation.get("summary"):
+            context_parts.append(f"Investigation summary: {investigation['summary']}")
+        if investigation.get("root_cause"):
+            context_parts.append(f"Root cause: {investigation['root_cause']}")
+        if investigation.get("recommended_action"):
+            context_parts.append(f"Recommended action: {investigation['recommended_action']}")
+    context = "\n\n".join(context_parts)
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are The Brain, an SRE agent. The operator is asking about an investigation. "
+                "Answer concisely using the context below. If they ask for YAML or commands, "
+                "provide them. Include relevant oc/kubectl commands in a 'commands' list in your response.\n\n"
+                f"Context:\n{context}"
+            ),
+        },
+    ]
+    for msg in req.history[-10:]:
+        messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+    messages.append({"role": "user", "content": req.message})
+
+    try:
+        from pinky_worker.llm.provider import LLMRequest, LLMRouter, ModelTier
+        from pinky_worker.llm.vertex_provider import VertexProvider
+
+        router = LLMRouter()
+        router.register(VertexProvider())
+        response = await router.complete(LLMRequest(
+            messages=messages,
+            model_tier=ModelTier.INTERACTIVE,
+            max_tokens=1024,
+        ))
+
+        content = response.content
+        commands: list[str] = []
+        import re
+        for match in re.finditer(r"`(oc\s[^`]+|kubectl\s[^`]+)`", content):
+            commands.append(match.group(1))
+
+        return {"reply": content, "commands": commands}
+    except Exception:
+        logger.exception("chat with brain failed")
+        raise HTTPException(status_code=502, detail="Brain unavailable") from None
