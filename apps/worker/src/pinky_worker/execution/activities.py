@@ -223,13 +223,20 @@ async def gather_evidence(
                 from pinky_worker.observation.prom_client import PromClient
 
                 prom = PromClient(k8s)
-                ns_pod = f'namespace="{resource_namespace}",pod="{resource_name}"'
-                prom_queries = {
-                    "cpu_usage": f"rate(container_cpu_usage_seconds_total{{{ns_pod}}}[5m])",
-                    "memory_usage": f"container_memory_working_set_bytes{{{ns_pod}}}",
-                    "restart_rate": (
-                        f"rate(kube_pod_container_status_restarts_total{{{ns_pod}}}[1h])"
+                ns_pod = f'namespace="{resource_namespace}",pod=~"{resource_name}.*"'
+                prom_queries: dict[str, str] = {
+                    "cpu_usage_5m": f"rate(container_cpu_usage_seconds_total{{{ns_pod}}}[5m])",
+                    "memory_working_set": f"container_memory_working_set_bytes{{{ns_pod}}}",
+                    "restart_rate": f"rate(kube_pod_container_status_restarts_total{{{ns_pod}}}[1h])",
+                    "cpu_p50_24h": (
+                        f'quantile_over_time(0.50, rate(container_cpu_usage_seconds_total{{{ns_pod}}}[5m])[24h:])'
                     ),
+                    "cpu_p95_24h": (
+                        f'quantile_over_time(0.95, rate(container_cpu_usage_seconds_total{{{ns_pod}}}[5m])[24h:])'
+                    ),
+                    "memory_p50_24h": f'quantile_over_time(0.50, container_memory_working_set_bytes{{{ns_pod}}}[24h:])',
+                    "memory_p95_24h": f'quantile_over_time(0.95, container_memory_working_set_bytes{{{ns_pod}}}[24h:])',
+                    "oom_kills": f'kube_pod_container_status_last_terminated_reason{{reason="OOMKilled",{ns_pod}}}',
                 }
                 prom_results: dict[str, float | None] = {}
                 for metric_name, prom_query in prom_queries.items():
