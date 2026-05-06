@@ -50,7 +50,7 @@ class InvestigationWorkflow:
                 sequence=0,
                 payload={"issue_id": input.issue_id, "type": "investigation"},
             ),
-            start_to_close_timeout=timedelta(seconds=5),
+            start_to_close_timeout=timedelta(seconds=30),
         )
 
         evidence = await workflow.execute_activity(
@@ -63,7 +63,7 @@ class InvestigationWorkflow:
         cached = await workflow.execute_activity(
             check_artifact_cache,
             args=[evidence.evidence_hash, input.correlation_key],
-            start_to_close_timeout=timedelta(seconds=5),
+            start_to_close_timeout=timedelta(seconds=30),
         )
 
         if cached is not None:
@@ -87,7 +87,7 @@ class InvestigationWorkflow:
         await workflow.execute_activity(
             store_artifact,
             artifact,
-            start_to_close_timeout=timedelta(seconds=5),
+            start_to_close_timeout=timedelta(seconds=30),
         )
 
         await workflow.execute_activity(
@@ -98,7 +98,7 @@ class InvestigationWorkflow:
                 sequence=1,
                 payload={"artifact_id": artifact.artifact_id, "confidence": artifact.confidence},
             ),
-            start_to_close_timeout=timedelta(seconds=5),
+            start_to_close_timeout=timedelta(seconds=30),
         )
 
         return InvestigationResult(
