@@ -82,9 +82,23 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const [activeExecId, setActiveExecId] = useState<string | null>(null);
 
   const { data: task } = useQuery(taskOptions(taskId));
-  const { data: investigation } = useQuery(investigationOptions(taskId));
-  const { data: timeline } = useQuery(timelineOptions(taskId));
-  const { data: executions } = useQuery(executionsOptions(taskId));
+  const { data: executions } = useQuery({
+    ...executionsOptions(taskId),
+    refetchInterval: 3_000,
+  });
+
+  const hasActiveExecution = executions?.items?.some(
+    (e) => (e.status === "running" || e.status === "pending") && e.execution_type === "investigation",
+  ) ?? false;
+
+  const { data: investigation } = useQuery({
+    ...investigationOptions(taskId),
+    refetchInterval: hasActiveExecution ? 3_000 : false,
+  });
+  const { data: timeline } = useQuery({
+    ...timelineOptions(taskId),
+    refetchInterval: hasActiveExecution ? 3_000 : false,
+  });
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: QUERY_KEYS.task(taskId) });
@@ -299,7 +313,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
             )}
 
             {isInvestigationInProgress && (
-              <InvestigationProgress state={investigationState} />
+              <InvestigationProgress execution={activeExec} />
             )}
 
             {investigationState === "failed" && (
@@ -703,47 +717,64 @@ const STEP_ORDER: Record<string, number> = {
   completed: 3,
 };
 
-function InvestigationProgress({ state }: { state: InvestigationState }) {
-  const currentStep = STEP_ORDER[state] ?? (state === "starting" ? 0 : 1);
+function InvestigationProgress({ execution }: { execution?: { created_at: string; started_at?: string | null; status: string } }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!execution) return;
+    const start = new Date(execution.started_at ?? execution.created_at).getTime();
+    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [execution]);
+
+  const phase =
+    elapsed < 5 ? 0 :
+    elapsed < 25 ? 1 :
+    2;
+
+  const steps = [
+    { label: "Gathering evidence from cluster", threshold: 0 },
+    { label: "The Brain is analyzing...", threshold: 5 },
+    { label: "Finalizing investigation", threshold: 25 },
+  ];
 
   return (
-    <Card className="border-purple-500/20">
+    <Card className="border-brand-purple/20 bg-brand-purple/5">
       <CardContent className="p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin text-purple-400" />
-          <span className="text-sm font-medium">Investigation in progress</span>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin text-brand-purple" />
+            <span className="text-sm font-medium text-text-primary">Investigation in progress</span>
+          </div>
+          <span className="font-mono text-caption tabular-nums text-text-tertiary">{elapsed}s</span>
         </div>
         <div className="space-y-2">
-          {INVESTIGATION_STEPS.map((step, idx) => {
-            const isCompleted = idx < currentStep;
-            const isCurrent = idx === currentStep;
-            const StepIcon = step.icon;
-
-            return (
-              <div key={step.key} className="flex items-center gap-2 text-sm">
-                {isCompleted && (
-                  <CheckCircle className="h-3.5 w-3.5 text-green-400" />
-                )}
-                {isCurrent && (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-400" />
-                )}
-                {!isCompleted && !isCurrent && (
-                  <StepIcon className="h-3.5 w-3.5 text-text-tertiary" />
-                )}
-                <span
-                  className={
-                    isCompleted
-                      ? "text-text-secondary line-through"
-                      : isCurrent
-                        ? "font-medium text-text-primary"
-                        : "text-text-tertiary"
-                  }
-                >
-                  {step.label}
-                </span>
-              </div>
-            );
-          })}
+          {steps.map((step, idx) => (
+            <div key={idx} className="flex items-center gap-2 text-sm">
+              {idx < phase ? (
+                <CheckCircle className="h-3.5 w-3.5 text-status-done" />
+              ) : idx === phase ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-purple" />
+              ) : (
+                <div className="h-3.5 w-3.5 rounded-full border border-border-default" />
+              )}
+              <span className={
+                idx < phase ? "text-text-secondary" :
+                idx === phase ? "font-medium text-text-primary" :
+                "text-text-tertiary"
+              }>
+                {step.label}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 h-1.5 rounded-full bg-bg-hover overflow-hidden">
+          <div
+            className="h-full rounded-full bg-brand-purple transition-all duration-1000"
+            style={{ width: `${Math.min(95, (elapsed / 35) * 100)}%` }}
+          />
         </div>
       </CardContent>
     </Card>
