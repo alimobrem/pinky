@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@monaco-editor/react": "^4.7.0",
     "@pinky/contracts": "workspace:*",
     "@pinky/design-system": "workspace:*",
     "@tailwindcss/postcss": "^4.2.4",

@@ -56,9 +56,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import type { Execution } from "@pinky/contracts";
+import { ResourceEditor } from "@/components/shared/resource-editor";
 
 interface TaskDetailViewProps {
   taskId: string;
@@ -142,6 +143,23 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const events = timeline?.items ?? [];
   const hasResults = investigation?.has_investigation === true;
   const isInvestigating = !hasResults && (!!activeExec || investigate.isPending);
+
+  const resourceInfo = useMemo(() => {
+    if (!task) return null;
+    const labels = task.labels ?? {};
+    let kind = labels.component ?? "pod";
+    let ns = labels.namespace ?? "";
+    let name = labels.name ?? "";
+    if (!name && task.title) {
+      const m = task.title.match(/^(\w+)\s+(\S+)\/(\S+)\s+/);
+      if (m) {
+        kind = m[1];
+        ns = ns || m[2];
+        name = m[3];
+      }
+    }
+    return kind && ns && name ? { kind, namespace: ns, name, clusterId: task.cluster_id } : null;
+  }, [task]);
 
   return (
     <div className="space-y-6">
@@ -256,6 +274,15 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                 steps={investigation.remediation_steps ?? []}
                 manualCommands={investigation.manual_commands ?? []}
                 clusterName={task?.cluster_id}
+              />
+            )}
+
+            {resourceInfo && (
+              <ResourceEditor
+                clusterId={resourceInfo.clusterId}
+                namespace={resourceInfo.namespace}
+                kind={resourceInfo.kind}
+                name={resourceInfo.name}
               />
             )}
 

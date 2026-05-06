@@ -22,6 +22,7 @@ from pinky_api.routes.executions import router as executions_router
 from pinky_api.routes.history import router as history_router
 from pinky_api.routes.issues import router as issues_router
 from pinky_api.routes.policy_rules import router as policy_rules_router
+from pinky_api.routes.resources import router as resources_router
 from pinky_api.routes.streams import router as streams_router
 from pinky_api.routes.webhooks import router as webhooks_router
 from pinky_api.routes.work_items import router as work_items_router
@@ -97,6 +98,7 @@ app.include_router(webhooks_router)
 app.include_router(policy_rules_router)
 app.include_router(analytics_router)
 app.include_router(api_tokens_router)
+app.include_router(resources_router)
 
 
 @app.exception_handler(StarletteHTTPException)
