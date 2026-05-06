@@ -10,8 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-logger = logging.getLogger(__name__)
-
 from pinky_api.auth.deps import (
     principal_uuid,
     require_authenticated,
@@ -22,6 +20,8 @@ from pinky_api.db.deps import get_db
 from pinky_api.events import emit
 from pinky_api.repositories.bindings import BindingRepository
 from pinky_api.repositories.work_items import WorkItemRepository
+
+logger = logging.getLogger(__name__)
 
 
 class BlockRequest(BaseModel):

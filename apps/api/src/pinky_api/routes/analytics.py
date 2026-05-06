@@ -1,6 +1,6 @@
 """Analytics and ROI routes — proving Pinky's value."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select, text
@@ -25,7 +25,7 @@ async def watch_summary(since: str = "1h", db: AsyncSession = Depends(get_db)) -
     delta = _SINCE_MAP.get(since)
     if delta is None:
         raise HTTPException(status_code=400, detail=f"Invalid since value: {since}. Must be one of: 1h, 4h, 24h")
-    cutoff = datetime.now(timezone.utc) - delta
+    cutoff = datetime.now(UTC) - delta
 
     signals_processed = (await db.execute(
         text("SELECT COUNT(*) FROM observations WHERE observed_at > :cutoff"),
