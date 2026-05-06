@@ -139,13 +139,20 @@ async def start_execution(
         if same_type is not None:
             return _serialize(same_type)
 
+    try:
+        temporal_client = await get_client()
+    except Exception:
+        logger.exception("cannot connect to Temporal")
+        raise HTTPException(
+            status_code=503, detail="Workflow engine unavailable — please try again in a moment",
+        ) from None
+
     ex = await repo.create(work_item_id=wi_id, cluster_id=wi.cluster_id, execution_type=execution_type)
     await emit(db, "execution.started", "execution", ex.id, {"type": execution_type, "work_item_id": work_item_id})
     await db.commit()
 
-    if execution_type == "remediation":
-        try:
-            temporal_client = await get_client()
+    try:
+        if execution_type == "remediation":
             await temporal_client.start_workflow(
                 "RemediationWorkflow",
                 {
@@ -158,15 +165,29 @@ async def start_execution(
                 id=f"remediation-{ex.id}",
                 task_queue="remediation",
             )
-            logger.info("remediation workflow started for execution %s", str(ex.id))
-        except Exception:
-            logger.exception("failed to start remediation workflow for execution %s", str(ex.id))
-            await repo.update_status(ex.id, "failed")
-            await db.commit()
-            raise HTTPException(status_code=502, detail="Failed to start remediation workflow") from None
+        else:
+            workflow_input = {
+                "issue_id": str(wi.issue_id) if wi.issue_id else str(wi.id),
+                "cluster_id": str(wi.cluster_id),
+                "correlation_key": str(wi.id),
+                "evidence_hash": "",
+                "skill_body": "",
+                "execution_id": str(ex.id),
+            }
 
-    # Investigation: no Temporal — worker polls for pending executions and runs directly
-    logger.info("execution created: %s type=%s", str(ex.id), execution_type)
+            await temporal_client.start_workflow(
+                "InvestigationWorkflow",
+                workflow_input,
+                id=f"investigation-{ex.id}",
+                task_queue="investigation",
+            )
+        logger.info("temporal workflow started for execution %s", str(ex.id))
+    except Exception:
+        logger.exception("failed to start temporal workflow for execution %s", str(ex.id))
+        await repo.update_status(ex.id, "failed")
+        await db.commit()
+        raise HTTPException(status_code=502, detail="Failed to start investigation workflow") from None
+
     return _serialize(ex)
 
 

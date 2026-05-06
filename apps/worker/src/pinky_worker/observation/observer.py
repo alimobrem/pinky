@@ -125,25 +125,6 @@ async def _dispatch_investigation(
         exec_id, work_item_id, cluster_id,
     )
 
-    # No Temporal — the investigation consumer picks up pending executions
-    logger.info(
-        "dispatched investigation",
-        execution_id=str(exec_id),
-        issue_id=result.issue_id,
-    )
-    return
-
-
-# Legacy Temporal dispatch — kept for reference but no longer called
-async def _dispatch_investigation_temporal(
-    temporal_client,
-    cluster_id: str,
-    obs,
-    result,
-    exec_id,
-    skill_body: str,
-    skill_tools: list[str],
-) -> None:
     try:
         await temporal_client.start_workflow(
             "InvestigationWorkflow",

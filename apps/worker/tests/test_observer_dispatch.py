@@ -1,4 +1,4 @@
-"""Tests for observer investigation dispatch."""
+"""Tests for observer investigation dispatch and error handling."""
 
 from __future__ import annotations
 
@@ -28,6 +28,8 @@ def _make_decision():
 
 
 def _make_pool(cooldown_result=None, wi_result=None):
+    """Create a fake pool with sequential fetchrow results.
+    First call = cooldown check, second call = work_item lookup."""
     fake_pool = AsyncMock()
     fake_pool.fetchrow = AsyncMock(side_effect=[cooldown_result, wi_result])
     fake_pool.execute = AsyncMock()
@@ -35,8 +37,33 @@ def _make_pool(cooldown_result=None, wi_result=None):
 
 
 @pytest.mark.asyncio
+async def test_dispatch_handles_workflow_already_started():
+    from pinky_worker.observation.observer import _dispatch_investigation
+
+    mock_client = AsyncMock()
+    mock_client.start_workflow = AsyncMock(
+        side_effect=Exception("Workflow execution already started")
+    )
+
+    fake_pool = _make_pool(
+        cooldown_result=None,
+        wi_result={"id": uuid.uuid4()},
+    )
+
+    result = CorrelationResult(action="created", issue_id=str(uuid.uuid4()), observation_count=1)
+
+    with patch("pinky_worker.db.get_pool", AsyncMock(return_value=fake_pool)):
+        await _dispatch_investigation(
+            mock_client, str(uuid.uuid4()), _make_obs(), result, _make_decision(), MagicMock(),
+        )
+
+
+@pytest.mark.asyncio
 async def test_dispatch_creates_execution_record():
     from pinky_worker.observation.observer import _dispatch_investigation
+
+    mock_client = AsyncMock()
+    mock_client.start_workflow = AsyncMock()
 
     work_item_id = uuid.uuid4()
     fake_pool = _make_pool(
@@ -48,7 +75,7 @@ async def test_dispatch_creates_execution_record():
 
     with patch("pinky_worker.db.get_pool", AsyncMock(return_value=fake_pool)):
         await _dispatch_investigation(
-            AsyncMock(), str(uuid.uuid4()), _make_obs(), result, _make_decision(), MagicMock(),
+            mock_client, str(uuid.uuid4()), _make_obs(), result, _make_decision(), MagicMock(),
         )
 
     insert_calls = [
@@ -57,39 +84,48 @@ async def test_dispatch_creates_execution_record():
     ]
     assert len(insert_calls) == 1
 
+    mock_client.start_workflow.assert_called_once()
+    wf_id = mock_client.start_workflow.call_args.kwargs["id"]
+    assert wf_id.startswith("investigation-")
+
 
 @pytest.mark.asyncio
-async def test_dispatch_skips_on_cooldown():
+async def test_dispatch_marks_failed_on_unexpected_error():
     from pinky_worker.observation.observer import _dispatch_investigation
 
-    fake_pool = AsyncMock()
-    fake_pool.fetchrow = AsyncMock(return_value={"id": uuid.uuid4(), "status": "completed"})
-    fake_pool.execute = AsyncMock()
+    mock_client = AsyncMock()
+    mock_client.start_workflow = AsyncMock(
+        side_effect=Exception("Temporal unavailable")
+    )
+
+    fake_pool = _make_pool(
+        cooldown_result=None,
+        wi_result={"id": uuid.uuid4()},
+    )
 
     result = CorrelationResult(action="created", issue_id=str(uuid.uuid4()), observation_count=1)
 
     with patch("pinky_worker.db.get_pool", AsyncMock(return_value=fake_pool)):
         await _dispatch_investigation(
-            AsyncMock(), str(uuid.uuid4()), _make_obs(), result, _make_decision(), MagicMock(),
+            mock_client, str(uuid.uuid4()), _make_obs(), result, _make_decision(), MagicMock(),
         )
 
-    insert_calls = [
+    failed_calls = [
         call for call in fake_pool.execute.call_args_list
-        if "INSERT INTO executions" in str(call)
+        if "UPDATE executions SET status = 'failed'" in str(call)
     ]
-    assert len(insert_calls) == 0
+    assert len(failed_calls) == 1
 
 
 @pytest.mark.asyncio
-async def test_dispatch_does_not_call_temporal():
-    """After removing Temporal from investigation, dispatch should NOT call start_workflow."""
+async def test_dispatch_skips_on_cooldown():
     from pinky_worker.observation.observer import _dispatch_investigation
 
     mock_client = AsyncMock()
-    fake_pool = _make_pool(
-        cooldown_result=None,
-        wi_result={"id": uuid.uuid4()},
-    )
+
+    fake_pool = AsyncMock()
+    fake_pool.fetchrow = AsyncMock(return_value={"id": uuid.uuid4(), "status": "completed"})
+    fake_pool.execute = AsyncMock()
 
     result = CorrelationResult(action="created", issue_id=str(uuid.uuid4()), observation_count=1)
 
