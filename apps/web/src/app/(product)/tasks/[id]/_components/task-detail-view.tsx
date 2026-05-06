@@ -270,18 +270,27 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {events.map((event) => (
-                      <div
-                        key={event.id}
-                        className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-bg-hover"
-                      >
-                        <span className="w-2 h-2 rounded-full bg-brand-purple shrink-0" />
-                        <span className="flex-1 text-text-secondary">
-                          {event.event_type.replace(/_/g, " ")}
-                        </span>
-                        <RelativeTime date={event.occurred_at} />
-                      </div>
-                    ))}
+                    {events.map((event) => {
+                      const payload = (event.payload ?? {}) as Record<string, string | number | undefined>;
+                      const label = timelineLabel(event.event_type, payload);
+                      return (
+                        <div
+                          key={event.id}
+                          className="flex items-start gap-3 rounded-md px-2 py-1.5 text-sm hover:bg-bg-hover"
+                        >
+                          <span className="mt-1.5 w-2 h-2 rounded-full bg-brand-purple shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-text-secondary">{label}</span>
+                            {payload.tool_name && (
+                              <span className="ml-2 inline-block rounded bg-bg-elevated px-1.5 py-0.5 font-mono text-caption text-brand-purple">
+                                {String(payload.tool_name)}
+                              </span>
+                            )}
+                          </div>
+                          <RelativeTime date={event.occurred_at} className="shrink-0" />
+                        </div>
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
@@ -601,4 +610,16 @@ function DetailRow({
       {children}
     </div>
   );
+}
+
+function timelineLabel(type: string, payload: Record<string, string | number | undefined>): string {
+  switch (type) {
+    case "started": return "Execution started";
+    case "progress": return payload.step_description ? String(payload.step_description) : "Processing...";
+    case "tool_used": return `Tool: ${payload.tool_name ?? "unknown"}`;
+    case "investigation_completed": return payload.summary ? String(payload.summary) : "Investigation complete";
+    case "completed": return "Execution completed successfully";
+    case "failed": return payload.error ? `Failed: ${payload.error}` : "Execution failed";
+    default: return type.replace(/_/g, " ");
+  }
 }
