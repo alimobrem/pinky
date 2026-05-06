@@ -56,18 +56,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import type { Execution } from "@pinky/contracts";
-
-type InvestigationState =
-  | "idle"
-  | "starting"
-  | "gathering_evidence"
-  | "analyzing"
-  | "completed"
-  | "failed"
-  | "timed_out";
 
 interface TaskDetailViewProps {
   taskId: string;
@@ -78,196 +69,79 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const qc = useQueryClient();
   const [blockReason, setBlockReason] = useState("");
   const [reassignId, setReassignId] = useState("");
-  const [investigationState, setInvestigationState] = useState<InvestigationState>("idle");
-  const [activeExecId, setActiveExecId] = useState<string | null>(null);
 
   const { data: task } = useQuery(taskOptions(taskId));
-  const { data: executions } = useQuery({
-    ...executionsOptions(taskId),
-    refetchInterval: 3_000,
-  });
+  const { data: executions } = useQuery(executionsOptions(taskId));
+  const { data: investigation } = useQuery(investigationOptions(taskId));
+  const { data: timeline } = useQuery(timelineOptions(taskId));
 
-  const hasActiveExecution = executions?.items?.some(
-    (e) => (e.status === "running" || e.status === "pending") && e.execution_type === "investigation",
-  ) ?? false;
-
-  const { data: investigation } = useQuery({
-    ...investigationOptions(taskId),
-    refetchInterval: hasActiveExecution ? 3_000 : false,
-  });
-  const { data: timeline } = useQuery({
-    ...timelineOptions(taskId),
-    refetchInterval: hasActiveExecution ? 3_000 : false,
-  });
-
-  const invalidate = () => {
+  const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: QUERY_KEYS.task(taskId) });
     qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks() });
-  };
-
-  const invalidateInvestigation = useCallback(() => {
     qc.invalidateQueries({ queryKey: QUERY_KEYS.taskInvestigation(taskId) });
     qc.invalidateQueries({ queryKey: QUERY_KEYS.taskTimeline(taskId) });
     qc.invalidateQueries({ queryKey: [...QUERY_KEYS.executions(), taskId] });
-  }, [qc, taskId]);
+  };
 
-  // Detect active investigation on page load / data change
-  useEffect(() => {
-    if (!executions?.items || investigationState === "starting") return;
-
-    // If investigation results arrived, reset to idle (hides progress card)
-    if (investigation?.has_investigation) {
-      if (investigationState !== "idle" && investigationState !== "completed") {
-        setInvestigationState("idle");
-        setActiveExecId(null);
-      }
-      return;
-    }
-
-    const runningExec = executions.items.find(
-      (e) =>
-        (e.status === "running" || e.status === "pending") &&
-        e.execution_type === "investigation",
-    );
-
-    if (runningExec) {
-      const startedAt = new Date(runningExec.started_at ?? runningExec.created_at);
-      const elapsed = Date.now() - startedAt.getTime();
-      const STUCK_THRESHOLD_MS = 5 * 60 * 1000;
-
-      if (elapsed > STUCK_THRESHOLD_MS) {
-        setInvestigationState("timed_out");
-      } else if (investigationState === "idle") {
-        setInvestigationState("analyzing");
-      }
-      setActiveExecId(runningExec.id);
-    }
-  }, [executions, investigationState, investigation]);
-
-  // SSE subscription for execution progress
-  const sseEventHandlers = useMemo(
-    () => ({
-      update: (raw: string) => {
-        try {
-          const data = JSON.parse(raw) as { type?: string; payload?: Record<string, unknown> };
-          const eventType = data.payload?.event_type ?? data.type;
-
-          if (eventType === "execution.started" || eventType === "started") {
-            setInvestigationState("gathering_evidence");
-          } else if (eventType === "execution.progress" || eventType === "progress" || eventType === "tool_used") {
-            setInvestigationState("analyzing");
-          } else if (eventType === "execution.completed" || eventType === "completed" || eventType === "investigation_completed") {
-            setInvestigationState("completed");
-            invalidateInvestigation();
-          } else if (eventType === "execution.failed" || eventType === "failed") {
-            setInvestigationState("failed");
-            invalidateInvestigation();
-          } else if (eventType === "execution.timed_out" || eventType === "timed_out") {
-            setInvestigationState("timed_out");
-            invalidateInvestigation();
-          } else if (eventType === "execution.cancelled") {
-            setInvestigationState("idle");
-            setActiveExecId(null);
-            invalidateInvestigation();
-          }
-
-          // Always refresh timeline on any event
-          qc.invalidateQueries({ queryKey: QUERY_KEYS.taskTimeline(taskId) });
-        } catch {
-          // Non-JSON payloads are ignored
-        }
-      },
-    }),
-    [invalidateInvestigation, qc, taskId],
-  );
-
-  useSSE(
-    activeExecId
-      ? `/api/v1/streams/executions/${activeExecId}`
-      : "/api/v1/streams/executions/__noop__",
-    {
-      onEvent: sseEventHandlers,
-      enabled: !!activeExecId && investigationState !== "idle" && investigationState !== "completed",
-    },
-  );
+  // SSE: real-time updates for this work item
+  useSSE("/api/v1/streams/work-items", {
+    onEvent: { update: () => invalidateAll() },
+  });
 
   const accept = useMutation({
     mutationFn: () => api.post(`/api/v1/work-items/${taskId}/accept`),
-    onSuccess: () => { invalidate(); toast.success("Task accepted"); },
+    onSuccess: () => { invalidateAll(); toast.success("Task accepted"); },
   });
   const start = useMutation({
     mutationFn: () => api.post(`/api/v1/work-items/${taskId}/start`),
-    onSuccess: () => { invalidate(); toast.success("Task started"); },
+    onSuccess: () => { invalidateAll(); toast.success("Task started"); },
   });
   const complete = useMutation({
     mutationFn: () => api.post(`/api/v1/work-items/${taskId}/complete`),
-    onSuccess: () => { invalidate(); toast.success("Task completed"); },
+    onSuccess: () => { invalidateAll(); toast.success("Task completed"); },
   });
   const block = useMutation({
     mutationFn: (reason: string) =>
       api.post(`/api/v1/work-items/${taskId}/block`, { reason }),
-    onSuccess: () => { invalidate(); setBlockReason(""); toast.success("Task blocked"); },
+    onSuccess: () => { invalidateAll(); setBlockReason(""); toast.success("Task blocked"); },
   });
   const reassign = useMutation({
     mutationFn: (assigneeId: string) =>
       api.post(`/api/v1/work-items/${taskId}/reassign?assignee_id=${assigneeId}`),
-    onSuccess: () => { invalidate(); setReassignId(""); toast.success("Task reassigned"); },
+    onSuccess: () => { invalidateAll(); setReassignId(""); toast.success("Task reassigned"); },
   });
   const approve = useMutation({
     mutationFn: (execId: string) => api.post(`/api/v1/executions/${execId}/approve`),
-    onSuccess: () => { invalidate(); toast.success("Execution approved"); },
+    onSuccess: () => { invalidateAll(); toast.success("Execution approved"); },
   });
   const reject = useMutation({
     mutationFn: (execId: string) => api.post(`/api/v1/executions/${execId}/reject`),
-    onSuccess: () => { invalidate(); toast.success("Execution rejected"); },
+    onSuccess: () => { invalidateAll(); toast.success("Execution rejected"); },
   });
   const investigate = useMutation({
     mutationFn: () =>
       api.post<Execution>(
         `/api/v1/executions?work_item_id=${encodeURIComponent(taskId)}&execution_type=investigation`,
       ),
-    onSuccess: (result) => {
-      setActiveExecId(result.id);
-      setInvestigationState("gathering_evidence");
-      invalidate();
-      toast.success("Investigation started — The Brain is analyzing the issue");
+    onSuccess: () => {
+      invalidateAll();
+      toast.success("Investigation started");
     },
-    onError: () => {
-      setInvestigationState("idle");
-      toast.error("Failed to start investigation");
-    },
+    onError: () => toast.error("Failed to start investigation"),
   });
-
-  const handleStartInvestigation = () => {
-    setInvestigationState("starting");
-    investigate.mutate();
-  };
-
-  const handleCancelInvestigation = async () => {
-    if (!activeExecId) return;
-    try {
-      await api.post(`/api/v1/executions/${activeExecId}/cancel`);
-      setInvestigationState("idle");
-      setActiveExecId(null);
-      invalidateInvestigation();
-      toast.info("Investigation cancelled");
-    } catch {
-      toast.error("Failed to cancel investigation");
-    }
-  };
 
   if (!task) return null;
 
+  // Derived state — no useState, no useEffect, no state machine
+  const activeExec = executions?.items?.find(
+    (e) => (e.status === "running" || e.status === "pending") && e.execution_type === "investigation",
+  );
   const pendingExec = executions?.items?.find(
     (e) => e.status === "waiting_for_approval",
   );
-  const activeExec = executions?.items?.find(
-    (e) => e.status === "running" || e.status === "pending",
-  );
   const events = timeline?.items ?? [];
   const hasResults = investigation?.has_investigation === true;
-  const hasActiveInvestigation = !!activeExec && activeExec.execution_type === "investigation";
-  const isInvestigationInProgress = !hasResults && (hasActiveInvestigation || investigate.isPending);
+  const isInvestigating = !hasResults && (!!activeExec || investigate.isPending);
 
   return (
     <div className="space-y-6">
@@ -312,48 +186,8 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
               </Card>
             )}
 
-            {isInvestigationInProgress && (
+            {isInvestigating && (
               <InvestigationProgress execution={activeExec} />
-            )}
-
-            {investigationState === "failed" && (
-              <Card className="border-red-500/20 bg-red-500/5">
-                <CardContent className="flex items-center gap-3 p-4">
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
-                  <span className="flex-1 text-sm text-red-300">
-                    Investigation failed. You can retry.
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="gap-2"
-                    onClick={handleStartInvestigation}
-                  >
-                    <RotateCcw size={14} />
-                    Retry
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {investigationState === "timed_out" && (
-              <Card className="border-amber-500/20 bg-amber-500/5">
-                <CardContent className="flex items-center gap-3 p-4">
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
-                  <span className="flex-1 text-sm text-amber-300">
-                    Investigation appears stuck (running over 5 minutes).
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-2 text-amber-400 border-amber-500/30"
-                    onClick={handleCancelInvestigation}
-                  >
-                    <XCircle size={14} />
-                    Cancel
-                  </Button>
-                </CardContent>
-              </Card>
             )}
 
             {investigation?.has_investigation &&
@@ -536,62 +370,35 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                   </>
                 )}
 
-                {investigationState === "idle" &&
-                  !activeExec && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full justify-start gap-2"
-                      onClick={handleStartInvestigation}
-                      disabled={investigate.isPending}
-                    >
-                      <Brain size={14} className="text-brand-purple" />
-                      {investigate.isPending ? "Starting..." : "Start Investigation"}
-                    </Button>
-                  )}
-                {investigationState === "starting" && (
+                {!isInvestigating && (
                   <Button
                     size="sm"
                     variant="outline"
                     className="w-full justify-start gap-2"
-                    disabled
+                    onClick={() => investigate.mutate()}
+                    disabled={investigate.isPending}
                   >
-                    <Loader2 size={14} className="animate-spin" />
-                    Starting...
+                    <Brain size={14} className="text-brand-purple" />
+                    {investigate.isPending ? "Starting..." : hasResults ? "Re-investigate" : "Start Investigation"}
                   </Button>
                 )}
-                {(investigationState === "gathering_evidence" ||
-                  investigationState === "analyzing") && (
+                {isInvestigating && activeExec && (
                   <Button
                     size="sm"
                     variant="outline"
                     className="w-full justify-start gap-2 border-amber-500/30 text-amber-400"
-                    onClick={handleCancelInvestigation}
+                    onClick={async () => {
+                      try {
+                        await api.post(`/api/v1/executions/${activeExec.id}/cancel`);
+                        invalidateAll();
+                        toast.info("Investigation cancelled");
+                      } catch {
+                        toast.error("Failed to cancel");
+                      }
+                    }}
                   >
                     <XCircle size={14} />
                     Cancel Investigation
-                  </Button>
-                )}
-                {investigationState === "failed" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full justify-start gap-2 border-red-500/30 text-red-400"
-                    onClick={handleStartInvestigation}
-                  >
-                    <RotateCcw size={14} />
-                    Retry Investigation
-                  </Button>
-                )}
-                {investigationState === "timed_out" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full justify-start gap-2 border-amber-500/30 text-amber-400"
-                    onClick={handleCancelInvestigation}
-                  >
-                    <XCircle size={14} />
-                    Cancel Stuck Investigation
                   </Button>
                 )}
 

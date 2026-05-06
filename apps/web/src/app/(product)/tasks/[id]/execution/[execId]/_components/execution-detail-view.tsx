@@ -26,32 +26,31 @@ export function ExecutionDetailView({ taskId, execId }: ExecutionDetailViewProps
   const { data: execution } = useQuery(executionOptions(execId));
   const { data: events } = useQuery(executionEventsOptions(taskId));
 
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: QUERY_KEYS.execution(execId) });
+    qc.invalidateQueries({ queryKey: QUERY_KEYS.taskTimeline(taskId) });
+  };
+
+  // SSE: work-items stream for broad updates
+  useSSE("/api/v1/streams/work-items", {
+    onEvent: { update: () => invalidateAll() },
+  });
+
+  // SSE: execution-specific stream for this execution
   const { state, lastUpdated } = useSSE(
     `/api/v1/streams/executions/${execId}`,
     {
-      enabled: !!execution && !["completed", "failed", "timed_out", "cancelled"].includes(execution.status),
-      onEvent: {
-        update: () => {
-          qc.invalidateQueries({ queryKey: QUERY_KEYS.execution(execId) });
-          qc.invalidateQueries({ queryKey: QUERY_KEYS.taskTimeline(taskId) });
-        },
-      },
+      onEvent: { update: () => invalidateAll() },
     },
   );
 
   const approve = useMutation({
     mutationFn: (id: string) => api.post(`/api/v1/executions/${id}/approve`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.execution(execId) });
-      toast.success("Approved");
-    },
+    onSuccess: () => { invalidateAll(); toast.success("Approved"); },
   });
   const reject = useMutation({
     mutationFn: (id: string) => api.post(`/api/v1/executions/${id}/reject`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.execution(execId) });
-      toast.success("Rejected");
-    },
+    onSuccess: () => { invalidateAll(); toast.success("Rejected"); },
   });
 
   if (!execution) return null;
@@ -69,9 +68,7 @@ export function ExecutionDetailView({ taskId, execId }: ExecutionDetailViewProps
         </Button>
         <PageHeader
           title={`Execution: ${execution.execution_type}`}
-          meta={
-            <StatusIndicator status={execution.status} />
-          }
+          meta={<StatusIndicator status={execution.status} />}
           className="mb-0 flex-1"
         />
       </div>
