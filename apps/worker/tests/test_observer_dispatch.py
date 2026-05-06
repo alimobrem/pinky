@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -135,3 +136,51 @@ async def test_dispatch_skips_on_cooldown():
         )
 
     mock_client.start_workflow.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_observer_retries_temporal_connection():
+    """run_observer retries Temporal connection on subsequent cycles after initial failure."""
+    from pinky_worker.main import run_observer
+
+    registry = MagicMock()
+    registry.list_by_kind.return_value = []
+    correlator = MagicMock()
+
+    shutdown = asyncio.Event()
+    call_count = 0
+
+    async def mock_connect(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ConnectionRefusedError("Temporal not ready")
+        mock_client = AsyncMock()
+        return mock_client
+
+    fake_pool = AsyncMock()
+    fake_pool.acquire.return_value.__aenter__ = AsyncMock(return_value=AsyncMock())
+    fake_pool.acquire.return_value.__aexit__ = AsyncMock(return_value=False)
+    conn_mock = AsyncMock()
+    conn_mock.fetch = AsyncMock(return_value=[])
+    fake_pool.acquire.return_value.__aenter__.return_value = conn_mock
+
+    async def stop_after_two_cycles(*args, **kwargs):
+        if call_count >= 2:
+            shutdown.set()
+        return fake_pool
+
+    with (
+        patch("pinky_worker.main.get_pool", side_effect=stop_after_two_cycles),
+        patch("pinky_worker.main.get_settings", return_value=MagicMock(
+            temporal=MagicMock(address="localhost:7233", namespace="default"),
+        )),
+        patch("temporalio.client.Client.connect", side_effect=mock_connect),
+        patch("pinky_worker.main.os.environ.get", side_effect=lambda k, d="": {
+            "PINKY_SCAN_INTERVAL": "0",
+            "PINKY_TEMPORAL_ENABLED": "true",
+        }.get(k, d)),
+    ):
+        await run_observer(registry, correlator, shutdown_event=shutdown)
+
+    assert call_count == 2

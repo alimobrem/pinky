@@ -1,4 +1,4 @@
-.PHONY: dev dev-infra dev-api dev-worker dev-web dev-web-clean lint typecheck test verify clean db-upgrade db-migrate temporal-init docker-build docker-push helm-lint helm-template deploy
+.PHONY: dev dev-infra dev-api dev-worker dev-web dev-web-clean lint typecheck test verify clean db-upgrade db-migrate docker-build docker-push helm-lint helm-template deploy
 
 # Development
 CONTAINER_ENGINE ?= podman
@@ -51,10 +51,6 @@ db-upgrade:
 
 db-migrate:
 	cd apps/api && .venv/bin/python -m alembic revision --autogenerate -m "$(MSG)"
-
-# Temporal
-temporal-init:
-	temporal operator namespace create pinky 2>/dev/null || true
 
 # Docker
 REGISTRY ?= $(shell oc registry info 2>/dev/null || echo "localhost:5000")

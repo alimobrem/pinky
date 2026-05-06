@@ -91,6 +91,13 @@ class SessionStore:
             logger.info("session revoked")
         return deleted > 0
 
+    async def ping(self) -> bool:
+        """Health check — returns True if Redis is reachable."""
+        from typing import Any, cast
+        coro = cast(Any, self._redis.ping())
+        result = await coro
+        return bool(result)
+
     async def get_session_age_minutes(self, raw_token: str) -> int:
         """Get session age in minutes for freshness checks."""
         token_hash = hash_token(raw_token)

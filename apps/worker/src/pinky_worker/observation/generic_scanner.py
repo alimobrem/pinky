@@ -168,7 +168,8 @@ def parse_x509_not_after(cert_b64: str) -> datetime | None:
         with tempfile.NamedTemporaryFile(suffix=".pem", delete=True) as f:
             f.write(pem_data)
             f.flush()
-            info = ssl._ssl._test_decode_cert(f.name)  # noqa: SLF001
+            _ssl_mod = getattr(ssl, "_ssl", None)
+            info = _ssl_mod._test_decode_cert(f.name) if _ssl_mod else {}  # noqa: SLF001
         not_after_str = info.get("notAfter", "")
         if not_after_str:
             return datetime.strptime(not_after_str, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=UTC)
@@ -227,7 +228,7 @@ async def evaluate_op(
         if op == "lte":
             return _to_float(value) <= _to_float(cmp_value)
         if op == "in":
-            return value in cmp_value
+            return cmp_value is not None and value in cmp_value
         if op == "is_empty":
             return _is_empty(value)
         if op == "is_set":

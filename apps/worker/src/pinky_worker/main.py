@@ -88,16 +88,6 @@ async def run_observer(
     temporal_enabled = os.environ.get("PINKY_TEMPORAL_ENABLED", "true") == "true"
 
     temporal_client = None
-    if temporal_enabled:
-        try:
-            from temporalio.client import Client
-            settings = get_settings()
-            temporal_client = await Client.connect(
-                settings.temporal.address, namespace=settings.temporal.namespace,
-            )
-            logger.info("observer connected to temporal")
-        except Exception:
-            logger.warning("observer could not connect to temporal — dispatch disabled")
 
     logger.info("starting observer daemon", scan_interval=scan_interval)
 
@@ -105,6 +95,17 @@ async def run_observer(
         if shutdown_event and shutdown_event.is_set():
             logger.info("shutdown requested, stopping observer daemon")
             break
+
+        if temporal_enabled and temporal_client is None:
+            try:
+                from temporalio.client import Client
+                settings = get_settings()
+                temporal_client = await Client.connect(
+                    settings.temporal.address, namespace=settings.temporal.namespace,
+                )
+                logger.info("observer connected to temporal")
+            except Exception:
+                logger.warning("observer temporal connection failed — will retry next cycle")
 
         try:
             pool = await get_pool()

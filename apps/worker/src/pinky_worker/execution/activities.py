@@ -45,6 +45,7 @@ class InvestigationArtifact:
     tool_calls: list[str]
     evidence_hash: str
     created_at: str = ""
+    execution_id: str = ""
     remediation_steps: list[dict] = field(default_factory=list)
     manual_commands: list[str] = field(default_factory=list)
 
@@ -253,7 +254,7 @@ def _parse_structured_response(content: str) -> dict:
 
 
 @activity.defn
-async def run_investigation(evidence: EvidenceBundle, skill_body: str) -> InvestigationArtifact:
+async def run_investigation(evidence: EvidenceBundle, skill_body: str, execution_id: str = "") -> InvestigationArtifact:
     """Run LLM-powered investigation using the matching skill definition."""
     activity.heartbeat("running investigation")
 
@@ -328,6 +329,7 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str) -> Invest
         tool_calls=[],
         evidence_hash=evidence.evidence_hash,
         created_at=datetime.now(UTC).isoformat(),
+        execution_id=execution_id,
         remediation_steps=structured.get("remediation_steps", []),
         manual_commands=structured.get("manual_commands", []),
     )
@@ -340,15 +342,17 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
 
     pool = await get_pool()
 
-    # Find the execution linked to this issue
-    exec_row = await pool.fetchrow(
-        "SELECT e.id FROM executions e "
-        "JOIN work_items w ON e.work_item_id = w.id "
-        "WHERE w.issue_id = $1::uuid AND e.execution_type = 'investigation' "
-        "ORDER BY e.created_at DESC LIMIT 1",
-        artifact.issue_id,
-    )
-    exec_uuid = exec_row["id"] if exec_row else uuid4()
+    if artifact.execution_id:
+        exec_uuid = UUID(artifact.execution_id)
+    else:
+        exec_row = await pool.fetchrow(
+            "SELECT e.id FROM executions e "
+            "JOIN work_items w ON e.work_item_id = w.id "
+            "WHERE w.issue_id = $1::uuid AND e.execution_type = 'investigation' "
+            "ORDER BY e.created_at DESC LIMIT 1",
+            artifact.issue_id,
+        )
+        exec_uuid = exec_row["id"] if exec_row else uuid4()
 
     await pool.execute(
         """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)
@@ -386,16 +390,8 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
     try:
         exec_uuid = UUID(exec_id_str)
     except ValueError:
-        try:
-            stripped = exec_id_str.removeprefix("investigation-").removeprefix("remediation-")
-            exec_uuid = UUID(stripped)
-        except ValueError:
-            row = await pool.fetchrow(
-                "SELECT id FROM executions WHERE status IN ('pending', 'running') "
-                "AND execution_type = 'investigation' ORDER BY created_at DESC LIMIT 1",
-            )
-            exec_uuid = row["id"] if row else uuid4()
-            logger.info("resolved workflow_id %s to execution %s", exec_id_str, str(exec_uuid))
+        stripped = exec_id_str.removeprefix("investigation-").removeprefix("remediation-")
+        exec_uuid = UUID(stripped)
 
     await pool.execute(
         """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)

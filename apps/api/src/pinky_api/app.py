@@ -168,7 +168,7 @@ async def readyz() -> JSONResponse:
     try:
         store = auth_state.session_store
         if store is not None:
-            await store._redis.ping()
+            await store.ping()
             checks["redis"] = "ok"
     except Exception:
         logger.warning("readyz: Redis check failed", exc_info=True)

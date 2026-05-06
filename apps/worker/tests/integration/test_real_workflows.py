@@ -28,43 +28,17 @@ from pinky_worker.issues.correlator import CorrelationResult, RawObservation
 from pinky_worker.issues.db_correlator import DbIssueCorrelator
 from pinky_worker.workflows.investigation import InvestigationInput, InvestigationWorkflow
 
+from .conftest import FakePool
+
 TASK_QUEUE = "test-real-workflows"
 
 
 # --- Fixtures ---
 
 
-class _FakePool:
-    def __init__(self, c: asyncpg.Connection) -> None:
-        self._c = c
-
-    async def fetchrow(self, query: str, *args):
-        return await self._c.fetchrow(query, *args)
-
-    async def fetchval(self, query: str, *args):
-        return await self._c.fetchval(query, *args)
-
-    async def execute(self, query: str, *args):
-        return await self._c.execute(query, *args)
-
-    def acquire(self):
-        return _FakeAcquire(self._c)
-
-
-class _FakeAcquire:
-    def __init__(self, c: asyncpg.Connection) -> None:
-        self._c = c
-
-    async def __aenter__(self):
-        return self._c
-
-    async def __aexit__(self, *args):
-        pass
-
-
 @pytest.fixture
 def pool_patch(conn: asyncpg.Connection):
-    fp = _FakePool(conn)
+    fp = FakePool(conn)
     mock = AsyncMock(return_value=fp)
     with (
         patch("pinky_worker.db.get_pool", mock),
@@ -108,7 +82,7 @@ async def mock_gather(issue_id: str, cluster_id: str, skill_tools: list[str] | N
 
 
 @activity.defn(name="run_investigation")
-async def mock_llm(evidence: EvidenceBundle, skill_body: str) -> InvestigationArtifact:
+async def mock_llm(evidence: EvidenceBundle, skill_body: str, execution_id: str = "") -> InvestigationArtifact:
     return InvestigationArtifact(
         artifact_id=str(uuid.uuid4()),
         issue_id=evidence.issue_id,
@@ -125,7 +99,7 @@ async def mock_llm(evidence: EvidenceBundle, skill_body: str) -> InvestigationAr
 
 
 async def test_emit_event_updates_execution_status(
-    conn: asyncpg.Connection, cluster_id: str, execution_id: str, pool_patch: FakePool,
+    conn: asyncpg.Connection, cluster_id: str, execution_id: str, pool_patch,
 ) -> None:
     """emit_execution_event with real DB updates execution status."""
     await emit_execution_event(ExecutionEventPayload(
@@ -147,7 +121,7 @@ async def test_emit_event_updates_execution_status(
 
 
 async def test_emit_event_writes_to_execution_events_table(
-    conn: asyncpg.Connection, cluster_id: str, execution_id: str, pool_patch: FakePool,
+    conn: asyncpg.Connection, cluster_id: str, execution_id: str, pool_patch,
 ) -> None:
     """emit_execution_event inserts rows into execution_events."""
     await emit_execution_event(ExecutionEventPayload(
@@ -164,7 +138,7 @@ async def test_emit_event_writes_to_execution_events_table(
 
 
 async def test_emit_resolves_investigation_prefix(
-    conn: asyncpg.Connection, cluster_id: str, execution_id: str, pool_patch: FakePool,
+    conn: asyncpg.Connection, cluster_id: str, execution_id: str, pool_patch,
 ) -> None:
     """emit_execution_event resolves investigation-{uuid} to the real execution UUID."""
     workflow_id = f"investigation-{execution_id}"
@@ -179,7 +153,7 @@ async def test_emit_resolves_investigation_prefix(
 
 
 async def test_observer_dispatch_creates_execution(
-    conn: asyncpg.Connection, cluster_id: str, pool_patch: FakePool,
+    conn: asyncpg.Connection, cluster_id: str, pool_patch,
 ) -> None:
     """_dispatch_investigation creates an execution record before starting workflow."""
     from pinky_worker.observation.observer import _dispatch_investigation
@@ -212,7 +186,7 @@ async def test_observer_dispatch_creates_execution(
 
 
 async def test_observer_dispatch_skips_if_pending_exists(
-    conn: asyncpg.Connection, cluster_id: str, execution_id: str, pool_patch: FakePool,
+    conn: asyncpg.Connection, cluster_id: str, execution_id: str, pool_patch,
 ) -> None:
     """_dispatch_investigation does NOT start a new workflow if one is already pending."""
     from pinky_worker.observation.observer import _dispatch_investigation
@@ -237,9 +211,9 @@ async def test_observer_dispatch_skips_if_pending_exists(
     mock_client.start_workflow.assert_not_called()
 
 
-@pytest.mark.skip(reason="correlator needs separate DB connection for ON CONFLICT")
+@pytest.mark.skip(reason="ON CONFLICT requires non-transactional connection — tested in test_db_correlator.py")
 async def test_observation_insert_generates_uuid(
-    conn: asyncpg.Connection, cluster_id: str, pool_patch: FakePool,
+    conn: asyncpg.Connection, cluster_id: str, pool_patch,
 ) -> None:
     """DbIssueCorrelator generates a UUID for each observation."""
     correlator = DbIssueCorrelator()
@@ -268,9 +242,9 @@ async def test_observation_insert_generates_uuid(
     assert row["id"] is not None
 
 
-@pytest.mark.skip(reason="correlator needs separate DB connection for ON CONFLICT")
+@pytest.mark.skip(reason="ON CONFLICT requires non-transactional connection — tested in test_db_correlator.py")
 async def test_duplicate_observation_no_duplicate_issue(
-    conn: asyncpg.Connection, cluster_id: str, pool_patch: FakePool,
+    conn: asyncpg.Connection, cluster_id: str, pool_patch,
 ) -> None:
     """Same observation correlated twice creates only one issue."""
     correlator = DbIssueCorrelator()
@@ -304,9 +278,9 @@ async def test_duplicate_observation_no_duplicate_issue(
     assert len(issues) == 1
 
 
-@pytest.mark.skip(reason="correlator needs separate DB connection for ON CONFLICT")
+@pytest.mark.skip(reason="ON CONFLICT requires non-transactional connection — tested in test_full_pipeline.py")
 async def test_full_pipeline_observation_to_completed_execution(
-    conn: asyncpg.Connection, cluster_id: str, pool_patch: FakePool,
+    conn: asyncpg.Connection, cluster_id: str, pool_patch,
     workflow_env: WorkflowEnvironment,
 ) -> None:
     """Full pipeline: correlate → dispatch → workflow → events → status update."""
@@ -375,3 +349,102 @@ async def test_full_pipeline_observation_to_completed_execution(
     event_types = [e["event_type"] for e in events]
     assert "started" in event_types
     assert "completed" in event_types
+
+
+async def test_investigation_pending_to_completed(
+    conn: asyncpg.Connection, cluster_id: str, execution_id: str, pool_patch,
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    """Prove the full lifecycle: pending → running → completed via Temporal.
+
+    No correlator dependency — seeds DB directly.
+    """
+    issue_id, wi_id = await _seed_issue_and_work_item(conn, cluster_id)
+    await conn.execute(
+        "UPDATE executions SET work_item_id = $1::uuid WHERE id = $2::uuid",
+        wi_id, execution_id,
+    )
+
+    activities = [emit_execution_event, mock_gather, check_artifact_cache, mock_llm, store_artifact]
+
+    async with Worker(
+        workflow_env.client, task_queue=TASK_QUEUE,
+        workflows=[InvestigationWorkflow], activities=activities,
+    ):
+        wf_result = await workflow_env.client.execute_workflow(
+            InvestigationWorkflow.run,
+            InvestigationInput(
+                issue_id=issue_id,
+                cluster_id=cluster_id,
+                correlation_key="test-key",
+                evidence_hash="",
+                execution_id=execution_id,
+            ),
+            id=f"test-e2e-{uuid.uuid4()}",
+            task_queue=TASK_QUEUE,
+        )
+
+    assert wf_result.summary == "Pod is crash-looping"
+    assert wf_result.confidence == 0.85
+    assert not wf_result.cached
+
+    row = await conn.fetchrow(
+        "SELECT status, started_at, completed_at FROM executions WHERE id = $1::uuid",
+        execution_id,
+    )
+    assert row["status"] == "completed"
+    assert row["started_at"] is not None
+    assert row["completed_at"] is not None
+
+    events = await conn.fetch(
+        "SELECT event_type FROM execution_events WHERE execution_id = $1::uuid ORDER BY sequence",
+        execution_id,
+    )
+    event_types = [e["event_type"] for e in events]
+    assert "started" in event_types
+    assert "completed" in event_types
+    assert "investigation_completed" in event_types
+
+
+async def test_investigation_workflow_failure_marks_failed(
+    conn: asyncpg.Connection, cluster_id: str, execution_id: str, pool_patch,
+    workflow_env: WorkflowEnvironment,
+) -> None:
+    """When an activity fails, the workflow emits a failed event and the execution is marked failed."""
+
+    @activity.defn(name="gather_evidence")
+    async def failing_gather(issue_id: str, cluster_id: str, skill_tools: list[str] | None = None) -> EvidenceBundle:
+        raise RuntimeError("K8s cluster unreachable")
+
+    activities = [emit_execution_event, failing_gather, check_artifact_cache, mock_llm, store_artifact]
+
+    from temporalio.client import WorkflowFailureError
+
+    async with Worker(
+        workflow_env.client, task_queue=TASK_QUEUE,
+        workflows=[InvestigationWorkflow], activities=activities,
+    ):
+        with pytest.raises(WorkflowFailureError):
+            await workflow_env.client.execute_workflow(
+                InvestigationWorkflow.run,
+                InvestigationInput(
+                    issue_id="fake-issue",
+                    cluster_id=cluster_id,
+                    correlation_key="test-key",
+                    evidence_hash="",
+                    execution_id=execution_id,
+                ),
+                id=f"test-fail-{uuid.uuid4()}",
+                task_queue=TASK_QUEUE,
+            )
+
+    row = await conn.fetchrow("SELECT status FROM executions WHERE id = $1::uuid", execution_id)
+    assert row["status"] == "failed"
+
+    events = await conn.fetch(
+        "SELECT event_type FROM execution_events WHERE execution_id = $1::uuid ORDER BY sequence",
+        execution_id,
+    )
+    event_types = [e["event_type"] for e in events]
+    assert "started" in event_types
+    assert "failed" in event_types

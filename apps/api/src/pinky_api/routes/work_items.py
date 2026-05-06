@@ -343,8 +343,12 @@ async def chat_with_brain(
     messages.append({"role": "user", "content": req.message})
 
     try:
-        client = anthropic.AsyncAnthropicVertex(region="global")
-        api_messages = [{"role": m["role"], "content": m["content"]} for m in messages if m["role"] != "system"]
+        from anthropic.lib.vertex import AsyncAnthropicVertex
+        client = AsyncAnthropicVertex(region="global")
+        api_messages: list[anthropic.types.MessageParam] = [
+            {"role": "user" if m["role"] == "user" else "assistant", "content": m["content"]}
+            for m in messages if m["role"] != "system"
+        ]
         system_msg = next((m["content"] for m in messages if m["role"] == "system"), "")
 
         response = await client.messages.create(
@@ -354,7 +358,9 @@ async def chat_with_brain(
             messages=api_messages,
         )
 
-        content = response.content[0].text
+        from anthropic.types import TextBlock
+        block = response.content[0]
+        content = block.text if isinstance(block, TextBlock) else str(block)
         commands: list[str] = []
         for match in re.finditer(r"`(oc\s[^`]+|kubectl\s[^`]+)`", content):
             commands.append(match.group(1))

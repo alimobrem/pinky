@@ -94,17 +94,13 @@ async def test_emit_no_status_update_for_progress():
 
 
 @pytest.mark.asyncio
-async def test_emit_falls_back_to_db_for_legacy_workflow_id():
-    exec_id = uuid.uuid4()
-    pool = FakePool(fetchrow_result={"id": exec_id})
+async def test_emit_raises_on_unparseable_workflow_id():
+    pool = FakePool()
 
     with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
         from pinky_worker.execution.activities import emit_execution_event
-        await emit_execution_event(ExecutionEventPayload(
-            execution_id="investigation-980c491b-f2162ce7e9cb",
-            event_type="started", sequence=0, payload={},
-        ))
-
-    insert_calls = [c for c in pool.executed if "INSERT INTO execution_events" in c[0]]
-    assert len(insert_calls) == 1
-    assert insert_calls[0][1][1] == exec_id
+        with pytest.raises(ValueError):
+            await emit_execution_event(ExecutionEventPayload(
+                execution_id="investigation-980c491b-f2162ce7e9cb",
+                event_type="started", sequence=0, payload={},
+            ))

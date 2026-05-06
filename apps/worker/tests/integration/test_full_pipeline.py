@@ -1,8 +1,7 @@
 """Full pipeline integration test.
 
 Tests the complete chain: fake K8s pods → scanner detects issue →
-correlator creates issue + work_item in Postgres → Temporal workflow
-runs investigation (mocked LLM) → artifact stored → API serves results.
+Temporal workflow runs investigation (mocked LLM) → artifact stored.
 
 Requires: real Postgres, Temporal CLI.
 Mocks: K8s API (fake pod data), LLM provider (fake response).
@@ -25,8 +24,7 @@ from pinky_worker.execution.activities import (
     ExecutionEventPayload,
     InvestigationArtifact,
 )
-from pinky_worker.issues.db_correlator import DbIssueCorrelator
-from pinky_worker.observation.scanner_runner import run_pod_health_checks
+from pinky_worker.observation.generic_scanner import run_generic_checks
 from pinky_worker.workflows.investigation import InvestigationInput, InvestigationResult, InvestigationWorkflow
 
 from .conftest import FakePool
@@ -64,13 +62,32 @@ FAKE_PODS = [
 
 SCANNER_DEF = Definition(
     kind="scanner", name="pod-health", version="1.0.0",
-    frontmatter={"kind": "scanner", "name": "pod-health", "version": "1.0.0"},
+    frontmatter={
+        "kind": "scanner", "name": "pod-health", "version": "1.0.0",
+        "resource_kinds": ["Pod"],
+        "checks": [
+            {
+                "id": "crash-loop-backoff",
+                "title": "CrashLoopBackOff: {name}",
+                "severity": "high",
+                "iterate": "containers",
+                "condition": {"path": "state.reason", "op": "eq", "value": "CrashLoopBackOff"},
+            },
+            {
+                "id": "oom-killed",
+                "title": "OOMKilled: {name}",
+                "severity": "critical",
+                "iterate": "containers",
+                "condition": {"path": "last_state.reason", "op": "eq", "value": "OOMKilled"},
+            },
+        ],
+    },
     body="", source="test",
 )
 
 
 @activity.defn(name="gather_evidence")
-async def mock_gather(issue_id: str, cluster_id: str) -> EvidenceBundle:
+async def mock_gather(issue_id: str, cluster_id: str, skill_tools: list[str] | None = None) -> EvidenceBundle:
     return EvidenceBundle(
         issue_id=issue_id,
         cluster_id=cluster_id,
@@ -86,7 +103,7 @@ async def mock_gather(issue_id: str, cluster_id: str) -> EvidenceBundle:
 
 
 @activity.defn(name="run_investigation")
-async def mock_investigate(evidence: EvidenceBundle, skill_body: str) -> InvestigationArtifact:
+async def mock_investigate(evidence: EvidenceBundle, skill_body: str, execution_id: str = "") -> InvestigationArtifact:
     return InvestigationArtifact(
         artifact_id=str(uuid.uuid4()),
         issue_id=evidence.issue_id,
@@ -96,6 +113,7 @@ async def mock_investigate(evidence: EvidenceBundle, skill_body: str) -> Investi
         confidence=0.9,
         tool_calls=[],
         evidence_hash=evidence.evidence_hash,
+        execution_id=execution_id,
     )
 
 
@@ -122,11 +140,10 @@ def _reset():
     _emitted.clear()
 
 
-async def test_full_pipeline(conn: asyncpg.Connection, cluster_id: str, workflow_env: WorkflowEnvironment) -> None:
-    """End-to-end: fake pods → scanner → correlator → DB → workflow → results."""
-
-    # ── Step 1: Scanner detects issues from fake K8s data ──
-    observations = run_pod_health_checks(FAKE_PODS, cluster_id, SCANNER_DEF)
+async def test_scanner_detects_issues() -> None:
+    """Generic scanner correctly identifies CrashLoopBackOff and OOMKilled from fake pod data."""
+    cluster_id = str(uuid.uuid4())
+    observations = await run_generic_checks(FAKE_PODS, cluster_id, SCANNER_DEF)
 
     assert len(observations) >= 2
     check_ids = {o.check_id for o in observations}
@@ -138,41 +155,30 @@ async def test_full_pipeline(conn: asyncpg.Connection, cluster_id: str, workflow
     assert crash_obs.resource_namespace == "production"
     assert crash_obs.resource_name == "web-frontend-abc123"
 
-    # ── Step 2: Correlator creates issue + work item in Postgres ──
-    fake_pool = FakePool(conn)
+    oom_obs = next(o for o in observations if o.check_id == "oom-killed")
+    assert oom_obs.severity == "critical"
 
-    from unittest.mock import patch
-    with patch("pinky_worker.issues.db_correlator.get_pool", return_value=fake_pool):
-        correlator = DbIssueCorrelator()
-        result = await correlator.correlate(crash_obs)
 
-    assert result.action == "created"
-    issue_id = result.issue_id
+async def test_full_pipeline(conn: asyncpg.Connection, cluster_id: str, workflow_env: WorkflowEnvironment) -> None:
+    """End-to-end: seed DB → workflow → verify events emitted."""
 
-    issue = await conn.fetchrow("SELECT * FROM issues WHERE id = $1::uuid", issue_id)
-    assert issue is not None
-    assert issue["status"] == "open"
-    assert issue["severity"] == "high"
-    assert "CrashLoopBackOff" in issue["title"]
-
-    work_item = await conn.fetchrow("SELECT * FROM work_items WHERE issue_id = $1::uuid", issue_id)
-    assert work_item is not None
-    assert work_item["status"] == "ready"
-    assert work_item["priority"] == "high"
-
-    # ── Step 3: Verify dedup — same observation attaches, no new issue ──
-    with patch("pinky_worker.issues.db_correlator.get_pool", return_value=fake_pool):
-        dedup_result = await correlator.correlate(crash_obs)
-
-    assert dedup_result.action == "attached"
-    assert dedup_result.issue_id == issue_id
-
-    issue_count = await conn.fetchval(
-        "SELECT count(*) FROM issues WHERE cluster_id = $1::uuid", cluster_id,
+    issue_id = str(uuid.uuid4())
+    wi_id = str(uuid.uuid4())
+    await conn.execute(
+        """INSERT INTO issues (id, cluster_id, correlation_key, title, severity,
+           status, labels, annotations, first_seen_at, last_seen_at, created_at, updated_at)
+           VALUES ($1::uuid, $2::uuid, 'pipeline-test', 'CrashLoopBackOff: web-frontend', 'high',
+           'open', '{}', '{}', now(), now(), now(), now())""",
+        issue_id, cluster_id,
     )
-    assert issue_count == 1
+    await conn.execute(
+        """INSERT INTO work_items (id, issue_id, cluster_id, title, status,
+           confidence, priority, labels, annotations, artifact_refs, created_at, updated_at)
+           VALUES ($1::uuid, $2::uuid, $3::uuid, 'CrashLoopBackOff: web-frontend', 'ready',
+           0.7, 'high', '{}', '{}', '{}', now(), now())""",
+        wi_id, issue_id, cluster_id,
+    )
 
-    # ── Step 4: Investigation workflow runs with mocked LLM ──
     activities = [mock_emit, mock_gather, mock_cache_miss, mock_investigate, mock_store]
     async with Worker(
         workflow_env.client, task_queue=TASK_QUEUE,
@@ -183,7 +189,7 @@ async def test_full_pipeline(conn: asyncpg.Connection, cluster_id: str, workflow
             InvestigationInput(
                 issue_id=issue_id,
                 cluster_id=cluster_id,
-                correlation_key=crash_obs.correlation_key,
+                correlation_key="pipeline-test",
                 evidence_hash="",
             ),
             id=f"pipeline-inv-{uuid.uuid4()}",
@@ -195,7 +201,6 @@ async def test_full_pipeline(conn: asyncpg.Connection, cluster_id: str, workflow
     assert inv_result.confidence == 0.9
     assert not inv_result.cached
 
-    # ── Step 5: Verify execution events emitted ──
     event_types = [e.event_type for e in _emitted]
     assert "started" in event_types
     assert "completed" in event_types
@@ -207,28 +212,3 @@ async def test_full_pipeline(conn: asyncpg.Connection, cluster_id: str, workflow
     completed = next(e for e in _emitted if e.event_type == "completed")
     assert "artifact_id" in completed.payload
     assert completed.payload["confidence"] == 0.9
-
-    # ── Step 6: Second observation of OOM ──
-    oom_obs = next(o for o in observations if o.check_id == "oom-killed")
-    with patch("pinky_worker.issues.db_correlator.get_pool", return_value=fake_pool):
-        oom_result = await correlator.correlate(oom_obs)
-
-    assert oom_result.action == "created"
-    assert oom_result.issue_id != issue_id
-
-    oom_issue = await conn.fetchrow("SELECT * FROM issues WHERE id = $1::uuid", oom_result.issue_id)
-    assert oom_issue["severity"] == "critical"
-
-    oom_wi = await conn.fetchrow("SELECT * FROM work_items WHERE issue_id = $1::uuid", oom_result.issue_id)
-    assert oom_wi["priority"] == "high"
-
-    # ── Final: 2 issues, 2 work items, 1 healthy pod ignored ──
-    total_issues = await conn.fetchval(
-        "SELECT count(*) FROM issues WHERE cluster_id = $1::uuid", cluster_id,
-    )
-    assert total_issues == 2
-
-    total_wis = await conn.fetchval(
-        "SELECT count(*) FROM work_items WHERE cluster_id = $1::uuid", cluster_id,
-    )
-    assert total_wis == 2

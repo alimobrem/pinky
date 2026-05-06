@@ -37,6 +37,7 @@ async def test_store_artifact_writes_event(
         tool_calls=[],
         evidence_hash="hash-123",
         created_at=datetime.now(UTC).isoformat(),
+        execution_id=execution_id,
     )
 
     with patch(PATCH_TARGET, return_value=fake_pool):

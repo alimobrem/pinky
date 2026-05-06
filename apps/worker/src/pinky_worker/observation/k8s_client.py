@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from kubernetes_asyncio import client, config
@@ -314,8 +315,8 @@ def _node_summary(node: Any) -> dict:
 
 
 def _deployment_summary(dep: Any) -> dict:
-    spec = dep.spec or type("S", (), {"replicas": 1})()
-    status = dep.status or type("S", (), {"ready_replicas": None, "unavailable_replicas": None, "conditions": None})()
+    spec = dep.spec or SimpleNamespace(replicas=1)
+    status = dep.status or SimpleNamespace(ready_replicas=None, unavailable_replicas=None, conditions=None)
     conditions = status.conditions or []
     return {
         "name": dep.metadata.name,
@@ -341,7 +342,7 @@ def _tls_secret_summary(secret: Any) -> dict:
 
 
 def _pvc_summary(pvc: Any) -> dict:
-    status = pvc.status or type("S", (), {"phase": "Unknown"})()
+    status = pvc.status or SimpleNamespace(phase="Unknown")
     return {
         "name": pvc.metadata.name,
         "namespace": pvc.metadata.namespace or "",
@@ -350,7 +351,7 @@ def _pvc_summary(pvc: Any) -> dict:
 
 
 def _quota_summary(quota: Any) -> dict:
-    status = quota.status or type("S", (), {"hard": None, "used": None})()
+    status = quota.status or SimpleNamespace(hard=None, used=None)
     hard = status.hard or {}
     used = status.used or {}
     return {
@@ -362,7 +363,7 @@ def _quota_summary(quota: Any) -> dict:
 
 
 def _ingress_summary(ingress: Any) -> dict:
-    spec = ingress.spec or type("S", (), {"rules": None})()
+    spec = ingress.spec or SimpleNamespace(rules=None)
     rules = spec.rules or []
     parsed_rules = []
     for rule in rules:
@@ -388,11 +389,11 @@ def _ingress_summary(ingress: Any) -> dict:
 
 
 def _statefulset_summary(sts: Any) -> dict:
-    spec = sts.spec or type("S", (), {"replicas": 1})()
-    status = sts.status or type("S", (), {
-        "ready_replicas": None, "updated_replicas": None, "replicas": None,
-        "current_revision": None, "update_revision": None,
-    })()
+    spec = sts.spec or SimpleNamespace(replicas=1)
+    status = sts.status or SimpleNamespace(
+        ready_replicas=None, updated_replicas=None, replicas=None,
+        current_revision=None, update_revision=None,
+    )
     return {
         "name": sts.metadata.name,
         "namespace": sts.metadata.namespace or "",
@@ -406,10 +407,10 @@ def _statefulset_summary(sts: Any) -> dict:
 
 
 def _job_summary(job: Any) -> dict:
-    status = job.status or type("S", (), {
-        "succeeded": None, "failed": None, "conditions": None,
-    })()
-    spec = job.spec or type("S", (), {"backoff_limit": 6})()
+    status = job.status or SimpleNamespace(
+        succeeded=None, failed=None, conditions=None,
+    )
+    spec = job.spec or SimpleNamespace(backoff_limit=6)
     conditions = status.conditions or []
     return {
         "kind": "Job",
@@ -426,8 +427,8 @@ def _job_summary(job: Any) -> dict:
 
 
 def _cronjob_summary(cj: Any) -> dict:
-    status = cj.status or type("S", (), {"last_schedule_time": None})()
-    spec = cj.spec or type("S", (), {"schedule": ""})()
+    status = cj.status or SimpleNamespace(last_schedule_time=None)
+    spec = cj.spec or SimpleNamespace(schedule="")
     last_schedule = status.last_schedule_time
     return {
         "kind": "CronJob",
@@ -439,7 +440,7 @@ def _cronjob_summary(cj: Any) -> dict:
 
 
 def _service_summary(svc: Any, ep_map: dict[str, Any]) -> dict:
-    spec = svc.spec or type("S", (), {"selector": None, "type": "ClusterIP"})()
+    spec = svc.spec or SimpleNamespace(selector=None, type="ClusterIP")
     ns = svc.metadata.namespace or ""
     name = svc.metadata.name
     selector = dict(spec.selector) if spec.selector else {}
@@ -464,11 +465,11 @@ def _service_summary(svc: Any, ep_map: dict[str, Any]) -> dict:
 
 
 def _daemonset_summary(ds: Any) -> dict:
-    status = ds.status or type("S", (), {
-        "desired_number_scheduled": 0, "current_number_scheduled": 0,
-        "number_ready": 0, "number_unavailable": None,
-        "number_misscheduled": 0,
-    })()
+    status = ds.status or SimpleNamespace(
+        desired_number_scheduled=0, current_number_scheduled=0,
+        number_ready=0, number_unavailable=None,
+        number_misscheduled=0,
+    )
     return {
         "name": ds.metadata.name,
         "namespace": ds.metadata.namespace or "",

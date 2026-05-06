@@ -37,7 +37,7 @@ async def mock_emit(event: ExecutionEventPayload) -> None:
 
 
 @activity.defn(name="gather_evidence")
-async def mock_gather(issue_id: str, cluster_id: str) -> EvidenceBundle:
+async def mock_gather(issue_id: str, cluster_id: str, skill_tools: list[str] | None = None) -> EvidenceBundle:
     return EvidenceBundle(
         issue_id=issue_id,
         cluster_id=cluster_id,
@@ -70,7 +70,7 @@ async def mock_cache_hit(evidence_hash: str, correlation_key: str) -> Investigat
 
 
 @activity.defn(name="run_investigation")
-async def mock_run_investigation(evidence: EvidenceBundle, skill_body: str) -> InvestigationArtifact:
+async def mock_run_investigation(evidence: EvidenceBundle, skill_body: str, execution_id: str = "") -> InvestigationArtifact:
     return InvestigationArtifact(
         artifact_id=str(uuid.uuid4()),
         issue_id=evidence.issue_id,
@@ -171,7 +171,7 @@ async def test_investigation_cache_hit(workflow_env: WorkflowEnvironment) -> Non
 
     event_types = [e.event_type for e in _emitted_events]
     assert "started" in event_types
-    assert "completed" not in event_types
+    assert "completed" in event_types
 
 
 # --- Approval Workflow ---
