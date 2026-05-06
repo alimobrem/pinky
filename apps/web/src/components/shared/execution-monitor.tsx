@@ -127,10 +127,16 @@ export function ExecutionMonitor({
           );
         })}
 
-        {sseState === "connected" && !events.some((e) => ["completed", "failed", "timed_out", "rolled_back"].includes(e.event_type)) && (
+        {events.length === 0 && (
           <div className="flex items-center gap-2 px-4 py-3 text-text-tertiary">
             <Loader size={14} className="animate-spin" />
-            <span className="text-[12px]">Waiting for events...</span>
+            <span className="text-caption">Loading events...</span>
+          </div>
+        )}
+        {events.length > 0 && !events.some((e) => ["completed", "failed", "timed_out", "rolled_back", "investigation_completed"].includes(e.event_type)) && (
+          <div className="flex items-center gap-2 px-4 py-3 text-text-tertiary">
+            <Loader size={14} className="animate-spin" />
+            <span className="text-caption">In progress...</span>
           </div>
         )}
       </div>
