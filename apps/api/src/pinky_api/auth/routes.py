@@ -217,6 +217,43 @@ async def logout(response: Response, session_token: str | None = Depends(cookie_
     return {"message": "Logged out"}
 
 
+@router.post("/test-login")
+async def test_login(response: Response) -> dict:
+    settings = get_settings()
+    if not settings.debug:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    store = auth_state.session_store
+    if store is None:
+        raise HTTPException(status_code=503, detail="Session store not initialized")
+
+    principal_data = {
+        "id": "00000000-0000-0000-0000-000000000099",
+        "provider": "test",
+        "email": "test@pinky.dev",
+        "display_name": "Test Admin",
+        "groups": ["pinky-admins"],
+        "is_admin": True,
+    }
+
+    raw_token, csrf_token = await store.create(
+        principal_id=principal_data["id"],
+        principal_data=principal_data,
+    )
+
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME, value=raw_token,
+        httponly=True, secure=False, samesite="lax", path="/",
+        max_age=int(store.absolute_timeout.total_seconds()),
+    )
+    response.set_cookie(
+        key="csrf_token", value=csrf_token,
+        httponly=False, secure=False, samesite="lax", path="/",
+        max_age=int(store.absolute_timeout.total_seconds()),
+    )
+    return {"authenticated": True, "principal": principal_data}
+
+
 @router.get("/session")
 async def session_status(session_token: str | None = Depends(cookie_scheme)) -> dict:
     if not session_token or not auth_state.session_store:

@@ -4,6 +4,20 @@ export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 30000,
   retries: 1,
+  projects: [
+    {
+      name: "setup",
+      testMatch: /auth-setup\.ts/,
+    },
+    {
+      name: "e2e",
+      testMatch: /\.spec\.ts$/,
+      dependencies: ["setup"],
+      use: {
+        storageState: "tests/e2e/.auth-state.json",
+      },
+    },
+  ],
   use: {
     baseURL: "http://localhost:3000",
     screenshot: "only-on-failure",

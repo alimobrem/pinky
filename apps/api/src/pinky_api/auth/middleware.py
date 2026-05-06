@@ -25,6 +25,7 @@ UNPROTECTED_PATHS = {
     "/api/v1/readyz",
     "/api/v1/auth/login",
     "/api/v1/auth/callback",
+    "/api/v1/auth/test-login",
 }
 
 STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
