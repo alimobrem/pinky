@@ -12,6 +12,7 @@ export interface TaskFilters {
   cluster_id?: string;
   priority?: string;
   search?: string;
+  owner?: string;
 }
 
 export const tasksOptions = (filters?: TaskFilters) => {
@@ -19,6 +20,7 @@ export const tasksOptions = (filters?: TaskFilters) => {
   if (filters?.status && filters.status !== "all") params.set("status", filters.status);
   if (filters?.cluster_id) params.set("cluster_id", filters.cluster_id);
   if (filters?.priority) params.set("priority", filters.priority);
+  if (filters?.owner) params.set("owner", filters.owner);
   params.set("limit", "100");
   const qs = params.toString();
 

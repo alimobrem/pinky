@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Circle,
-  CircleDot,
   Loader,
   Ban,
   ShieldAlert,
@@ -39,14 +38,6 @@ export const WORK_ITEM_STATUS: Record<WorkItemStatus, StatusConfig> = {
     bg: "bg-status-ready/10",
     border: "border-l-status-ready",
     dot: "bg-status-ready",
-  },
-  accepted: {
-    label: "Accepted",
-    icon: CircleDot,
-    color: "text-status-accepted",
-    bg: "bg-status-accepted/10",
-    border: "border-l-status-accepted",
-    dot: "bg-status-accepted",
   },
   in_progress: {
     label: "In Progress",

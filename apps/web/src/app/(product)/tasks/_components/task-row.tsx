@@ -21,11 +21,14 @@ export function taskColumns(clusterMap: Record<string, string>) {
           <p className="truncate text-sm font-medium text-text-primary">
             {task.title}
           </p>
-          {clusterMap[task.cluster_id] && (
-            <p className="mt-0.5 truncate font-mono text-caption text-text-tertiary">
-              {clusterMap[task.cluster_id]}
-            </p>
-          )}
+          <div className="mt-0.5 flex items-center gap-2 truncate font-mono text-caption text-text-tertiary">
+            {clusterMap[task.cluster_id] && (
+              <span>{clusterMap[task.cluster_id]}</span>
+            )}
+            {task.owner_display_name && (
+              <span className="truncate">{task.owner_display_name}</span>
+            )}
+          </div>
         </div>
       ),
       className: "max-w-[400px]",
@@ -76,6 +79,11 @@ export function TaskRowCard({ task, clusterName }: TaskRowProps) {
         {clusterName && (
           <span className="font-mono text-caption text-text-tertiary">
             {clusterName}
+          </span>
+        )}
+        {task.owner_display_name && (
+          <span className="font-mono text-caption text-text-tertiary truncate">
+            {task.owner_display_name}
           </span>
         )}
         <RelativeTime date={task.created_at} className="ml-auto" />

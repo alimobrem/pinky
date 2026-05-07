@@ -51,7 +51,7 @@ export function DashboardView() {
   const items = tasks?.items ?? [];
   const readyCount = items.filter((t) => t.status === "ready").length;
   const activeCount = items.filter((t) =>
-    ["accepted", "in_progress"].includes(t.status),
+    t.status === "in_progress",
   ).length;
   const blockedCount = items.filter((t) => t.status === "blocked").length;
   const approvalCount = items.filter(

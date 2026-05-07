@@ -14,9 +14,9 @@ import {
   Loader2,
   Search,
   XCircle,
-  RotateCcw,
-  AlertTriangle,
   CheckCircle,
+  Undo2,
+  User,
 } from "lucide-react";
 
 import { api } from "@/lib/api";
@@ -54,11 +54,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import type { Execution } from "@pinky/contracts";
 import { ResourceEditor } from "@/components/shared/resource-editor";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 interface TaskDetailViewProps {
   taskId: string;
@@ -67,6 +79,7 @@ interface TaskDetailViewProps {
 export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const router = useRouter();
   const qc = useQueryClient();
+  const { user } = useCurrentUser();
   const [blockReason, setBlockReason] = useState("");
 
   const { data: task } = useQuery(taskOptions(taskId));
@@ -87,9 +100,10 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     onEvent: { update: () => invalidateAll() },
   });
 
-  const accept = useMutation({
-    mutationFn: () => api.post(`/api/v1/work-items/${taskId}/accept`),
-    onSuccess: () => { invalidateAll(); toast.success("Task accepted"); },
+  const release = useMutation({
+    mutationFn: () => api.post(`/api/v1/work-items/${taskId}/release`),
+    onSuccess: () => { invalidateAll(); toast.success("Task released"); },
+    onError: () => toast.error("Failed to release task"),
   });
   const start = useMutation({
     mutationFn: () => api.post(`/api/v1/work-items/${taskId}/start`),
@@ -343,35 +357,41 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                   <Button
                     size="sm"
                     className="w-full justify-start gap-2"
-                    onClick={() => accept.mutate()}
-                    disabled={accept.isPending}
+                    onClick={() => take.mutate()}
+                    disabled={take.isPending}
                   >
-                    <CheckCircle2 size={14} />
-                    Accept
-                  </Button>
-                )}
-                {(task.status === "accepted" || task.status === "blocked") && (
-                  <Button
-                    size="sm"
-                    className="w-full justify-start gap-2"
-                    onClick={() => start.mutate()}
-                    disabled={start.isPending}
-                  >
-                    <Play size={14} />
-                    Start
+                    <UserPlus size={14} />
+                    {take.isPending ? "Taking..." : "Take"}
                   </Button>
                 )}
                 {task.status === "in_progress" && (
                   <>
-                    <Button
-                      size="sm"
-                      className="w-full justify-start gap-2 bg-status-done text-text-inverse hover:bg-status-done/90"
-                      onClick={() => complete.mutate()}
-                      disabled={complete.isPending}
-                    >
-                      <CheckCircle2 size={14} />
-                      Complete
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          className="w-full justify-start gap-2 bg-status-done text-text-inverse hover:bg-status-done/90"
+                          disabled={complete.isPending}
+                        >
+                          <CheckCircle2 size={14} />
+                          Complete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Complete this task?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will mark the task as done. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => complete.mutate()}>
+                            Complete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                     <Dialog>
                       <DialogTrigger asChild>
                         <Button
@@ -401,6 +421,99 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                         </Button>
                       </DialogContent>
                     </Dialog>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="w-full justify-start gap-2 text-text-secondary"
+                          disabled={release.isPending}
+                        >
+                          <Undo2 size={14} />
+                          Release
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Release this task?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will unassign you and move the task back to the ready queue.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => release.mutate()}>
+                            Release
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </>
+                )}
+                {task.status === "blocked" && (
+                  <>
+                    <Button
+                      size="sm"
+                      className="w-full justify-start gap-2"
+                      onClick={() => start.mutate()}
+                      disabled={start.isPending}
+                    >
+                      <Play size={14} />
+                      Start
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          className="w-full justify-start gap-2 bg-status-done text-text-inverse hover:bg-status-done/90"
+                          disabled={complete.isPending}
+                        >
+                          <CheckCircle2 size={14} />
+                          Complete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Complete this task?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will mark the task as done. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => complete.mutate()}>
+                            Complete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="w-full justify-start gap-2 text-text-secondary"
+                          disabled={release.isPending}
+                        >
+                          <Undo2 size={14} />
+                          Release
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Release this task?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will unassign you and move the task back to the ready queue.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => release.mutate()}>
+                            Release
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </>
                 )}
 
@@ -435,17 +548,6 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                     Cancel Investigation
                   </Button>
                 )}
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="w-full justify-start gap-2 text-text-secondary"
-                  onClick={() => take.mutate()}
-                  disabled={take.isPending}
-                >
-                  <UserPlus size={14} />
-                  {take.isPending ? "Assigning..." : "Take this task"}
-                </Button>
               </CardContent>
             </Card>
 
@@ -470,6 +572,16 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                 </DetailRow>
                 <DetailRow label="Updated">
                   <RelativeTime date={task.updated_at} />
+                </DetailRow>
+                <DetailRow label="Assigned to">
+                  <span className="flex items-center gap-1.5">
+                    <User size={12} className="text-text-tertiary" />
+                    {task.owner_id
+                      ? task.owner_id === user?.id
+                        ? "You"
+                        : task.owner_display_name ?? "Unknown"
+                      : "Unassigned"}
+                  </span>
                 </DetailRow>
                 {task.blocked_reason && (
                   <DetailRow label="Blocked">
@@ -525,20 +637,6 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     </div>
   );
 }
-
-const INVESTIGATION_STEPS = [
-  { key: "started", label: "Investigation started", icon: Play },
-  { key: "gathering_evidence", label: "Gathering evidence from cluster", icon: Search },
-  { key: "analyzing", label: "The Brain is analyzing...", icon: Brain },
-  { key: "completed", label: "Investigation complete", icon: CheckCircle },
-] as const;
-
-const STEP_ORDER: Record<string, number> = {
-  started: 0,
-  gathering_evidence: 1,
-  analyzing: 2,
-  completed: 3,
-};
 
 function InvestigationProgress({ execution }: { execution?: { created_at: string; started_at?: string | null; status: string } }) {
   const [elapsed, setElapsed] = useState(0);

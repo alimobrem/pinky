@@ -47,13 +47,12 @@ describe("contracts type instantiation", () => {
   it("WorkItem status union", () => {
     const statuses: WorkItemStatus[] = [
       "ready",
-      "accepted",
       "in_progress",
       "blocked",
       "waiting_for_approval",
       "done",
     ];
-    expect(statuses).toHaveLength(6);
+    expect(statuses).toHaveLength(5);
   });
 
   it("WorkItem full construction", () => {
@@ -66,6 +65,7 @@ describe("contracts type instantiation", () => {
       recommended_next_step: "Increase memory",
       status: "ready",
       owner_id: null,
+      owner_display_name: null,
       confidence: 0.85,
       priority: "high",
       labels: { scanner: "pod-health" },
@@ -136,9 +136,9 @@ describe("contracts type instantiation", () => {
       type: "status_changed",
       occurred_at: "2026-01-01T00:00:00Z",
       sequence: 1,
-      payload: { status: "accepted" },
+      payload: { status: "in_progress" },
     };
-    expect(event.payload.status).toBe("accepted");
+    expect(event.payload.status).toBe("in_progress");
   });
 
   it("ClusterOnboardingState values", () => {

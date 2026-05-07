@@ -11,10 +11,9 @@ from pinky_api.models.work_item import WorkItem
 from pinky_api.repositories.base import BaseRepository
 
 VALID_TRANSITIONS: dict[str, set[str]] = {
-    "ready": {"accepted"},
-    "accepted": {"in_progress", "done"},
-    "in_progress": {"blocked", "waiting_for_approval", "done"},
-    "blocked": {"in_progress", "done"},
+    "ready": {"in_progress"},
+    "in_progress": {"blocked", "waiting_for_approval", "done", "ready"},
+    "blocked": {"in_progress", "done", "ready"},
     "waiting_for_approval": {"in_progress"},
 }
 
@@ -89,6 +88,12 @@ class WorkItemRepository(BaseRepository):
             return None
         await self.session.execute(
             sa_update(WorkItem).where(WorkItem.id == work_item_id).values(owner_id=new_owner_id)
+        )
+        return await self.get(work_item_id)
+
+    async def unassign(self, work_item_id: UUID) -> WorkItem | None:
+        await self.session.execute(
+            sa_update(WorkItem).where(WorkItem.id == work_item_id).values(owner_id=None)
         )
         return await self.get(work_item_id)
 

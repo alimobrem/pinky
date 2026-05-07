@@ -121,17 +121,17 @@ async def test_get_work_item_by_id(seeded) -> None:
 
 
 @pytest.mark.asyncio
-async def test_accept_transitions_to_accepted(seeded) -> None:
+async def test_take_transitions_to_in_progress(seeded) -> None:
     client, _, wi1_id, _ = seeded
-    response = await client.post(f"/api/v1/work-items/{wi1_id}/accept")
+    response = await client.post(f"/api/v1/work-items/{wi1_id}/take")
     assert response.status_code == 200
-    assert response.json()["status"] == "accepted"
+    assert response.json()["status"] == "in_progress"
 
 
 @pytest.mark.asyncio
 async def test_invalid_transition_returns_409(seeded) -> None:
     client, _, _, wi2_id = seeded
-    response = await client.post(f"/api/v1/work-items/{wi2_id}/start")
+    response = await client.post(f"/api/v1/work-items/{wi2_id}/complete")
     assert response.status_code == 409
 
 
@@ -139,10 +139,7 @@ async def test_invalid_transition_returns_409(seeded) -> None:
 async def test_full_lifecycle_ready_to_done(seeded) -> None:
     client, _, wi1_id, _ = seeded
 
-    r = await client.post(f"/api/v1/work-items/{wi1_id}/accept")
-    assert r.json()["status"] == "accepted"
-
-    r = await client.post(f"/api/v1/work-items/{wi1_id}/start")
+    r = await client.post(f"/api/v1/work-items/{wi1_id}/take")
     assert r.json()["status"] == "in_progress"
 
     r = await client.post(f"/api/v1/work-items/{wi1_id}/complete")
@@ -170,8 +167,7 @@ async def test_cluster_list(seeded) -> None:
 @pytest.mark.asyncio
 async def test_block_with_reason(seeded) -> None:
     client, _, wi1_id, _ = seeded
-    await client.post(f"/api/v1/work-items/{wi1_id}/accept")
-    await client.post(f"/api/v1/work-items/{wi1_id}/start")
+    await client.post(f"/api/v1/work-items/{wi1_id}/take")
     r = await client.post(f"/api/v1/work-items/{wi1_id}/block", json={"reason": "waiting on vendor"})
     assert r.status_code == 200
     assert r.json()["status"] == "blocked"
@@ -181,8 +177,7 @@ async def test_block_with_reason(seeded) -> None:
 @pytest.mark.asyncio
 async def test_block_then_start_clears_reason(seeded) -> None:
     client, _, wi1_id, _ = seeded
-    await client.post(f"/api/v1/work-items/{wi1_id}/accept")
-    await client.post(f"/api/v1/work-items/{wi1_id}/start")
+    await client.post(f"/api/v1/work-items/{wi1_id}/take")
     await client.post(f"/api/v1/work-items/{wi1_id}/block", json={"reason": "blocked"})
     r = await client.post(f"/api/v1/work-items/{wi1_id}/start")
     assert r.json()["status"] == "in_progress"
@@ -190,9 +185,9 @@ async def test_block_then_start_clears_reason(seeded) -> None:
 
 
 @pytest.mark.asyncio
-async def test_bulk_accept(seeded) -> None:
+async def test_bulk_start(seeded) -> None:
     client, _, wi1_id, wi2_id = seeded
-    r = await client.post("/api/v1/work-items/bulk", json={"ids": [wi1_id, wi2_id], "action": "accepted"})
+    r = await client.post("/api/v1/work-items/bulk", json={"ids": [wi1_id, wi2_id], "action": "in_progress"})
     assert r.status_code == 200
     results = r.json()["results"]
     assert all(res["status"] == "ok" for res in results)

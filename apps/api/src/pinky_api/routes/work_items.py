@@ -25,6 +25,16 @@ from pinky_api.repositories.work_items import WorkItemRepository
 logger = logging.getLogger(__name__)
 
 
+class CreateWorkItemRequest(BaseModel):
+    cluster_id: str
+    title: str
+    why_now: str | None = None
+    recommended_next_step: str | None = None
+    priority: str = "medium"
+    runbook_url: str | None = None
+    labels: dict = {}
+
+
 class BlockRequest(BaseModel):
     reason: str
 
@@ -41,6 +51,7 @@ def _serialize(item: Any) -> dict:
         "recommended_next_step": item.recommended_next_step,
         "status": item.status,
         "owner_id": str(item.owner_id) if item.owner_id else None,
+        "owner_display_name": item.owner.display_name if item.owner else None,
         "confidence": item.confidence,
         "priority": item.priority,
         "labels": item.labels or {},
@@ -81,6 +92,31 @@ async def list_work_items(
     }
 
 
+@router.post("")
+async def create_work_item(
+    req: CreateWorkItemRequest,
+    db: AsyncSession = Depends(get_db),
+    principal: dict = Depends(require_authenticated),
+) -> dict:
+    cluster_uuid = UUID(req.cluster_id)
+    await require_cluster_write_access(cluster_uuid, principal, db)
+    repo = WorkItemRepository(db)
+    item = await repo.create(
+        cluster_id=cluster_uuid,
+        title=req.title,
+        why_now=req.why_now,
+        recommended_next_step=req.recommended_next_step,
+        status="ready",
+        confidence=1.0,
+        priority=req.priority,
+        runbook_url=req.runbook_url,
+        labels=req.labels,
+    )
+    await emit(db, "work_item.created", "work_item", item.id, {"status": "ready"})
+    await db.commit()
+    return _serialize(item)
+
+
 @router.get("/{work_item_id}")
 async def get_work_item(
     work_item_id: str, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated),
@@ -90,26 +126,6 @@ async def get_work_item(
     if item is None:
         raise HTTPException(status_code=404, detail="Work item not found")
     await require_cluster_read_access(item.cluster_id, principal, db, require_binding=True)
-    return _serialize(item)
-
-
-@router.post("/{work_item_id}/accept")
-async def accept_work_item(
-    work_item_id: str, db: AsyncSession = Depends(get_db), _principal: dict = Depends(require_authenticated),
-) -> dict:
-    repo = WorkItemRepository(db)
-    current = await repo.get(UUID(work_item_id))
-    if current is None:
-        raise HTTPException(status_code=404, detail="Work item not found")
-    await require_cluster_write_access(current.cluster_id, _principal, db)
-    try:
-        item = await repo.transition(UUID(work_item_id), "accepted")
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from None
-    if item is None:
-        raise HTTPException(status_code=404, detail="Work item not found")
-    await emit(db, "work_item.accepted", "work_item", UUID(work_item_id), {"status": "accepted"})
-    await db.commit()
     return _serialize(item)
 
 
@@ -205,9 +221,46 @@ async def take_work_item(
     current = await repo.get(UUID(work_item_id))
     if current is None:
         raise HTTPException(status_code=404, detail="Work item not found")
-    item = await repo.reassign(UUID(work_item_id), principal_uuid(principal))
+    await require_cluster_write_access(current.cluster_id, principal, db)
+    if current.owner_id is not None and current.owner_id != principal_uuid(principal):
+        raise HTTPException(status_code=409, detail="Task already taken")
+    await repo.reassign(UUID(work_item_id), principal_uuid(principal))
+    if current.status == "ready":
+        try:
+            item = await repo.transition(UUID(work_item_id), "in_progress")
+        except ValueError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from None
+    else:
+        item = await repo.get(UUID(work_item_id))
     if item is None:
         raise HTTPException(status_code=404, detail="Work item not found")
+    await emit(db, "work_item.taken", "work_item", UUID(work_item_id), {"status": item.status})
+    await db.commit()
+    return _serialize(item)
+
+
+@router.post("/{work_item_id}/release")
+async def release_work_item(
+    work_item_id: str,
+    db: AsyncSession = Depends(get_db),
+    principal: dict = Depends(require_authenticated),
+) -> dict:
+    repo = WorkItemRepository(db)
+    current = await repo.get(UUID(work_item_id))
+    if current is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+    await require_cluster_write_access(current.cluster_id, principal, db)
+    if current.status not in ("in_progress", "blocked"):
+        raise HTTPException(status_code=409, detail=f"Cannot release from {current.status}")
+    try:
+        item = await repo.transition(UUID(work_item_id), "ready")
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from None
+    if item is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+    await repo.unassign(UUID(work_item_id))
+    item = await repo.get(UUID(work_item_id))
+    await emit(db, "work_item.released", "work_item", UUID(work_item_id), {"status": "ready"})
     await db.commit()
     return _serialize(item)
 

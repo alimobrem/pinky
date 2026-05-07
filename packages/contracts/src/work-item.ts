@@ -1,6 +1,5 @@
 export type WorkItemStatus =
   | "ready"
-  | "accepted"
   | "in_progress"
   | "blocked"
   | "waiting_for_approval"
@@ -15,6 +14,7 @@ export interface WorkItem {
   recommended_next_step: string | null;
   status: WorkItemStatus;
   owner_id: string | null;
+  owner_display_name: string | null;
   confidence: number | null;
   priority: "critical" | "high" | "medium" | "low";
   labels: Record<string, string>;

@@ -26,9 +26,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ListTodo } from "lucide-react";
+import { CreateTaskDialog } from "./create-task-dialog";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 const QUEUE_TABS = [
   { id: "all", label: "All" },
+  { id: "mine", label: "Mine" },
   { id: "ready", label: "Ready" },
   { id: "active", label: "Active" },
   { id: "blocked", label: "Blocked" },
@@ -41,6 +44,7 @@ export function TasksView() {
   const clusterId = useCluster();
   const isDesktop = useIsDesktop();
   const qc = useQueryClient();
+  const { user } = useCurrentUser();
 
   useSSE("/api/v1/streams/events", {
     onEvent: {
@@ -56,6 +60,7 @@ export function TasksView() {
   const { data: tasks, isLoading } = useQuery(
     tasksOptions({
       cluster_id: clusterId ?? undefined,
+      owner: activeTab === "mine" ? user?.id : undefined,
     }),
   );
   const { data: clusters } = useQuery(clustersOptions());
@@ -72,10 +77,8 @@ export function TasksView() {
     let items = tasks?.items ?? [];
 
     if (activeTab === "active") {
-      items = items.filter((t) =>
-        ["accepted", "in_progress"].includes(t.status),
-      );
-    } else if (activeTab !== "all") {
+      items = items.filter((t) => t.status === "in_progress");
+    } else if (activeTab !== "all" && activeTab !== "mine") {
       items = items.filter((t) => t.status === activeTab);
     }
 
@@ -99,16 +102,15 @@ export function TasksView() {
     const items = tasks?.items ?? [];
     return {
       all: items.length,
+      mine: user ? items.filter((t) => t.owner_id === user.id).length : 0,
       ready: items.filter((t) => t.status === "ready").length,
-      active: items.filter((t) =>
-        ["accepted", "in_progress"].includes(t.status),
-      ).length,
+      active: items.filter((t) => t.status === "in_progress").length,
       blocked: items.filter((t) => t.status === "blocked").length,
       waiting_for_approval: items.filter(
         (t) => t.status === "waiting_for_approval",
       ).length,
     };
-  }, [tasks]);
+  }, [tasks, user]);
 
   const focusedTask = useMemo(
     () => filteredItems.find((t) => t.id === focusedId) ?? null,
@@ -132,6 +134,7 @@ export function TasksView() {
         meta={
           <span className="font-mono tabular-nums">{tasks?.total_count ?? 0} total</span>
         }
+        actions={<CreateTaskDialog />}
       />
 
       <div className="flex items-center gap-1 border-b border-border-default">
@@ -152,7 +155,7 @@ export function TasksView() {
               {tab.label}
               <span
                 className={cn(
-                  "min-w-5 rounded-md px-1.5 py-0.5 text-center font-mono text-[10px] tabular-nums",
+                  "min-w-5 rounded-md px-1.5 py-0.5 text-center font-mono text-caption tabular-nums",
                   activeTab === tab.id
                     ? "bg-brand-pink/15 text-brand-pink"
                     : "bg-bg-hover text-text-tertiary",

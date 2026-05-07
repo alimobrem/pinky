@@ -2,7 +2,7 @@ import uuid
 
 from sqlalchemy import Float, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pinky_api.models.base import Base, TimestampMixin, gen_uuid
 
@@ -29,3 +29,4 @@ class WorkItem(Base, TimestampMixin):
     runbook_url: Mapped[str | None] = mapped_column(String)
     artifact_refs: Mapped[dict] = mapped_column(JSONB, server_default="{}")
     blocked_reason: Mapped[str | None] = mapped_column(String)
+    owner = relationship("Principal", foreign_keys=[owner_id], lazy="joined")

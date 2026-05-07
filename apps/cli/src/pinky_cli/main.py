@@ -70,11 +70,11 @@ def tasks_list(
     console.print(table)
 
 
-@tasks_app.command("accept")
-def tasks_accept(task_id: str = typer.Argument(help="Work item ID")) -> None:
-    """Accept a task."""
-    data = _post(f"/api/v1/work-items/{task_id}/accept")
-    console.print(f"[green]Accepted:[/green] {data.get('title', task_id)}")
+@tasks_app.command("take")
+def tasks_take(task_id: str = typer.Argument(help="Work item ID")) -> None:
+    """Take a task — assigns you and starts it."""
+    data = _post(f"/api/v1/work-items/{task_id}/take")
+    console.print(f"[green]Taken:[/green] {data.get('title', task_id)}")
 
 
 @tasks_app.command("start")

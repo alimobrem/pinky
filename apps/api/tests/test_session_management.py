@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 def test_csrf_missing_on_post_returns_403(unauthed_client: TestClient) -> None:
     """POST to protected endpoint without auth returns 401 (before CSRF check)."""
-    r = unauthed_client.post("/api/v1/work-items/00000000-0000-0000-0000-000000000001/accept")
+    r = unauthed_client.post("/api/v1/work-items/00000000-0000-0000-0000-000000000001/take")
     assert r.status_code == 401
 
 
@@ -19,7 +19,7 @@ def test_get_requests_skip_csrf(authed_client: TestClient) -> None:
 
 def test_authed_post_works_with_override(authed_client: TestClient) -> None:
     """authed_client bypasses real auth — POST should work (404 on missing, not 403)."""
-    r = authed_client.post("/api/v1/work-items/00000000-0000-0000-0000-000000000001/accept")
+    r = authed_client.post("/api/v1/work-items/00000000-0000-0000-0000-000000000001/take")
     assert r.status_code in (404, 409)
 
 

@@ -180,15 +180,21 @@ async def non_admin_env():
 
 @pytest.mark.asyncio
 class TestWorkItemLifecycle:
-    async def test_full_lifecycle_ready_to_done(self, lifecycle_env) -> None:
+    async def test_take_starts_and_assigns(self, lifecycle_env) -> None:
         c = lifecycle_env["client"]
         wid = lifecycle_env["wi_ids"][0]
 
-        r = await c.post(f"/api/v1/work-items/{wid}/accept")
+        r = await c.post(f"/api/v1/work-items/{wid}/take")
         assert r.status_code == 200
-        assert r.json()["status"] == "accepted"
+        body = r.json()
+        assert body["status"] == "in_progress"
+        assert body["owner_id"] == str(ADMIN_PRINCIPAL_ID)
 
-        r = await c.post(f"/api/v1/work-items/{wid}/start")
+    async def test_full_lifecycle_take_to_done(self, lifecycle_env) -> None:
+        c = lifecycle_env["client"]
+        wid = lifecycle_env["wi_ids"][1]
+
+        r = await c.post(f"/api/v1/work-items/{wid}/take")
         assert r.status_code == 200
         assert r.json()["status"] == "in_progress"
 
@@ -196,33 +202,20 @@ class TestWorkItemLifecycle:
         assert r.status_code == 200
         assert r.json()["status"] == "done"
 
-        # Verify final state via GET
         r = await c.get(f"/api/v1/work-items/{wid}")
-        assert r.json()["status"] == "done"
-
-    async def test_accept_then_complete_skipping_start(self, lifecycle_env) -> None:
-        """accepted -> done is a valid transition."""
-        c = lifecycle_env["client"]
-        wid = lifecycle_env["wi_ids"][1]
-
-        await c.post(f"/api/v1/work-items/{wid}/accept")
-        r = await c.post(f"/api/v1/work-items/{wid}/complete")
-        assert r.status_code == 200
         assert r.json()["status"] == "done"
 
     async def test_block_unblock_complete(self, lifecycle_env) -> None:
         c = lifecycle_env["client"]
         wid = lifecycle_env["wi_ids"][2]
 
-        await c.post(f"/api/v1/work-items/{wid}/accept")
-        await c.post(f"/api/v1/work-items/{wid}/start")
+        await c.post(f"/api/v1/work-items/{wid}/take")
 
         r = await c.post(f"/api/v1/work-items/{wid}/block", json={"reason": "waiting on CR"})
         assert r.status_code == 200
         assert r.json()["status"] == "blocked"
         assert r.json()["blocked_reason"] == "waiting on CR"
 
-        # Unblock (blocked -> in_progress)
         r = await c.post(f"/api/v1/work-items/{wid}/start")
         assert r.status_code == 200
         assert r.json()["status"] == "in_progress"
@@ -233,17 +226,39 @@ class TestWorkItemLifecycle:
         assert r.json()["status"] == "done"
 
     async def test_blocked_to_done(self, lifecycle_env) -> None:
-        """blocked -> done is a valid transition."""
         c = lifecycle_env["client"]
         wid = lifecycle_env["wi_ids"][3]
 
-        await c.post(f"/api/v1/work-items/{wid}/accept")
-        await c.post(f"/api/v1/work-items/{wid}/start")
+        await c.post(f"/api/v1/work-items/{wid}/take")
         await c.post(f"/api/v1/work-items/{wid}/block", json={"reason": "blocked"})
 
         r = await c.post(f"/api/v1/work-items/{wid}/complete")
         assert r.status_code == 200
         assert r.json()["status"] == "done"
+
+    async def test_release_returns_to_ready(self, lifecycle_env) -> None:
+        c = lifecycle_env["client"]
+        wid = lifecycle_env["wi_ids"][0]
+
+        await c.post(f"/api/v1/work-items/{wid}/take")
+
+        r = await c.post(f"/api/v1/work-items/{wid}/release")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["status"] == "ready"
+        assert body["owner_id"] is None
+
+    async def test_release_from_blocked(self, lifecycle_env) -> None:
+        c = lifecycle_env["client"]
+        wid = lifecycle_env["wi_ids"][1]
+
+        await c.post(f"/api/v1/work-items/{wid}/take")
+        await c.post(f"/api/v1/work-items/{wid}/block", json={"reason": "waiting"})
+
+        r = await c.post(f"/api/v1/work-items/{wid}/release")
+        assert r.status_code == 200
+        assert r.json()["status"] == "ready"
+        assert r.json()["owner_id"] is None
 
 
 # ===========================================================================
@@ -253,14 +268,6 @@ class TestWorkItemLifecycle:
 
 @pytest.mark.asyncio
 class TestWorkItemInvalidTransitions:
-    async def test_ready_cannot_start(self, lifecycle_env) -> None:
-        """ready -> in_progress is not allowed; must accept first."""
-        c = lifecycle_env["client"]
-        wid = lifecycle_env["wi_ids"][0]
-
-        r = await c.post(f"/api/v1/work-items/{wid}/start")
-        assert r.status_code == 409
-
     async def test_ready_cannot_complete(self, lifecycle_env) -> None:
         c = lifecycle_env["client"]
         wid = lifecycle_env["wi_ids"][0]
@@ -276,22 +283,32 @@ class TestWorkItemInvalidTransitions:
         assert r.status_code == 409
 
     async def test_done_cannot_transition(self, lifecycle_env) -> None:
-        """Terminal state — no outbound transitions."""
         c = lifecycle_env["client"]
         wid = lifecycle_env["wi_ids"][1]
 
-        await c.post(f"/api/v1/work-items/{wid}/accept")
+        await c.post(f"/api/v1/work-items/{wid}/take")
         await c.post(f"/api/v1/work-items/{wid}/complete")
 
-        for endpoint in ["accept", "start", "complete"]:
+        for endpoint in ["start", "complete"]:
             r = await c.post(f"/api/v1/work-items/{wid}/{endpoint}")
             assert r.status_code == 409, f"Expected 409 for {endpoint} on done item"
 
-    async def test_accept_nonexistent_returns_404(self, lifecycle_env) -> None:
+    async def test_release_from_ready_fails(self, lifecycle_env) -> None:
         c = lifecycle_env["client"]
-        fake_id = str(uuid4())
-        r = await c.post(f"/api/v1/work-items/{fake_id}/accept")
-        assert r.status_code == 404
+        wid = lifecycle_env["wi_ids"][2]
+
+        r = await c.post(f"/api/v1/work-items/{wid}/release")
+        assert r.status_code == 409
+
+    async def test_release_from_done_fails(self, lifecycle_env) -> None:
+        c = lifecycle_env["client"]
+        wid = lifecycle_env["wi_ids"][3]
+
+        await c.post(f"/api/v1/work-items/{wid}/take")
+        await c.post(f"/api/v1/work-items/{wid}/complete")
+
+        r = await c.post(f"/api/v1/work-items/{wid}/release")
+        assert r.status_code == 409
 
     async def test_get_nonexistent_returns_404(self, lifecycle_env) -> None:
         c = lifecycle_env["client"]
@@ -307,39 +324,37 @@ class TestWorkItemInvalidTransitions:
 
 @pytest.mark.asyncio
 class TestBulkActions:
-    async def test_bulk_accept_multiple(self, lifecycle_env) -> None:
+    async def test_bulk_start_multiple(self, lifecycle_env) -> None:
         c = lifecycle_env["client"]
         ids = lifecycle_env["wi_ids"][:2]
 
-        r = await c.post("/api/v1/work-items/bulk", json={"ids": ids, "action": "accepted"})
+        r = await c.post("/api/v1/work-items/bulk", json={"ids": ids, "action": "in_progress"})
         assert r.status_code == 200
         results = r.json()["results"]
         assert len(results) == 2
         assert all(res["status"] == "ok" for res in results)
 
     async def test_bulk_with_invalid_transition(self, lifecycle_env) -> None:
-        """One valid, one invalid — partial success."""
         c = lifecycle_env["client"]
         wid_ready = lifecycle_env["wi_ids"][2]
-        wid_other = lifecycle_env["wi_ids"][3]
+        wid_done = lifecycle_env["wi_ids"][3]
 
-        # Accept wid_other first so it's already accepted
-        await c.post(f"/api/v1/work-items/{wid_other}/accept")
+        await c.post(f"/api/v1/work-items/{wid_done}/take")
+        await c.post(f"/api/v1/work-items/{wid_done}/complete")
 
-        # Bulk accept both — wid_ready should succeed, wid_other should error
         r = await c.post("/api/v1/work-items/bulk", json={
-            "ids": [wid_ready, wid_other], "action": "accepted",
+            "ids": [wid_ready, wid_done], "action": "in_progress",
         })
         assert r.status_code == 200
         results = {res["id"]: res["status"] for res in r.json()["results"]}
         assert results[wid_ready] == "ok"
-        assert results[wid_other] == "error"
+        assert results[wid_done] == "error"
 
     async def test_bulk_with_nonexistent_id(self, lifecycle_env) -> None:
         c = lifecycle_env["client"]
         fake_id = str(uuid4())
 
-        r = await c.post("/api/v1/work-items/bulk", json={"ids": [fake_id], "action": "accepted"})
+        r = await c.post("/api/v1/work-items/bulk", json={"ids": [fake_id], "action": "in_progress"})
         assert r.status_code == 200
         assert r.json()["results"][0]["status"] == "not_found"
 
@@ -904,3 +919,90 @@ class TestWorkItemListAndFilter:
             "artifact_refs", "blocked_reason", "created_at", "updated_at",
         }
         assert expected_fields.issubset(set(body.keys()))
+
+
+# ===========================================================================
+# Manual Task Creation
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+class TestManualTaskCreation:
+    async def test_create_standalone_task(self, lifecycle_env) -> None:
+        c = lifecycle_env["client"]
+        cluster_id = lifecycle_env["cluster_id"]
+
+        r = await c.post("/api/v1/work-items", json={
+            "cluster_id": cluster_id,
+            "title": "Manual task from test",
+            "priority": "high",
+            "why_now": "Testing manual creation",
+        })
+        assert r.status_code == 200
+        body = r.json()
+        assert body["title"] == "Manual task from test"
+        assert body["priority"] == "high"
+        assert body["status"] == "ready"
+        assert body["confidence"] == 1.0
+        assert body["issue_id"] is None
+        assert body["why_now"] == "Testing manual creation"
+
+        # Cleanup
+        async with _factory() as s:
+            await s.execute(
+                WorkItem.__table__.delete().where(WorkItem.id == UUID(body["id"]))
+            )
+            await s.commit()
+
+    async def test_create_task_with_defaults(self, lifecycle_env) -> None:
+        c = lifecycle_env["client"]
+        cluster_id = lifecycle_env["cluster_id"]
+
+        r = await c.post("/api/v1/work-items", json={
+            "cluster_id": cluster_id,
+            "title": "Minimal task",
+        })
+        assert r.status_code == 200
+        body = r.json()
+        assert body["priority"] == "medium"
+        assert body["why_now"] is None
+
+        async with _factory() as s:
+            await s.execute(
+                WorkItem.__table__.delete().where(WorkItem.id == UUID(body["id"]))
+            )
+            await s.commit()
+
+    async def test_create_task_without_title_fails(self, lifecycle_env) -> None:
+        c = lifecycle_env["client"]
+        cluster_id = lifecycle_env["cluster_id"]
+
+        r = await c.post("/api/v1/work-items", json={
+            "cluster_id": cluster_id,
+        })
+        assert r.status_code == 422
+
+
+# ===========================================================================
+# Issue Resolve — resolved_by field
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+class TestIssueResolvedBy:
+    async def test_resolve_sets_resolved_by_manual(self, lifecycle_env) -> None:
+        c = lifecycle_env["client"]
+        issue_id = lifecycle_env["issue_id"]
+
+        r = await c.post(f"/api/v1/issues/{issue_id}/resolve")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["resolved_by"] == "manual"
+
+    async def test_issue_serialization_includes_resolved_by(self, lifecycle_env) -> None:
+        c = lifecycle_env["client"]
+        issue_id = lifecycle_env["issue_id"]
+
+        r = await c.get(f"/api/v1/issues/{issue_id}")
+        assert r.status_code == 200
+        assert "resolved_by" in r.json()

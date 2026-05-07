@@ -6,7 +6,6 @@ export interface StatusChipProps {
 
 const LABELS: Record<WorkItemStatus, string> = {
   ready: "Ready",
-  accepted: "Accepted",
   in_progress: "In Progress",
   blocked: "Blocked",
   waiting_for_approval: "Needs Approval",

@@ -42,11 +42,11 @@ def test_post_returns_json(monkeypatch: pytest.MonkeyPatch) -> None:
             pass
 
         def json(self):
-            return {"status": "accepted"}
+            return {"status": "in_progress"}
 
     monkeypatch.setattr(main.httpx, "post", lambda *a, **kw: _FakeResponse())
-    result = main._post("/api/v1/work-items/123/accept")
-    assert result == {"status": "accepted"}
+    result = main._post("/api/v1/work-items/123/take")
+    assert result == {"status": "in_progress"}
 
 
 def test_post_raises_exit_on_http_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -83,10 +83,10 @@ def test_post_missing_connect_error(monkeypatch: pytest.MonkeyPatch) -> None:
         main._post("/test")
 
 
-def test_tasks_accept(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_tasks_take(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = _mock_post(monkeypatch, {"title": "Fix pod"})
-    main.tasks_accept("task-123")
-    assert calls == [("/api/v1/work-items/task-123/accept", None)]
+    main.tasks_take("task-123")
+    assert calls == [("/api/v1/work-items/task-123/take", None)]
 
 
 def test_tasks_start(monkeypatch: pytest.MonkeyPatch) -> None:
