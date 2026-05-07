@@ -70,7 +70,7 @@ class IssueRepository(BaseRepository):
         self.session.expire_all()
         return await self.get(issue_id)
 
-    async def resolve(self, issue_id: UUID) -> Issue | None:
+    async def resolve(self, issue_id: UUID, resolved_by: str = "manual") -> Issue | None:
         issue = await self.get(issue_id)
         if issue is None:
             return None
@@ -78,6 +78,7 @@ class IssueRepository(BaseRepository):
             sa_update(Issue).where(Issue.id == issue_id).values(
                 status="resolved",
                 resolved_at=datetime.utcnow(),
+                resolved_by=resolved_by,
             )
         )
         self.session.expire_all()

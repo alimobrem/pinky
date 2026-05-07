@@ -9,8 +9,10 @@ checks in definition frontmatter — no hardcoded runner functions.
 from __future__ import annotations
 
 import asyncio
+import os
 import uuid
 from collections.abc import Callable, Coroutine
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -160,7 +162,7 @@ async def _dispatch_investigation(
 
 async def _handle_suppress(result, decision) -> None:
     if result.issue_id and decision.action.suppress_duration_minutes:
-        from datetime import UTC, datetime, timedelta
+        from datetime import timedelta
 
         from pinky_worker.db import get_pool
 
@@ -175,6 +177,167 @@ async def _handle_suppress(result, decision) -> None:
                 suppress_until, result.issue_id,
             )
         logger.info("suppressed issue", issue_id=result.issue_id, until=suppress_until)
+
+
+DEFAULT_STALENESS_THRESHOLD_SECONDS = 900
+
+RISK_CLASS_TO_PRIORITY = {
+    "critical": "critical",
+    "high": "high",
+    "medium": "medium",
+    "low": "low",
+}
+
+
+async def _sweep_stale_issues(
+    cluster_id: str,
+    registry: DefinitionRegistry,
+    scan_healthy: bool,
+) -> int:
+    if not scan_healthy:
+        logger.info("skipping staleness sweep — scan had errors", cluster_id=cluster_id)
+        return 0
+
+    from pinky_worker.db import get_pool
+
+    pool = await get_pool()
+
+    scanner_thresholds: dict[str, int] = {}
+    for scanner_def in registry.list_by_kind("scanner"):
+        threshold = scanner_def.frontmatter.get("staleness_threshold_seconds")
+        if threshold is not None:
+            scanner_thresholds[scanner_def.name] = int(threshold)
+
+    global_threshold = int(os.environ.get(
+        "PINKY_STALENESS_THRESHOLD_SECONDS",
+        str(DEFAULT_STALENESS_THRESHOLD_SECONDS),
+    ))
+
+    stale_issues = await pool.fetch(
+        """SELECT id, correlation_key, labels, last_seen_at
+           FROM issues
+           WHERE cluster_id = $1::uuid
+             AND status = 'open'
+             AND last_seen_at < now() - make_interval(secs => $2)""",
+        cluster_id,
+        float(global_threshold),
+    )
+
+    resolved_count = 0
+    now = datetime.now(UTC)
+    for issue in stale_issues:
+        issue_id = issue["id"]
+        labels = issue["labels"] if isinstance(issue["labels"], dict) else {}
+        scanner_name = labels.get("scanner", "")
+
+        if scanner_name in scanner_thresholds:
+            issue_age = (now - issue["last_seen_at"]).total_seconds()
+            if issue_age < scanner_thresholds[scanner_name]:
+                continue
+
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """UPDATE issues
+                   SET status = 'resolved', resolved_at = now(),
+                       resolved_by = 'staleness', updated_at = now()
+                   WHERE id = $1 AND status = 'open'""",
+                issue_id,
+            )
+            await conn.execute(
+                """UPDATE work_items
+                   SET status = 'done', updated_at = now()
+                   WHERE issue_id = $1 AND status IN ('ready', 'in_progress')""",
+                issue_id,
+            )
+            event_id = uuid.uuid4()
+            await conn.execute(
+                """INSERT INTO domain_events
+                   (id, event_type, aggregate_type, aggregate_id, cluster_id, payload, occurred_at)
+                   VALUES ($1, 'issue.auto_resolved', 'issue', $2, $3::uuid,
+                           '{"status": "resolved", "resolved_by": "staleness"}', now())""",
+                event_id, issue_id, cluster_id,
+            )
+            await conn.execute(
+                "SELECT pg_notify('pinky_issues', $1)",
+                f'{{"event_type": "issue.auto_resolved", "aggregate_id": "{issue_id}"}}',
+            )
+
+        resolved_count += 1
+        logger.info(
+            "auto-resolved stale issue",
+            issue_id=str(issue_id),
+            correlation_key=issue["correlation_key"],
+        )
+
+    if resolved_count:
+        logger.info("staleness sweep complete", cluster_id=cluster_id, resolved=resolved_count)
+    return resolved_count
+
+
+async def _handle_create_task(result, decision, obs) -> None:
+    if not result.issue_id:
+        return
+
+    from pinky_worker.db import get_pool
+
+    pool = await get_pool()
+    work_item_id = uuid.uuid4()
+    priority = RISK_CLASS_TO_PRIORITY.get(
+        decision.action.risk_class or "", "medium",
+    )
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO work_items
+               (id, issue_id, cluster_id, title, why_now, recommended_next_step,
+                status, confidence, priority, runbook_url, labels, annotations,
+                artifact_refs, created_at, updated_at)
+               VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6,
+                       'ready', 0.7, $7, $8, $9, '{}', '{}', now(), now())""",
+            work_item_id,
+            result.issue_id,
+            obs.cluster_id,
+            obs.title,
+            f"{obs.resource_kind}/{obs.resource_namespace}/{obs.resource_name}: {obs.title}",
+            f"Investigate {obs.check_id} on {obs.resource_namespace}/{obs.resource_name}",
+            priority,
+            decision.action.runbook_url,
+            f'{{"scanner": "{obs.scanner}", "check_id": "{obs.check_id}", "resource_kind": "{obs.resource_kind}"}}',
+        )
+        await conn.execute(
+            "SELECT pg_notify('pinky_work_items', $1)",
+            f'{{"event_type": "work_item.created", "aggregate_id": "{work_item_id}"}}',
+        )
+
+    logger.info(
+        "created task from policy",
+        work_item_id=str(work_item_id),
+        issue_id=result.issue_id,
+        priority=priority,
+    )
+
+
+async def _apply_policy_metadata(issue_id: str, action) -> None:
+    from pinky_worker.db import get_pool
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        if action.runbook_url:
+            await conn.execute(
+                "UPDATE issues SET runbook_url = $1 WHERE id = $2::uuid",
+                action.runbook_url, issue_id,
+            )
+            await conn.execute(
+                "UPDATE work_items SET runbook_url = $1 WHERE issue_id = $2::uuid",
+                action.runbook_url, issue_id,
+            )
+        if action.risk_class:
+            await conn.execute(
+                """UPDATE issues SET labels = labels || $1::jsonb
+                   WHERE id = $2::uuid""",
+                f'{{"risk_class": "{action.risk_class}"}}',
+                issue_id,
+            )
 
 
 async def observe_cluster(
@@ -218,6 +381,7 @@ async def observe_cluster(
 
             try:
                 observations: list = []
+                scan_healthy = True
                 for scanner_def in scanner_defs:
                     if not scanner_def.frontmatter.get("checks"):
                         continue
@@ -227,6 +391,7 @@ async def observe_cluster(
                             await run_generic_checks(data, cluster_id, scanner_def, prom_client=prom_client),
                         )
                     except Exception:
+                        scan_healthy = False
                         logger.exception("scanner failed", scanner=scanner_def.name)
 
                 for obs in observations:
@@ -262,9 +427,16 @@ async def observe_cluster(
                         )
                     elif decision.action.action_type == "suppress":
                         await _handle_suppress(result, decision)
+                    elif decision.action.action_type == "create_task":
+                        await _handle_create_task(result, decision, obs)
+
+                    if result.issue_id and (decision.action.runbook_url or decision.action.risk_class):
+                        await _apply_policy_metadata(result.issue_id, decision.action)
 
                 if not observations:
                     logger.info("clean scan", cluster_id=cluster_id)
+
+                await _sweep_stale_issues(cluster_id, registry, scan_healthy)
 
             except Exception:
                 logger.exception("scan cycle failed", cluster_id=cluster_id, cycle=cycle)

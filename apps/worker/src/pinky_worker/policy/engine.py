@@ -16,6 +16,8 @@ SEVERITY_ORDER = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
 class PolicyConditions:
     scanner: str | None = None
     check_id: str | None = None
+    check_id_regex: str | None = None
+    severity: str | None = None
     severity_gte: str | None = None
     resource_kind: str | None = None
     resource_namespace_regex: str | None = None
@@ -70,6 +72,10 @@ def matches(conditions: PolicyConditions, input: PolicyInput) -> bool:
         return False
     if conditions.check_id and conditions.check_id != input.check_id:
         return False
+    if conditions.check_id_regex and not re.fullmatch(conditions.check_id_regex, input.check_id):
+        return False
+    if conditions.severity and conditions.severity != input.severity:
+        return False
     if conditions.severity_gte:
         required = SEVERITY_ORDER.get(conditions.severity_gte, 0)
         actual = SEVERITY_ORDER.get(input.severity, 0)
@@ -112,6 +118,8 @@ def rules_from_definitions(definitions: list) -> list[PolicyRule]:
         conditions = PolicyConditions(
             scanner=conditions_raw.get("scanner"),
             check_id=conditions_raw.get("check_id"),
+            check_id_regex=conditions_raw.get("check_id_regex"),
+            severity=conditions_raw.get("severity"),
             severity_gte=conditions_raw.get("severity_gte"),
             resource_kind=conditions_raw.get("resource_kind"),
             resource_namespace_regex=conditions_raw.get("resource_namespace_regex"),

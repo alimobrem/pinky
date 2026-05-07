@@ -99,3 +99,29 @@ def test_multiple_conditions_all_must_match() -> None:
     assert matches(cond, PolicyInput(scanner="pod-health", severity="critical"))
     assert not matches(cond, PolicyInput(scanner="pod-health", severity="low"))
     assert not matches(cond, PolicyInput(scanner="cert-expiry", severity="critical"))
+
+
+def test_check_id_regex_condition() -> None:
+    cond = PolicyConditions(check_id_regex="^no-resource-(limits|requests)$")
+    assert matches(cond, PolicyInput(check_id="no-resource-limits"))
+    assert matches(cond, PolicyInput(check_id="no-resource-requests"))
+    assert not matches(cond, PolicyInput(check_id="crash-loop-backoff"))
+
+
+def test_check_id_regex_with_other_conditions() -> None:
+    cond = PolicyConditions(check_id_regex="^no-resource-.*", severity_gte="medium")
+    assert matches(cond, PolicyInput(check_id="no-resource-limits", severity="medium"))
+    assert not matches(cond, PolicyInput(check_id="no-resource-limits", severity="low"))
+
+
+def test_exact_severity_condition() -> None:
+    cond = PolicyConditions(severity="low")
+    assert matches(cond, PolicyInput(severity="low"))
+    assert not matches(cond, PolicyInput(severity="medium"))
+    assert not matches(cond, PolicyInput(severity="high"))
+
+
+def test_exact_severity_with_check_id_regex() -> None:
+    cond = PolicyConditions(check_id_regex="^no-resource-.*", severity="low")
+    assert matches(cond, PolicyInput(check_id="no-resource-requests", severity="low"))
+    assert not matches(cond, PolicyInput(check_id="no-resource-limits", severity="medium"))

@@ -40,6 +40,7 @@ def _serialize(issue: Any) -> dict:
         "first_seen_at": issue.first_seen_at.isoformat() if issue.first_seen_at else "",
         "last_seen_at": issue.last_seen_at.isoformat() if issue.last_seen_at else "",
         "resolved_at": issue.resolved_at.isoformat() if issue.resolved_at else None,
+        "resolved_by": issue.resolved_by,
         "created_at": issue.created_at.isoformat() if issue.created_at else "",
         "suppressed_until": issue.suppressed_until.isoformat() if issue.suppressed_until else None,
         "updated_at": issue.updated_at.isoformat() if issue.updated_at else "",

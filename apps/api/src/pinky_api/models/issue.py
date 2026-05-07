@@ -27,4 +27,5 @@ class Issue(Base, TimestampMixin):
     first_seen_at: Mapped[datetime] = mapped_column(nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(nullable=False)
     resolved_at: Mapped[datetime | None] = mapped_column()
+    resolved_by: Mapped[str | None] = mapped_column(String)
     suppressed_until: Mapped[datetime | None] = mapped_column()
