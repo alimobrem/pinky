@@ -139,7 +139,7 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
 
     access_token = token_data.get("access_token")
     if not access_token:
-        raise HTTPException(status_code=502, detail=f"Provider did not return access_token. Response: {token_data}")
+        raise HTTPException(status_code=502, detail="Provider did not return access_token")
 
     try:
         user_info = await auth_provider.get_user_info(access_token)

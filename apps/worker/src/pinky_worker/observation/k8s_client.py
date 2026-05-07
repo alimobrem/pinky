@@ -314,11 +314,30 @@ def _node_summary(node: Any) -> dict:
     }
 
 
+def _pod_template_containers(spec: Any) -> list[dict]:
+    """Extract container resource specs from a workload's pod template."""
+    template = getattr(spec, "template", None)
+    pod_spec = getattr(template, "spec", None) if template else None
+    if not pod_spec:
+        return []
+    return [
+        {
+            "name": c.name,
+            "resources": {
+                "limits": c.resources.limits if c.resources and c.resources.limits else {},
+                "requests": c.resources.requests if c.resources and c.resources.requests else {},
+            },
+        }
+        for c in (pod_spec.containers or [])
+    ]
+
+
 def _deployment_summary(dep: Any) -> dict:
     spec = dep.spec or SimpleNamespace(replicas=1)
     status = dep.status or SimpleNamespace(ready_replicas=None, unavailable_replicas=None, conditions=None)
     conditions = status.conditions or []
     return {
+        "kind": "Deployment",
         "name": dep.metadata.name,
         "namespace": dep.metadata.namespace or "",
         "desired_replicas": spec.replicas or 1,
@@ -328,6 +347,7 @@ def _deployment_summary(dep: Any) -> dict:
             {"type": c.type, "status": c.status, "reason": c.reason or "", "message": c.message or ""}
             for c in conditions
         ],
+        "containers": _pod_template_containers(spec),
     }
 
 
@@ -395,6 +415,7 @@ def _statefulset_summary(sts: Any) -> dict:
         current_revision=None, update_revision=None,
     )
     return {
+        "kind": "StatefulSet",
         "name": sts.metadata.name,
         "namespace": sts.metadata.namespace or "",
         "replicas": spec.replicas or 1,
@@ -403,6 +424,7 @@ def _statefulset_summary(sts: Any) -> dict:
         "current_replicas": status.replicas or 0,
         "current_revision": getattr(status, "current_revision", None) or "",
         "update_revision": getattr(status, "update_revision", None) or "",
+        "containers": _pod_template_containers(spec),
     }
 
 
@@ -423,6 +445,7 @@ def _job_summary(job: Any) -> dict:
             {"type": c.type, "status": c.status, "reason": c.reason or ""}
             for c in conditions
         ],
+        "containers": _pod_template_containers(spec),
     }
 
 
@@ -430,12 +453,15 @@ def _cronjob_summary(cj: Any) -> dict:
     status = cj.status or SimpleNamespace(last_schedule_time=None)
     spec = cj.spec or SimpleNamespace(schedule="")
     last_schedule = status.last_schedule_time
+    job_template = getattr(spec, "job_template", None)
+    job_spec = getattr(job_template, "spec", None) if job_template else None
     return {
         "kind": "CronJob",
         "name": cj.metadata.name,
         "namespace": cj.metadata.namespace or "",
         "schedule": getattr(spec, "schedule", "") or "",
         "last_schedule_time": last_schedule.isoformat() if last_schedule else None,
+        "containers": _pod_template_containers(job_spec) if job_spec else [],
     }
 
 
@@ -471,6 +497,7 @@ def _daemonset_summary(ds: Any) -> dict:
         number_misscheduled=0,
     )
     return {
+        "kind": "DaemonSet",
         "name": ds.metadata.name,
         "namespace": ds.metadata.namespace or "",
         "desired": status.desired_number_scheduled or 0,
@@ -478,6 +505,7 @@ def _daemonset_summary(ds: Any) -> dict:
         "ready": status.number_ready or 0,
         "number_unavailable": getattr(status, "number_unavailable", None) or 0,
         "number_misscheduled": status.number_misscheduled or 0,
+        "containers": _pod_template_containers(ds.spec) if ds.spec else [],
     }
 
 

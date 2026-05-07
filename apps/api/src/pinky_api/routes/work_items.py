@@ -370,10 +370,17 @@ async def chat_with_brain(
     binding = await get_cluster_binding_for_principal(item.cluster_id, principal, db)
     cluster_token = ""
     if binding and binding.encrypted_token:
-        from pinky_api.security.crypto import decrypt
-        cluster_token = decrypt(
-            binding.encrypted_token, aad=f"cluster_identity_bindings:{binding.id}",
-        ).decode()
+        from datetime import UTC, datetime
+        if binding.expires_at and binding.expires_at < datetime.now(UTC):
+            logger.warning("cluster binding expired for chat, tools disabled")
+        else:
+            from pinky_api.security.crypto import decrypt
+            try:
+                cluster_token = decrypt(
+                    binding.encrypted_token, aad=f"cluster_identity_bindings:{binding.id}",
+                ).decode()
+            except Exception:
+                logger.exception("token decryption failed for binding %s", binding.id)
 
     tools: list[anthropic.types.ToolParam] = [
         {
