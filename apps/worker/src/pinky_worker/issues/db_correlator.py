@@ -66,15 +66,26 @@ class DbIssueCorrelator:
                     observation_count=obs_count,
                 )
 
-            if existing and existing["status"] in ("resolved", "suppressed"):
+            if existing and existing["status"] == "suppressed":
+                await conn.execute(
+                    "UPDATE issues SET last_seen_at = $1, updated_at = $1 WHERE id = $2",
+                    obs.observed_at, existing["id"],
+                )
+                return CorrelationResult(
+                    action="attached", issue_id=str(existing["id"]),
+                    observation_count=obs_count,
+                )
+
+            if existing and existing["status"] == "resolved":
                 await conn.execute(
                     "UPDATE issues SET status = 'open', last_seen_at = $1, "
-                "resolved_at = NULL, updated_at = $1 WHERE id = $2",
+                    "resolved_at = NULL, resolved_by = NULL, updated_at = $1 WHERE id = $2",
                     obs.observed_at, existing["id"],
                 )
                 logger.info(
-                "reopened issue", issue_id=str(existing["id"]), correlation_key=obs.correlation_key,
-            )
+                    "reopened issue", issue_id=str(existing["id"]),
+                    correlation_key=obs.correlation_key,
+                )
                 return CorrelationResult(
                     action="reopened", issue_id=str(existing["id"]),
                     observation_count=obs_count,

@@ -57,12 +57,8 @@ export function TasksView() {
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [focusedId, setFocusedId] = useState<string | null>(null);
 
-  const { data: tasks, isLoading } = useQuery(
-    tasksOptions({
-      cluster_id: clusterId ?? undefined,
-      owner: activeTab === "mine" ? user?.id : undefined,
-    }),
-  );
+  const allTasksQuery = tasksOptions({ cluster_id: clusterId ?? undefined });
+  const { data: tasks, isLoading } = useQuery(allTasksQuery);
   const { data: clusters } = useQuery(clustersOptions());
 
   const clusterMap = useMemo(() => {
@@ -76,9 +72,11 @@ export function TasksView() {
   const filteredItems = useMemo(() => {
     let items = tasks?.items ?? [];
 
-    if (activeTab === "active") {
+    if (activeTab === "mine") {
+      items = items.filter((t) => user && t.owner_id === user.id);
+    } else if (activeTab === "active") {
       items = items.filter((t) => t.status === "in_progress");
-    } else if (activeTab !== "all" && activeTab !== "mine") {
+    } else if (activeTab !== "all") {
       items = items.filter((t) => t.status === activeTab);
     }
 
@@ -96,7 +94,7 @@ export function TasksView() {
     }
 
     return items;
-  }, [tasks, activeTab, priorityFilter, search]);
+  }, [tasks, activeTab, priorityFilter, search, user]);
 
   const tabCounts = useMemo(() => {
     const items = tasks?.items ?? [];
