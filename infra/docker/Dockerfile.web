@@ -5,7 +5,6 @@ COPY packages/ ./packages/
 COPY apps/web/ ./apps/web/
 ENV COREPACK_ENABLE_AUTO_PIN=0
 RUN corepack enable \
-  && pnpm config set manage-package-manager-versions false \
   && pnpm install --frozen-lockfile --filter @pinky/web... \
   && pnpm approve-builds sharp unrs-resolver \
   && pnpm --filter @pinky/contracts build \
