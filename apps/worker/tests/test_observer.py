@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from pinky_worker.definitions.loader import Definition, DefinitionRegistry
 from pinky_worker.issues.correlator import RawObservation
-from pinky_worker.observation.observer import observe_cluster
+from pinky_worker.observation.observer import _fetch_for_scanner, observe_cluster
 
 
 def _mock_registry() -> DefinitionRegistry:
@@ -141,6 +141,7 @@ async def test_observer_detects_crash_loop() -> None:
     with (
         patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
         patch("pinky_worker.observation.observer._fetch_for_scanner", side_effect=mock_fetch),
+        patch("pinky_worker.observation.observer._get_reopen_count", return_value=0),
     ):
         await observe_cluster(
             cluster_id="cluster-1",
@@ -249,3 +250,59 @@ async def test_observer_skips_scanner_without_checks() -> None:
 
     mock_fetch.assert_not_called()
     mock_correlator.correlate.assert_not_called()
+
+
+async def test_fetch_excludes_namespaces() -> None:
+    """Resources in excluded namespaces are filtered out."""
+    scanner_def = Definition(
+        kind="scanner",
+        name="test-scanner",
+        version="1.0.0",
+        frontmatter={
+            "resource_kinds": ["Pod"],
+            "exclude_namespaces_regex": "^openshift-",
+            "checks": [],
+        },
+        body="",
+        source="test",
+    )
+
+    mock_pods = [
+        {"name": "user-pod", "namespace": "myapp"},
+        {"name": "system-pod", "namespace": "openshift-monitoring"},
+        {"name": "another", "namespace": "openshift-dns"},
+    ]
+
+    async def mock_list_pods(*args, **kwargs):
+        return mock_pods
+
+    with patch("pinky_worker.observation.observer.RESOURCE_KIND_FETCHERS", {"Pod": mock_list_pods}):
+        result = await _fetch_for_scanner(None, scanner_def)
+
+    assert len(result) == 1
+    assert result[0]["name"] == "user-pod"
+
+
+async def test_fetch_no_exclusion_returns_all() -> None:
+    """Without exclude_namespaces_regex, all resources pass through."""
+    scanner_def = Definition(
+        kind="scanner",
+        name="test-scanner",
+        version="1.0.0",
+        frontmatter={"resource_kinds": ["Pod"], "checks": []},
+        body="",
+        source="test",
+    )
+
+    mock_pods = [
+        {"name": "a", "namespace": "ns1"},
+        {"name": "b", "namespace": "ns2"},
+    ]
+
+    async def mock_list_pods(*args, **kwargs):
+        return mock_pods
+
+    with patch("pinky_worker.observation.observer.RESOURCE_KIND_FETCHERS", {"Pod": mock_list_pods}):
+        result = await _fetch_for_scanner(None, scanner_def)
+
+    assert len(result) == 2

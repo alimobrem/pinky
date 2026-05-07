@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re as re_mod
 import uuid
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
@@ -25,6 +26,7 @@ from pinky_worker.observation.k8s_client import (
     list_cronjobs,
     list_daemonsets,
     list_deployments,
+    list_hpas,
     list_ingresses,
     list_jobs,
     list_nodes,
@@ -55,11 +57,17 @@ RESOURCE_KIND_FETCHERS: dict[str, Fetcher] = {
     "Ingress": list_ingresses,
     "Secret": list_tls_secrets,
     "ResourceQuota": list_resource_quotas,
+    "HorizontalPodAutoscaler": list_hpas,
 }
+
+
+_DEFAULT_EXCLUDE_NS = os.environ.get("PINKY_EXCLUDE_NAMESPACES_REGEX", "")
 
 
 async def _fetch_for_scanner(api_client, scanner_def) -> list[dict]:
     resource_kinds = scanner_def.frontmatter.get("resource_kinds", [])
+    exclude_ns = scanner_def.frontmatter.get("exclude_namespaces_regex", _DEFAULT_EXCLUDE_NS)
+    exclude_re = re_mod.compile(exclude_ns) if exclude_ns else None
     resources: list[dict] = []
     for kind in resource_kinds:
         fetcher = RESOURCE_KIND_FETCHERS.get(kind)
@@ -68,6 +76,8 @@ async def _fetch_for_scanner(api_client, scanner_def) -> list[dict]:
                 resources.extend(await fetcher(api_client))
             except Exception:
                 logger.exception("fetcher failed", kind=kind)
+    if exclude_re:
+        resources = [r for r in resources if not exclude_re.match(r.get("namespace", ""))]
     return resources
 
 
@@ -317,6 +327,22 @@ async def _handle_create_task(result, decision, obs) -> None:
     )
 
 
+async def _get_reopen_count(issue_id: str | None, hours: int = 24) -> int:
+    if not issue_id:
+        return 0
+    from pinky_worker.db import get_pool
+
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """SELECT COUNT(*) as cnt FROM domain_events
+           WHERE aggregate_id = $1::uuid
+           AND event_type IN ('issue.auto_resolved', 'issue.resolved')
+           AND occurred_at > now() - make_interval(hours => $2)""",
+        issue_id, hours,
+    )
+    return row["cnt"] if row else 0
+
+
 async def _apply_policy_metadata(issue_id: str, action) -> None:
     from pinky_worker.db import get_pool
 
@@ -404,6 +430,7 @@ async def observe_cluster(
                         severity=obs.severity,
                     )
 
+                    reopen_count = await _get_reopen_count(result.issue_id)
                     policy_input = PolicyInput(
                         scanner=obs.scanner,
                         check_id=obs.check_id or "",
@@ -412,6 +439,7 @@ async def observe_cluster(
                         resource_namespace=obs.resource_namespace or "",
                         cluster_id=cluster_id,
                         recurrence_count=result.observation_count,
+                        reopen_count=reopen_count,
                     )
                     decision = evaluate(policy_rules, policy_input)
                     logger.info(

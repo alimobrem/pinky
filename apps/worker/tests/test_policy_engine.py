@@ -125,3 +125,18 @@ def test_exact_severity_with_check_id_regex() -> None:
     cond = PolicyConditions(check_id_regex="^no-resource-.*", severity="low")
     assert matches(cond, PolicyInput(check_id="no-resource-requests", severity="low"))
     assert not matches(cond, PolicyInput(check_id="no-resource-limits", severity="medium"))
+
+
+def test_reopen_count_condition() -> None:
+    cond = PolicyConditions(reopen_count_gte=3)
+    assert matches(cond, PolicyInput(reopen_count=3))
+    assert matches(cond, PolicyInput(reopen_count=5))
+    assert not matches(cond, PolicyInput(reopen_count=2))
+    assert not matches(cond, PolicyInput(reopen_count=0))
+
+
+def test_reopen_count_with_other_conditions() -> None:
+    cond = PolicyConditions(severity_gte="medium", reopen_count_gte=3)
+    assert matches(cond, PolicyInput(severity="high", reopen_count=3))
+    assert not matches(cond, PolicyInput(severity="low", reopen_count=5))
+    assert not matches(cond, PolicyInput(severity="high", reopen_count=1))

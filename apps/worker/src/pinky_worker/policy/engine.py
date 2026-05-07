@@ -24,6 +24,7 @@ class PolicyConditions:
     cluster_id: str | None = None
     labels: dict[str, str] = field(default_factory=dict)
     recurrence_count_gte: int | None = None
+    reopen_count_gte: int | None = None
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,7 @@ class PolicyInput:
     cluster_id: str = ""
     labels: dict[str, str] = field(default_factory=dict)
     recurrence_count: int = 1
+    reopen_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -94,9 +96,14 @@ def matches(conditions: PolicyConditions, input: PolicyInput) -> bool:
         for k, v in conditions.labels.items():
             if input.labels.get(k) != v:
                 return False
-    return not (
+    if (
         conditions.recurrence_count_gte is not None
         and input.recurrence_count < conditions.recurrence_count_gte
+    ):
+        return False
+    return not (
+        conditions.reopen_count_gte is not None
+        and input.reopen_count < conditions.reopen_count_gte
     )
 
 
@@ -126,6 +133,7 @@ def rules_from_definitions(definitions: list) -> list[PolicyRule]:
             cluster_id=conditions_raw.get("cluster_id"),
             labels=conditions_raw.get("labels", {}),
             recurrence_count_gte=conditions_raw.get("recurrence_count_gte"),
+            reopen_count_gte=conditions_raw.get("reopen_count_gte"),
         )
 
         action = PolicyAction(

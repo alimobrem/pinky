@@ -238,6 +238,19 @@ async def list_services(api_client: ApiClient, namespace: str = "") -> list[dict
     return [_service_summary(s, ep_map) for s in svc_result.items]
 
 
+async def list_hpas(api_client: ApiClient, namespace: str = "") -> list[dict]:
+    autoscaling_v2 = client.AutoscalingV2Api(api_client)
+    try:
+        if namespace:
+            result = await autoscaling_v2.list_namespaced_horizontal_pod_autoscaler(namespace)
+        else:
+            result = await autoscaling_v2.list_horizontal_pod_autoscaler_for_all_namespaces()
+    except Exception:
+        logger.warning("failed to list HPAs")
+        return []
+    return [_hpa_summary(h) for h in result.items]
+
+
 async def list_daemonsets(api_client: ApiClient, namespace: str = "") -> list[dict]:
     apps_v1 = client.AppsV1Api(api_client)
     try:
@@ -506,6 +519,26 @@ def _daemonset_summary(ds: Any) -> dict:
         "number_unavailable": getattr(status, "number_unavailable", None) or 0,
         "number_misscheduled": status.number_misscheduled or 0,
         "containers": _pod_template_containers(ds.spec) if ds.spec else [],
+    }
+
+
+def _hpa_summary(hpa: Any) -> dict:
+    spec = hpa.spec or SimpleNamespace(min_replicas=1, max_replicas=1)
+    status = hpa.status or SimpleNamespace(
+        current_replicas=None, desired_replicas=None, conditions=None,
+    )
+    return {
+        "kind": "HorizontalPodAutoscaler",
+        "name": hpa.metadata.name,
+        "namespace": hpa.metadata.namespace or "",
+        "min_replicas": getattr(spec, "min_replicas", 1) or 1,
+        "max_replicas": getattr(spec, "max_replicas", 1) or 1,
+        "current_replicas": status.current_replicas or 0,
+        "desired_replicas": status.desired_replicas or 0,
+        "conditions": [
+            {"type": c.type, "status": c.status, "reason": c.reason or ""}
+            for c in (status.conditions or [])
+        ],
     }
 
 

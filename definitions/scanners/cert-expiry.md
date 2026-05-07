@@ -6,6 +6,7 @@ resource_kinds: [Secret]
 api_groups: ["", "cert-manager.io"]
 scan_interval_seconds: 3600
 timeout_seconds: 30
+exclude_namespaces_regex: ""
 checks:
   - id: cert-expired
     severity: critical

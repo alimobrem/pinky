@@ -109,6 +109,10 @@ spec:
                 secretKeyRef:
                   name: {{ include "pinky.encryptionSecretName" . }}
                   key: key
+          {{- if .Values.worker.excludeNamespacesRegex }}
+            - name: PINKY_EXCLUDE_NAMESPACES_REGEX
+              value: {{ .Values.worker.excludeNamespacesRegex | quote }}
+          {{- end }}
           {{- if eq .Values.llm.provider "vertex" }}
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: /etc/vertex/credentials.json

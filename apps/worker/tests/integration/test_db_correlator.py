@@ -96,7 +96,7 @@ async def test_resolved_issue_reopens(
     assert issue["resolved_at"] is None
 
 
-async def test_suppressed_issue_reopens(
+async def test_suppressed_issue_stays_suppressed(
     conn: asyncpg.Connection, cluster_id: str, fake_pool: FakePool,
 ) -> None:
     obs = _make_obs(cluster_id)
@@ -104,8 +104,11 @@ async def test_suppressed_issue_reopens(
 
     await conn.execute("UPDATE issues SET status = 'suppressed' WHERE id = $1::uuid", first.issue_id)
 
-    reopened = await _correlate(fake_pool, obs)
-    assert reopened.action == "reopened"
+    result = await _correlate(fake_pool, obs)
+    assert result.action == "attached"
+
+    row = await conn.fetchrow("SELECT status FROM issues WHERE id = $1::uuid", first.issue_id)
+    assert row["status"] == "suppressed"
 
 
 async def test_priority_mapping_critical(
