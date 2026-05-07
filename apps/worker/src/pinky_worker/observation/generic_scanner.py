@@ -486,7 +486,7 @@ async def _run_single_check(
 ) -> None:
     check_id: str = check.get("id", "unknown")
     severity: str = check.get("severity", "medium")
-    resource_kind: str = check.get("resource_kind", default_kind)
+    resource_kind: str = check.get("resource_kind") or resource.get("kind") or default_kind
     condition = check.get("condition", {})
     iterate_path: str | None = check.get("iterate")
 
