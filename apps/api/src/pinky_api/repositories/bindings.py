@@ -58,6 +58,21 @@ class BindingRepository(BaseRepository):
         )
         return result.scalar_one_or_none()
 
+    async def refresh_token(
+        self, binding_id: UUID, encrypted_token: bytes,
+    ) -> ClusterIdentityBinding | None:
+        result = await self.session.execute(
+            sa_update(ClusterIdentityBinding)
+            .where(ClusterIdentityBinding.id == binding_id)
+            .values(
+                status="valid",
+                encrypted_token=encrypted_token,
+                expires_at=datetime.utcnow() + timedelta(hours=8),
+            )
+            .returning(ClusterIdentityBinding)
+        )
+        return result.scalar_one_or_none()
+
     async def revoke(self, binding_id: UUID) -> bool:
         binding = await self.get(binding_id)
         if binding is None:

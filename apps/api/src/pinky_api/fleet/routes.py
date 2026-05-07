@@ -184,7 +184,13 @@ async def create_binding(
     pid = principal_uuid(principal)
     cluster_uuid = UUID(req.cluster_id)
     existing = await repo.get_for_cluster(pid, cluster_uuid)
-    if existing and existing.status == "valid":
+    not_expired = (
+        existing
+        and existing.status == "valid"
+        and existing.expires_at
+        and existing.expires_at > datetime.utcnow()
+    )
+    if not_expired:
         return _serialize_binding(existing)
 
     if existing:

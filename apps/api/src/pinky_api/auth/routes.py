@@ -148,6 +148,23 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
         raise HTTPException(status_code=502, detail=f"User info fetch failed: {e}") from None
 
     principal_data = await _resolve_principal(user_info, db)
+
+    from uuid import UUID
+
+    from pinky_api.repositories.bindings import BindingRepository
+    from pinky_api.repositories.clusters import ClusterRepository
+    from pinky_api.security.crypto import encrypt
+
+    cluster_repo = ClusterRepository(db)
+    binding_repo = BindingRepository(db)
+    cluster_data = await cluster_repo.list()
+    pid = UUID(principal_data["id"])
+    for cluster in cluster_data["items"]:
+        existing = await binding_repo.get_for_cluster(pid, cluster.id)
+        if existing:
+            enc_token = encrypt(access_token.encode(), aad=f"cluster_identity_bindings:{existing.id}")
+            await binding_repo.refresh_token(existing.id, enc_token)
+
     await db.commit()
 
     raw_token, csrf_token = await store.create(
