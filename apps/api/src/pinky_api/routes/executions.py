@@ -241,6 +241,7 @@ async def approve_execution(
     try:
         temporal_client = await get_client()
     except Exception:
+        logger.exception("temporal client unavailable for approval")
         raise HTTPException(status_code=503, detail="Workflow engine unavailable") from None
 
     try:
@@ -275,6 +276,7 @@ async def reject_execution(
     try:
         temporal_client = await get_client()
     except Exception:
+        logger.exception("temporal client unavailable for rejection")
         raise HTTPException(status_code=503, detail="Workflow engine unavailable") from None
 
     try:

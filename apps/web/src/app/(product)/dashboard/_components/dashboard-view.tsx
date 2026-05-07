@@ -97,10 +97,10 @@ export function DashboardView() {
                 <span className="font-mono text-3xl font-bold tabular-nums text-text-primary">
                   {clusterList.length}
                 </span>
-                <span className="text-[12px] text-text-tertiary">clusters</span>
+                <span className="text-caption text-text-tertiary">clusters</span>
               </div>
 
-              <div className="flex gap-4 text-[12px]">
+              <div className="flex gap-4 text-caption">
                 <span className="flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-status-done" />
                   <span className="text-text-secondary">{readyClusters.length} healthy</span>
@@ -242,7 +242,7 @@ function ClusterList({ clusters }: { clusters: { id: string; display_name: strin
   return (
     <div className="space-y-1">
       {visible.map((c) => (
-        <div key={c.id} className="flex items-center gap-2 rounded px-1.5 py-1 text-[12px]">
+        <div key={c.id} className="flex items-center gap-2 rounded px-1.5 py-1 text-caption">
           <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", c.onboarding_state === "ready" ? "bg-status-done" : "bg-status-blocked")} />
           <span className="truncate text-text-secondary">{c.display_name}</span>
         </div>

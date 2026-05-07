@@ -45,7 +45,7 @@ export function ApprovalGate({
           Approval required
         </p>
         {resources && resources.length > 0 && (
-          <p className="mt-0.5 text-[12px] text-text-secondary">
+          <p className="mt-0.5 text-caption text-text-secondary">
             {resources.length} resource{resources.length !== 1 ? "s" : ""} will be
             modified
           </p>

@@ -7,7 +7,7 @@ export interface EmptyStateProps {
 
 export function EmptyState({ message, children }: EmptyStateProps) {
   return (
-    <div style={{ textAlign: "center", padding: "3rem 1rem" }}>
+    <div className="text-center px-4 py-12">
       <p>{message}</p>
       {children}
     </div>

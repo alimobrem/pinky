@@ -27,7 +27,7 @@ export function MobileNav() {
             )}
           >
             <Icon size={20} strokeWidth={active ? 2 : 1.5} />
-            <span className="text-[10px] font-medium">{item.label}</span>
+            <span className="text-caption font-medium">{item.label}</span>
           </Link>
         );
       })}

@@ -522,6 +522,7 @@ async def chat_with_brain(
                             import json as _json
                             result_text = _json.dumps(result, default=str)[:8000]
                         except Exception as exc:
+                            logger.exception("tool call failed: %s", block.name)
                             result_text = f"Error: {exc}"
                     else:
                         result_text = "Tool unavailable — no cluster binding"

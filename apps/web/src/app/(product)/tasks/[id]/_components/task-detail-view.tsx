@@ -624,7 +624,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                   </div>
                   <a
                     href={`/tasks/${taskId}/execution/${activeExec.id}`}
-                    className="mt-2 inline-block text-[12px] text-brand-pink"
+                    className="mt-2 inline-block text-caption text-brand-pink"
                   >
                     View live →
                   </a>

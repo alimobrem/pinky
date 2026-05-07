@@ -4,5 +4,10 @@ export interface SkeletonProps {
 }
 
 export function Skeleton({ width = "100%", height = "1rem" }: SkeletonProps) {
-  return <div style={{ width, height, background: "var(--bg-elevated, #e5e7eb)", borderRadius: 4 }} />;
+  return (
+    <div
+      className="rounded bg-[var(--bg-elevated,#e5e7eb)]"
+      style={{ width, height }}
+    />
+  );
 }

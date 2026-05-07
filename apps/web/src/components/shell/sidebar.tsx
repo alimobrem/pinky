@@ -3,31 +3,40 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Brain } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PaginatedResponse } from "@pinky/contracts";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
+import { useSSE } from "@/hooks/use-sse";
 import { NAV_ITEMS } from "@/components/shell/nav-config";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const qc = useQueryClient();
+
+  useSSE("/api/v1/streams/events", {
+    onEvent: {
+      update: () => {
+        qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks({ status: "ready" }) });
+        qc.invalidateQueries({ queryKey: QUERY_KEYS.issues({ status: "open" }) });
+      },
+    },
+  });
 
   const { data: taskData } = useQuery({
     queryKey: QUERY_KEYS.tasks({ status: "ready" }),
     queryFn: () =>
       api.get<PaginatedResponse<unknown>>("/api/v1/work-items?status=ready&limit=1"),
     staleTime: 30_000,
-    refetchInterval: 60_000,
   });
 
   const { data: issueData } = useQuery({
-    queryKey: ["issues", { status: "open" }],
+    queryKey: QUERY_KEYS.issues({ status: "open" }),
     queryFn: () =>
       api.get<PaginatedResponse<unknown>>("/api/v1/issues?status=open&limit=1"),
     staleTime: 30_000,
-    refetchInterval: 60_000,
   });
 
   const taskCount = taskData?.total_count ?? 0;
@@ -50,7 +59,7 @@ export function Sidebar() {
 
       <ScrollArea className="flex-1">
         <div className="space-y-1 px-3 py-3">
-          <div className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-widest text-text-tertiary">
+          <div className="px-2 pb-2 text-caption font-semibold uppercase tracking-widest text-text-tertiary">
             Workbench
           </div>
           {NAV_ITEMS.filter((i) => i.section === "primary").map((item) => {
@@ -83,7 +92,7 @@ export function Sidebar() {
                 />
                 <span className="flex-1">{item.label}</span>
                 {badge != null && badge > 0 && (
-                  <span className="min-w-5 rounded-md bg-brand-pink/15 px-1.5 py-0.5 text-center font-mono text-[10px] font-semibold tabular-nums text-brand-pink">
+                  <span className="min-w-5 rounded-md bg-brand-pink/15 px-1.5 py-0.5 text-center font-mono text-caption font-semibold tabular-nums text-brand-pink">
                     {badge > 99 ? "99+" : badge}
                   </span>
                 )}
@@ -95,7 +104,7 @@ export function Sidebar() {
         <div className="mx-4 h-px bg-border-subtle" />
 
         <div className="space-y-1 px-3 py-3">
-          <div className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-widest text-text-tertiary">
+          <div className="px-2 pb-2 text-caption font-semibold uppercase tracking-widest text-text-tertiary">
             System
           </div>
           {NAV_ITEMS.filter((i) => i.section === "secondary").map((item) => {

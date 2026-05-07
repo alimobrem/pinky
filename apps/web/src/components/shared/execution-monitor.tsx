@@ -84,7 +84,7 @@ export function ExecutionMonitor({
           return (
             <div key={event.id}>
               {showPhaseLabel && (
-                <div className="bg-bg-surface px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
+                <div className="bg-bg-surface px-4 py-1.5 text-caption font-bold uppercase tracking-widest text-text-tertiary">
                   {phase}
                 </div>
               )}
@@ -100,7 +100,7 @@ export function ExecutionMonitor({
                     <RelativeTime date={event.occurred_at} className="ml-auto" />
                   </div>
                   {payload.step_description && (
-                    <p className="text-[12px] text-text-secondary">
+                    <p className="text-caption text-text-secondary">
                       {String(payload.step_description)}
                     </p>
                   )}

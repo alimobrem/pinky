@@ -9,6 +9,7 @@ stateless resume (refetch from API on reconnect).
 import asyncio
 import contextlib
 import json
+import logging
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 
@@ -17,6 +18,8 @@ from fastapi import APIRouter, Request
 from starlette.responses import StreamingResponse
 
 from pinky_api.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/streams", tags=["streams"])
 
@@ -78,6 +81,7 @@ async def _sse_with_channels(request: Request, channels: list[str]) -> AsyncGene
                 yield f"event: heartbeat\ndata: {heartbeat}\n\n"
 
     except Exception:
+        logger.exception("SSE stream connection failed")
         error = json.dumps({"error": "stream_error", "message": "Connection to event source failed"})
         yield f"event: error\ndata: {error}\n\n"
     finally:
@@ -100,6 +104,7 @@ def _make_stream(request: Request, *channels: str) -> StreamingResponse:
         _raw_pg_url()
         generator = _sse_with_channels(request, list(channels))
     except Exception:
+        logger.info("pg NOTIFY not available, falling back to poll mode", exc_info=True)
         generator = _sse_poll(request, channels[0] if channels else "events")
 
     return StreamingResponse(generator, media_type="text/event-stream", headers=SSE_HEADERS)

@@ -75,7 +75,7 @@ export function TokensTab() {
                     <TableCell>
                       <div className="flex gap-1">
                         {t.scopes.map((s) => (
-                          <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>
+                          <Badge key={s} variant="secondary" className="text-caption">{s}</Badge>
                         ))}
                         {t.scopes.length === 0 && <span className="text-xs text-text-tertiary">none</span>}
                       </div>

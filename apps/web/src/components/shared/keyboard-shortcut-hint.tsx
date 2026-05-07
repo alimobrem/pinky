@@ -13,7 +13,7 @@ export function Kbd({ keys, className }: KbdProps) {
       {parts.map((key, i) => (
         <kbd
           key={i}
-          className="inline-flex h-5 min-w-[20px] items-center justify-center rounded border border-border-default bg-bg-elevated px-1 font-mono text-[10px] font-medium text-text-secondary"
+          className="inline-flex h-5 min-w-[20px] items-center justify-center rounded border border-border-default bg-bg-elevated px-1 font-mono text-caption font-medium text-text-secondary"
         >
           {formatKey(key)}
         </kbd>

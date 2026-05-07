@@ -681,7 +681,6 @@ export function WatchView() {
         `/api/v1/analytics/watch-summary?since=${timeWindow}`,
       ),
     staleTime: 30_000,
-    refetchInterval: 30_000,
   });
 
   const { data: issues, isLoading: issuesLoading } = useQuery(

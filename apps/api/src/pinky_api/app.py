@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
 
 from pinky_api.auth.middleware import get_current_principal
 from pinky_api.auth.routes import router as auth_router
@@ -77,7 +78,7 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def logging_context_middleware(request: Request, call_next):  # noqa: ANN201
+async def logging_context_middleware(request: Request, call_next) -> Response:
     request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
     structlog.contextvars.clear_contextvars()
     structlog.contextvars.bind_contextvars(request_id=request_id)

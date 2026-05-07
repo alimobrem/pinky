@@ -21,6 +21,7 @@ class DbIssueCorrelator:
             )
             return row["cnt"] if row else 1
         except Exception:
+            logger.warning("failed to count observations", correlation_key=correlation_key, exc_info=True)
             return 1
 
     async def correlate(self, obs: RawObservation) -> CorrelationResult:

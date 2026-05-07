@@ -158,23 +158,7 @@ def parse_x509_not_after(cert_b64: str) -> datetime | None:
     except ImportError:
         pass
     except Exception:
-        logger.warning("cryptography failed to parse cert")
-
-    # Fallback: stdlib ssl
-    try:
-        import ssl
-        import tempfile
-
-        with tempfile.NamedTemporaryFile(suffix=".pem", delete=True) as f:
-            f.write(pem_data)
-            f.flush()
-            _ssl_mod = getattr(ssl, "_ssl", None)
-            info = _ssl_mod._test_decode_cert(f.name) if _ssl_mod else {}  # noqa: SLF001
-        not_after_str = info.get("notAfter", "")
-        if not_after_str:
-            return datetime.strptime(not_after_str, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=UTC)
-    except Exception:
-        logger.warning("stdlib ssl failed to parse cert")
+        logger.warning("failed to parse x509 cert", exc_info=True)
 
     return None
 
