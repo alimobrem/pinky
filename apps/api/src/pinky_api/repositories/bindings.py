@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -53,7 +53,7 @@ class BindingRepository(BaseRepository):
         result = await self.session.execute(
             sa_update(ClusterIdentityBinding)
             .where(ClusterIdentityBinding.id == binding_id)
-            .values(status="valid", expires_at=datetime.utcnow() + timedelta(hours=8))
+            .values(status="valid", expires_at=datetime.now(UTC) + timedelta(hours=8))
             .returning(ClusterIdentityBinding)
         )
         return result.scalar_one_or_none()
@@ -67,7 +67,7 @@ class BindingRepository(BaseRepository):
             .values(
                 status="valid",
                 encrypted_token=encrypted_token,
-                expires_at=datetime.utcnow() + timedelta(hours=8),
+                expires_at=datetime.now(UTC) + timedelta(hours=8),
             )
             .returning(ClusterIdentityBinding)
         )

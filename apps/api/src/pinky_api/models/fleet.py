@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, LargeBinary, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, LargeBinary, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,7 +26,7 @@ class ClusterObserverBinding(Base, TimestampMixin):
     cluster_id: Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("cluster_registry.id"), nullable=False)
     auth_method: Mapped[str] = mapped_column(String, nullable=False)
     health_state: Mapped[str] = mapped_column(String, server_default="unknown")
-    last_observation_at: Mapped[datetime | None] = mapped_column()
+    last_observation_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     encrypted_credential: Mapped[bytes | None] = mapped_column(LargeBinary)
     rbac_scope: Mapped[dict] = mapped_column(JSONB, server_default="[]")
 
@@ -43,4 +43,4 @@ class ClusterIdentityBinding(Base, TimestampMixin):
     binding_method: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, server_default="missing")
     encrypted_token: Mapped[bytes | None] = mapped_column(LargeBinary)
-    expires_at: Mapped[datetime | None] = mapped_column()
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

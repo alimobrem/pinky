@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Index, String
+from sqlalchemy import DateTime, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,5 +26,5 @@ class Observation(Base):
     resource_namespace: Mapped[str | None] = mapped_column(String)
     resource_name: Mapped[str | None] = mapped_column(String)
     payload: Mapped[dict] = mapped_column(JSONB, server_default="{}")
-    observed_at: Mapped[datetime] = mapped_column(nullable=False)
-    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")

@@ -1,6 +1,6 @@
 """Fleet routes — cluster registry and binding management."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -167,9 +167,9 @@ async def get_binding_status(
     binding = await repo.get_for_cluster(pid, UUID(cluster_id))
     if binding is None:
         return {"status": "missing", "binding": None}
-    if binding.status == "valid" and binding.expires_at and binding.expires_at < datetime.utcnow():
+    if binding.status == "valid" and binding.expires_at and binding.expires_at < datetime.now(UTC):
         return {"status": "expired", "binding": _serialize_binding(binding)}
-    if binding.status == "valid" and binding.expires_at and binding.expires_at < datetime.utcnow() + timedelta(hours=1):
+    if binding.status == "valid" and binding.expires_at and binding.expires_at < datetime.now(UTC) + timedelta(hours=1):
         return {"status": "expiring", "binding": _serialize_binding(binding)}
     return {"status": binding.status, "binding": _serialize_binding(binding)}
 
@@ -188,7 +188,7 @@ async def create_binding(
         existing
         and existing.status == "valid"
         and existing.expires_at
-        and existing.expires_at > datetime.utcnow()
+        and existing.expires_at > datetime.now(UTC)
     )
     if not_expired:
         return _serialize_binding(existing)
@@ -201,7 +201,7 @@ async def create_binding(
             cluster_id=cluster_uuid,
             binding_method=req.binding_method,
             status="valid",
-            expires_at=datetime.utcnow() + timedelta(hours=8),
+            expires_at=datetime.now(UTC) + timedelta(hours=8),
         )
 
     await emit(

@@ -1,7 +1,7 @@
 """API token CRUD routes — create, list, and revoke tokens for CLI/CI auth."""
 
 import secrets
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -45,8 +45,7 @@ async def create_api_token(
     expires_at = None
     if req.expires_at:
         parsed = datetime.fromisoformat(req.expires_at)
-        # Strip tzinfo for naive TIMESTAMP columns
-        expires_at = parsed.replace(tzinfo=None) if parsed.tzinfo else parsed
+        expires_at = parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
     token = ApiToken(
         principal_id=principal["id"],
@@ -103,6 +102,6 @@ async def revoke_api_token(
     await db.execute(
         update(ApiToken)
         .where(ApiToken.id == token_id)
-        .values(revoked_at=datetime.utcnow())
+        .values(revoked_at=datetime.now(UTC))
     )
     await db.commit()

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -64,7 +64,7 @@ class IssueRepository(BaseRepository):
             sa_update(Issue).where(Issue.id == issue_id).values(
                 status="open",
                 suppressed_until=None,
-                updated_at=datetime.utcnow(),
+                updated_at=datetime.now(UTC),
             )
         )
         self.session.expire_all()
@@ -77,7 +77,7 @@ class IssueRepository(BaseRepository):
         await self.session.execute(
             sa_update(Issue).where(Issue.id == issue_id).values(
                 status="resolved",
-                resolved_at=datetime.utcnow(),
+                resolved_at=datetime.now(UTC),
                 resolved_by=resolved_by,
             )
         )

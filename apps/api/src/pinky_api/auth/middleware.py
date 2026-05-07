@@ -2,7 +2,7 @@
 
 import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from fastapi import Depends, HTTPException, Request
@@ -108,12 +108,11 @@ async def _validate_api_token(raw_token: str) -> dict:
         if token_row.revoked_at is not None:
             raise HTTPException(status_code=401, detail="API token has been revoked")
 
-        now = datetime.utcnow()  # noqa: DTZ003 — DB uses TIMESTAMP WITHOUT TIME ZONE
+        now = datetime.now(UTC)
         expires_at = token_row.expires_at
         if expires_at is not None:
-            # Normalize to naive UTC for comparison (asyncpg may return tz-aware)
-            if expires_at.tzinfo is not None:
-                expires_at = expires_at.replace(tzinfo=None)
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=UTC)
             if expires_at <= now:
                 raise HTTPException(status_code=401, detail="API token has expired")
 

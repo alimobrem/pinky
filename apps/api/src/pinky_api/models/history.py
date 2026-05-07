@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String
+from sqlalchemy import DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,4 +18,4 @@ class HistoryEvent(Base):
     cluster_id: Mapped[uuid.UUID | None] = mapped_column(UUID)
     principal_id: Mapped[uuid.UUID | None] = mapped_column(UUID)
     payload: Mapped[dict] = mapped_column(JSONB, server_default="{}")
-    occurred_at: Mapped[datetime] = mapped_column(nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Boolean, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,7 +34,7 @@ class ServiceBinding(Base, TimestampMixin):
     auth_method: Mapped[str] = mapped_column(String, nullable=False)
     encrypted_credential: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     health_state: Mapped[str] = mapped_column(String, server_default="unknown")
-    last_check_at: Mapped[datetime | None] = mapped_column()
+    last_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID, ForeignKey("principals.id"))
 
 
@@ -48,7 +48,7 @@ class DomainEvent(Base):
     cluster_id: Mapped[uuid.UUID | None] = mapped_column(UUID)
     principal_id: Mapped[uuid.UUID | None] = mapped_column(UUID)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(server_default="now()")
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
 
 
 class WebhookSubscription(Base, TimestampMixin):
@@ -73,10 +73,10 @@ class WebhookDelivery(Base):
     domain_event_id: Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("domain_events.id"), nullable=False)
     status: Mapped[str] = mapped_column(String, server_default="pending")
     attempts: Mapped[int] = mapped_column(Integer, server_default="0")
-    last_attempt_at: Mapped[datetime | None] = mapped_column()
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_response_code: Mapped[int | None] = mapped_column(Integer)
-    next_retry_at: Mapped[datetime | None] = mapped_column()
-    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
 
 
 class PolicyRule(Base, TimestampMixin):
@@ -100,10 +100,10 @@ class ApiToken(Base):
     token_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     scopes: Mapped[list] = mapped_column(ARRAY(String), server_default="{}")
-    expires_at: Mapped[datetime | None] = mapped_column()
-    last_used_at: Mapped[datetime | None] = mapped_column()
-    created_at: Mapped[datetime] = mapped_column(server_default="now()")
-    revoked_at: Mapped[datetime | None] = mapped_column()
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ProjectionCursor(Base):
@@ -111,4 +111,4 @@ class ProjectionCursor(Base):
 
     workflow_id: Mapped[str] = mapped_column(String, primary_key=True)
     last_event_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(server_default="now()")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, String
+from sqlalchemy import DateTime, Boolean, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,7 +18,7 @@ class AnalyticsEvent(Base):
     aggregate_id: Mapped[uuid.UUID | None] = mapped_column(UUID)
     execution_id: Mapped[uuid.UUID | None] = mapped_column(UUID)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(server_default="now()")
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
 
 
 class EvalRun(Base):
@@ -30,4 +30,4 @@ class EvalRun(Base):
     token_usage: Mapped[dict | None] = mapped_column(JSONB)
     model_version: Mapped[str | None] = mapped_column(String)
     passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")

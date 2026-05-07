@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,11 +15,11 @@ class Session(Base):
     principal_id: Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("principals.id"), nullable=False)
     token_hash: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     csrf_token: Mapped[str] = mapped_column(String, nullable=False)
-    idle_expires_at: Mapped[datetime] = mapped_column(nullable=False)
-    absolute_expires_at: Mapped[datetime] = mapped_column(nullable=False)
-    created_at: Mapped[datetime] = mapped_column(server_default="now()")
-    rotated_at: Mapped[datetime | None] = mapped_column()
-    revoked_at: Mapped[datetime | None] = mapped_column()
+    idle_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    absolute_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
+    rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class SessionAuditLog(Base):
@@ -28,5 +28,5 @@ class SessionAuditLog(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=gen_uuid)
     session_id: Mapped[uuid.UUID] = mapped_column(UUID, nullable=False)
     event_type: Mapped[str] = mapped_column(String, nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(server_default="now()")
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
     metadata_: Mapped[dict] = mapped_column("metadata", JSONB, server_default="{}")

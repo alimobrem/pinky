@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Index, String
+from sqlalchemy import DateTime, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,8 +24,8 @@ class Issue(Base, TimestampMixin):
     labels: Mapped[dict] = mapped_column(JSONB, server_default="{}")
     annotations: Mapped[dict] = mapped_column(JSONB, server_default="{}")
     runbook_url: Mapped[str | None] = mapped_column(String)
-    first_seen_at: Mapped[datetime] = mapped_column(nullable=False)
-    last_seen_at: Mapped[datetime] = mapped_column(nullable=False)
-    resolved_at: Mapped[datetime | None] = mapped_column()
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resolved_by: Mapped[str | None] = mapped_column(String)
-    suppressed_until: Mapped[datetime | None] = mapped_column()
+    suppressed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,9 +16,9 @@ class Execution(Base):
     cluster_id: Mapped[uuid.UUID] = mapped_column(UUID, ForeignKey("cluster_registry.id"), nullable=False)
     execution_type: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, server_default="pending")
-    started_at: Mapped[datetime | None] = mapped_column()
-    completed_at: Mapped[datetime | None] = mapped_column()
-    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
 
 
 class ExecutionEvent(Base):
@@ -29,7 +29,7 @@ class ExecutionEvent(Base):
     event_type: Mapped[str] = mapped_column(String, nullable=False)
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
     payload: Mapped[dict] = mapped_column(JSONB, server_default="{}")
-    occurred_at: Mapped[datetime] = mapped_column(nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class Approval(Base):
@@ -41,5 +41,5 @@ class Approval(Base):
     changeset_digest: Mapped[str] = mapped_column(String, nullable=False)
     target_resources: Mapped[list] = mapped_column(JSONB, nullable=False)
     status: Mapped[str] = mapped_column(String, server_default="pending")
-    expires_at: Mapped[datetime] = mapped_column(nullable=False)
-    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
