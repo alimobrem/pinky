@@ -35,6 +35,8 @@ def _parse_uuid(value: str, field: str) -> UUID:
 
 
 async def _resolve_token(cluster_id: UUID, principal: dict, db: AsyncSession) -> tuple[str, str]:
+    from datetime import UTC, datetime
+
     cluster_repo = ClusterRepository(db)
     cluster = await cluster_repo.get(cluster_id)
     if cluster is None:
@@ -42,7 +44,10 @@ async def _resolve_token(cluster_id: UUID, principal: dict, db: AsyncSession) ->
 
     binding = await get_cluster_binding_for_principal(cluster_id, principal, db)
     if binding is None or binding.encrypted_token is None:
-        raise HTTPException(status_code=401, detail="Cluster binding required")
+        raise HTTPException(status_code=401, detail="Cluster binding required — log in to the cluster first")
+
+    if binding.expires_at and binding.expires_at < datetime.now(UTC):
+        raise HTTPException(status_code=401, detail="Cluster binding expired — please re-authenticate")
 
     token = decrypt(binding.encrypted_token, aad=f"cluster_identity_bindings:{binding.id}").decode()
     return cluster.api_endpoint, token
