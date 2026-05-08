@@ -61,7 +61,10 @@ RESOURCE_KIND_FETCHERS: dict[str, Fetcher] = {
 }
 
 
-_DEFAULT_EXCLUDE_NS = os.environ.get("PINKY_EXCLUDE_NAMESPACES_REGEX", "")
+_DEFAULT_EXCLUDE_NS = os.environ.get(
+    "PINKY_EXCLUDE_NAMESPACES_REGEX",
+    r"^(openshift-|kube-|default$)",
+)
 
 
 async def _fetch_for_scanner(api_client, scanner_def) -> list[dict]:
