@@ -18,3 +18,12 @@ export interface PaginationParams {
   cursor?: string;
   limit?: number;
 }
+
+export interface WatchSummary {
+  since: string;
+  signals_processed: number;
+  suppressed: number;
+  investigating: number;
+  tasks_created: number;
+  auto_resolved: number;
+}

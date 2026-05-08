@@ -18,7 +18,7 @@ from pinky_api.auth.deps import (
 )
 from pinky_api.db.deps import get_db
 from pinky_api.events import emit
-from pinky_api.k8s import apply_resource, get_resource
+from pinky_api.k8s import apply_resource, get_events, get_nodes, get_resource, list_resources
 from pinky_api.repositories.clusters import ClusterRepository
 from pinky_api.security.crypto import decrypt
 
@@ -121,3 +121,92 @@ async def apply_cluster_resource(
 
     updated_yaml = yaml.dump(result, default_flow_style=False, sort_keys=False)
     return {"resource": result, "yaml": updated_yaml}
+
+
+@router.get("/{cluster_id}/nodes")
+async def list_cluster_nodes(
+    cluster_id: str,
+    db: AsyncSession = Depends(get_db),
+    principal: dict = Depends(require_authenticated),
+) -> dict:
+    cid = _parse_uuid(cluster_id, "Cluster")
+    await require_cluster_read_access(cid, principal, db, require_binding=True)
+    api_endpoint, token = await _resolve_token(cid, principal, db)
+    result = await get_nodes(api_endpoint, token)
+    if result.get("error") == "forbidden":
+        raise HTTPException(status_code=403, detail="Insufficient cluster permissions")
+    nodes = []
+    for node in result.get("items", []):
+        meta = node.get("metadata", {})
+        status = node.get("status", {})
+        spec = node.get("spec", {})
+        conditions = status.get("conditions", [])
+        ready = next((c for c in conditions if c.get("type") == "Ready"), None)
+        nodes.append({
+            "name": meta.get("name"),
+            "status": ready.get("status", "Unknown") if ready else "Unknown",
+            "roles": [
+                k.replace("node-role.kubernetes.io/", "")
+                for k in meta.get("labels", {})
+                if k.startswith("node-role.kubernetes.io/")
+            ],
+            "kubelet_version": status.get("nodeInfo", {}).get("kubeletVersion"),
+            "capacity": status.get("capacity", {}),
+            "allocatable": status.get("allocatable", {}),
+            "taints": spec.get("taints", []),
+            "created_at": meta.get("creationTimestamp"),
+        })
+    return {"items": nodes}
+
+
+@router.get("/{cluster_id}/namespaces")
+async def list_cluster_namespaces(
+    cluster_id: str,
+    db: AsyncSession = Depends(get_db),
+    principal: dict = Depends(require_authenticated),
+) -> dict:
+    cid = _parse_uuid(cluster_id, "Cluster")
+    await require_cluster_read_access(cid, principal, db, require_binding=True)
+    api_endpoint, token = await _resolve_token(cid, principal, db)
+    result = await list_resources(api_endpoint, token, "", "namespace")
+    if result.get("error") == "forbidden":
+        raise HTTPException(status_code=403, detail="Insufficient cluster permissions")
+    namespaces = []
+    for ns in result.get("items", []):
+        meta = ns.get("metadata", {})
+        status = ns.get("status", {})
+        namespaces.append({
+            "name": meta.get("name"),
+            "status": status.get("phase", "Active"),
+            "created_at": meta.get("creationTimestamp"),
+        })
+    return {"items": namespaces}
+
+
+@router.get("/{cluster_id}/events")
+async def list_cluster_events(
+    cluster_id: str,
+    namespace: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    principal: dict = Depends(require_authenticated),
+) -> dict:
+    cid = _parse_uuid(cluster_id, "Cluster")
+    await require_cluster_read_access(cid, principal, db, require_binding=True)
+    api_endpoint, token = await _resolve_token(cid, principal, db)
+    result = await get_events(api_endpoint, token, namespace or "")
+    events = []
+    for ev in result.get("items", []):
+        involved = ev.get("involvedObject", {})
+        events.append({
+            "reason": ev.get("reason", ""),
+            "message": ev.get("message", ""),
+            "type": ev.get("type", "Normal"),
+            "involved_object": {
+                "kind": involved.get("kind", ""),
+                "name": involved.get("name", ""),
+                "namespace": involved.get("namespace", ""),
+            },
+            "last_timestamp": ev.get("lastTimestamp"),
+            "count": ev.get("count", 1),
+        })
+    return {"items": events}

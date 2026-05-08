@@ -33,6 +33,23 @@ def _use_secure_cookies() -> bool:
     return settings.auth.app_url.startswith("https://") or settings.auth.callback_base_url.startswith("https://")
 
 
+def _cookie_kwargs(
+    key: str, value: str | None = None, *, httponly: bool, max_age: int | None = None,
+) -> dict:
+    settings = get_settings()
+    kwargs: dict = {
+        "key": key, "httponly": httponly, "secure": _use_secure_cookies(),
+        "samesite": "lax", "path": "/",
+    }
+    if value is not None:
+        kwargs["value"] = value
+    if max_age is not None:
+        kwargs["max_age"] = max_age
+    if settings.auth.cookie_domain:
+        kwargs["domain"] = settings.auth.cookie_domain
+    return kwargs
+
+
 def _get_provider(provider_type: str) -> AuthProvider:
     settings = get_settings()
     if provider_type == "openshift":
@@ -152,18 +169,14 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
     from uuid import UUID
 
     from pinky_api.repositories.bindings import BindingRepository
-    from pinky_api.repositories.clusters import ClusterRepository
     from pinky_api.security.crypto import encrypt
 
-    cluster_repo = ClusterRepository(db)
     binding_repo = BindingRepository(db)
-    cluster_data = await cluster_repo.list()
     pid = UUID(principal_data["id"])
-    for cluster in cluster_data["items"]:
-        existing = await binding_repo.get_for_cluster(pid, cluster.id)
-        if existing:
-            enc_token = encrypt(access_token.encode(), aad=f"cluster_identity_bindings:{existing.id}")
-            await binding_repo.refresh_token(existing.id, enc_token)
+    existing_bindings = await binding_repo.list_for_principal(pid)
+    for binding in existing_bindings:
+        enc_token = encrypt(access_token.encode(), aad=f"cluster_identity_bindings:{binding.id}")
+        await binding_repo.refresh_token(binding.id, enc_token)
 
     await db.commit()
 
@@ -175,62 +188,20 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
     logger.info("login successful: %s via %s", principal_data["id"], stored_provider)
 
     redirect = RedirectResponse(url=f"{settings.auth.app_url}/tasks", status_code=302)
-    secure_cookies = _use_secure_cookies()
-    cookie_kwargs = {
-        "key": SESSION_COOKIE_NAME,
-        "value": raw_token,
-        "httponly": True,
-        "secure": secure_cookies,
-        "samesite": "lax",
-        "path": "/",
-        "max_age": int(store.absolute_timeout.total_seconds()),
-    }
-    if settings.auth.cookie_domain:
-        cookie_kwargs["domain"] = settings.auth.cookie_domain
-    redirect.set_cookie(**cookie_kwargs)
-    csrf_cookie_kwargs = {
-        "key": "csrf_token",
-        "value": csrf_token,
-        "httponly": False,
-        "secure": secure_cookies,
-        "samesite": "lax",
-        "path": "/",
-        "max_age": int(store.absolute_timeout.total_seconds()),
-    }
-    if settings.auth.cookie_domain:
-        csrf_cookie_kwargs["domain"] = settings.auth.cookie_domain
-    redirect.set_cookie(**csrf_cookie_kwargs)
+    ttl = int(store.absolute_timeout.total_seconds())
+    redirect.set_cookie(**_cookie_kwargs(SESSION_COOKIE_NAME, raw_token, httponly=True, max_age=ttl))
+    redirect.set_cookie(**_cookie_kwargs("csrf_token", csrf_token, httponly=False, max_age=ttl))
     return redirect
 
 
 @router.post("/logout")
 async def logout(response: Response, session_token: str | None = Depends(cookie_scheme)) -> dict:
-    settings = get_settings()
-    secure_cookies = _use_secure_cookies()
     if session_token and auth_state.session_store:
         await auth_state.session_store.revoke(session_token)
         logger.info("logout")
 
-    cookie_kwargs = {
-        "key": SESSION_COOKIE_NAME,
-        "httponly": True,
-        "secure": secure_cookies,
-        "samesite": "lax",
-        "path": "/",
-    }
-    csrf_cookie_kwargs = {
-        "key": "csrf_token",
-        "httponly": False,
-        "secure": secure_cookies,
-        "samesite": "lax",
-        "path": "/",
-    }
-    if settings.auth.cookie_domain:
-        cookie_kwargs["domain"] = settings.auth.cookie_domain
-        csrf_cookie_kwargs["domain"] = settings.auth.cookie_domain
-
-    response.delete_cookie(**cookie_kwargs)
-    response.delete_cookie(**csrf_cookie_kwargs)
+    response.delete_cookie(**_cookie_kwargs(SESSION_COOKIE_NAME, httponly=True))
+    response.delete_cookie(**_cookie_kwargs("csrf_token", httponly=False))
     return {"message": "Logged out"}
 
 
@@ -258,16 +229,9 @@ async def test_login(response: Response) -> dict:
         principal_data=principal_data,
     )
 
-    response.set_cookie(
-        key=SESSION_COOKIE_NAME, value=raw_token,
-        httponly=True, secure=False, samesite="lax", path="/",
-        max_age=int(store.absolute_timeout.total_seconds()),
-    )
-    response.set_cookie(
-        key="csrf_token", value=csrf_token,
-        httponly=False, secure=False, samesite="lax", path="/",
-        max_age=int(store.absolute_timeout.total_seconds()),
-    )
+    ttl = int(store.absolute_timeout.total_seconds())
+    response.set_cookie(**_cookie_kwargs(SESSION_COOKIE_NAME, raw_token, httponly=True, max_age=ttl))
+    response.set_cookie(**_cookie_kwargs("csrf_token", csrf_token, httponly=False, max_age=ttl))
     return {"authenticated": True, "principal": principal_data}
 
 

@@ -52,3 +52,34 @@ export interface ClusterIdentityBinding {
   created_at: string;
   updated_at: string;
 }
+
+export interface ClusterDetail extends ClusterRegistryEntry {
+  observer_health: ObserverHealthState;
+  last_observation_at: string | null;
+}
+
+export interface ClusterNode {
+  name: string;
+  status: string;
+  roles: string[];
+  kubelet_version: string | null;
+  capacity: Record<string, string>;
+  allocatable: Record<string, string>;
+  taints: Array<{ key: string; effect: string; value?: string }>;
+  created_at: string;
+}
+
+export interface ClusterNamespace {
+  name: string;
+  status: string;
+  created_at: string;
+}
+
+export interface K8sEvent {
+  reason: string;
+  message: string;
+  type: string;
+  involved_object: { kind: string; name: string; namespace: string };
+  last_timestamp: string | null;
+  count: number;
+}

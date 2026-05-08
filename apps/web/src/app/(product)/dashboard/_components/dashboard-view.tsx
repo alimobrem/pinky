@@ -244,7 +244,7 @@ function ClusterList({ clusters }: { clusters: { id: string; display_name: strin
       {visible.map((c) => (
         <div key={c.id} className="flex items-center gap-2 rounded px-1.5 py-1 text-caption">
           <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", c.onboarding_state === "ready" ? "bg-status-done" : "bg-status-blocked")} />
-          <span className="truncate text-text-secondary">{c.display_name}</span>
+          <Link href={`/clusters/${c.id}`} className="truncate text-text-secondary hover:text-text-primary">{c.display_name}</Link>
         </div>
       ))}
       {needsExpand && (

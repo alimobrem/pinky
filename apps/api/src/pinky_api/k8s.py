@@ -23,6 +23,7 @@ _KIND_TO_API: dict[str, tuple[str, str]] = {
     "job": ("apis/batch/v1", "jobs"),
     "cronjob": ("apis/batch/v1", "cronjobs"),
     "ingress": ("apis/networking.k8s.io/v1", "ingresses"),
+    "namespace": ("api/v1", "namespaces"),
 }
 
 

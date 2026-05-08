@@ -4,7 +4,6 @@ import {
   ListTodo,
   Eye,
   Clock,
-  Bell,
   Settings,
 } from "lucide-react";
 
@@ -49,14 +48,6 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Clock,
     section: "primary",
     shortcut: "g+h",
-  },
-  {
-    id: "alerts",
-    label: "Alerts",
-    path: "/alerts",
-    icon: Bell,
-    section: "primary",
-    shortcut: "g+a",
   },
   {
     id: "settings",

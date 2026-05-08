@@ -101,6 +101,35 @@ async def list_clusters(
     }
 
 
+@router.get("/clusters/{cluster_id}")
+async def get_cluster(
+    cluster_id: str,
+    db: AsyncSession = Depends(get_db),
+    _principal: dict = Depends(require_authenticated),
+) -> dict:
+    cid = _safe_uuid(cluster_id)
+    if cid is None:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    repo = ClusterRepository(db)
+    cluster = await repo.get(cid)
+    if cluster is None:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    result = _serialize_cluster(cluster)
+    sb_repo = ServiceBindingRepository(db)
+    observers = [
+        b for b in await sb_repo.list(cluster_id=cluster_id)
+        if b.service_type == "observer"
+    ]
+    if observers:
+        obs = observers[0]
+        result["observer_health"] = obs.health_state
+        result["last_observation_at"] = obs.last_check_at.isoformat() if obs.last_check_at else None
+    else:
+        result["observer_health"] = "unknown"
+        result["last_observation_at"] = None
+    return result
+
+
 @router.post("/clusters", status_code=201)
 async def create_cluster(
     req: ClusterCreateRequest, db: AsyncSession = Depends(get_db), _admin: dict = Depends(require_admin),
@@ -146,9 +175,7 @@ async def list_bindings(
     db: AsyncSession = Depends(get_db),
     principal: dict = Depends(require_authenticated),
 ) -> dict:
-    pid = _safe_uuid(principal["id"])
-    if pid is None:
-        return {"items": []}
+    pid = principal_uuid(principal)
     repo = BindingRepository(db)
     bindings = await repo.list_for_principal(pid)
     return {"items": [_serialize_binding(b) for b in bindings]}
@@ -160,9 +187,7 @@ async def get_binding_status(
     db: AsyncSession = Depends(get_db),
     principal: dict = Depends(require_authenticated),
 ) -> dict:
-    pid = _safe_uuid(principal["id"])
-    if pid is None:
-        return {"status": "missing", "binding": None}
+    pid = principal_uuid(principal)
     repo = BindingRepository(db)
     binding = await repo.get_for_cluster(pid, UUID(cluster_id))
     if binding is None:

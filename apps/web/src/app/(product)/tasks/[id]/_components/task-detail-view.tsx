@@ -591,7 +591,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                 {task.issue_id && (
                   <DetailRow label="Issue">
                     <Link
-                      href={`/alerts?issue=${task.issue_id}`}
+                      href="/watch"
                       className="text-sm text-accent-brand hover:underline font-mono"
                     >
                       {task.issue_id.slice(0, 8)}...

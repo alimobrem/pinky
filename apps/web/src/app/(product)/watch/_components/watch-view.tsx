@@ -2,7 +2,7 @@
 
 import { useState, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Issue, Execution, PaginatedResponse } from "@pinky/contracts";
+import type { Issue, Execution, PaginatedResponse, WatchSummary } from "@pinky/contracts";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -54,12 +54,20 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { SignalsTab } from "./signals-tab";
 import { useCluster } from "@/hooks/use-cluster";
 import { useSSE } from "@/hooks/use-sse";
 import Link from "next/link";
 import {
   Activity,
+  Bell,
   Eye,
   EyeOff,
   CheckCheck,
@@ -80,18 +88,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-// ---------------------------------------------------------------------------
-// Watch summary type (local — API contract managed by another agent)
-// ---------------------------------------------------------------------------
-
-type WatchSummary = {
-  since: string;
-  signals_processed: number;
-  suppressed: number;
-  investigating: number;
-  tasks_created: number;
-  auto_resolved: number;
-};
 
 // ---------------------------------------------------------------------------
 // MetricCard
@@ -705,6 +701,7 @@ export function WatchView() {
         qc.invalidateQueries({ queryKey: QUERY_KEYS.issues() });
         qc.invalidateQueries({ queryKey: QUERY_KEYS.executions() });
         qc.invalidateQueries({ queryKey: QUERY_KEYS.watchSummary() });
+        qc.invalidateQueries({ queryKey: QUERY_KEYS.alerts() });
       },
     },
   });
@@ -826,139 +823,158 @@ export function WatchView() {
         }
       />
 
-      {/* Activity Summary Strip */}
-      {summary && (
-        <div className="grid grid-cols-5 gap-3">
-          <MetricCard
-            label="Signals"
-            value={summary.signals_processed}
-            icon={Activity}
-          />
-          <MetricCard
-            label="Suppressed"
-            value={summary.suppressed}
-            icon={VolumeX}
-            color="text-text-tertiary"
-          />
-          <MetricCard
-            label="Investigating"
-            value={summary.investigating}
-            icon={Search}
-            color="text-purple-400"
-          />
-          <MetricCard
-            label="Tasks Created"
-            value={summary.tasks_created}
-            icon={CheckSquare}
-            color="text-green-400"
-          />
-          <MetricCard
-            label="Auto-Resolved"
-            value={summary.auto_resolved}
-            icon={Sparkles}
-            color="text-blue-400"
-          />
-        </div>
-      )}
+      <Tabs defaultValue="issues">
+        <TabsList className="border-b border-border-default bg-transparent">
+          <TabsTrigger value="issues" className="gap-1.5">
+            <Eye size={14} />
+            Issues
+          </TabsTrigger>
+          <TabsTrigger value="signals" className="gap-1.5">
+            <Bell size={14} />
+            Signals
+          </TabsTrigger>
+        </TabsList>
 
-      <SearchFilterBar
-        value={search}
-        onChange={setSearch}
-        placeholder="Search issues..."
-        filters={
-          <>
-            <Select value={severityFilter} onValueChange={setSeverityFilter}>
-              <SelectTrigger className="h-7 w-auto min-w-[100px] border-0 bg-transparent text-xs shadow-none">
-                <SelectValue placeholder="Severity" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All severities</SelectItem>
-                <SelectItem value="critical">Critical</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={timeWindow} onValueChange={setTimeWindow}>
-              <SelectTrigger className="h-7 w-auto min-w-[60px] border-0 bg-transparent text-xs shadow-none">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1h">1h</SelectItem>
-                <SelectItem value="4h">4h</SelectItem>
-                <SelectItem value="24h">24h</SelectItem>
-              </SelectContent>
-            </Select>
-          </>
-        }
-      />
+        <TabsContent value="issues">
+          {/* Activity Summary Strip */}
+          {summary && (
+            <div className="grid grid-cols-5 gap-3">
+              <MetricCard
+                label="Signals"
+                value={summary.signals_processed}
+                icon={Activity}
+              />
+              <MetricCard
+                label="Suppressed"
+                value={summary.suppressed}
+                icon={VolumeX}
+                color="text-text-tertiary"
+              />
+              <MetricCard
+                label="Investigating"
+                value={summary.investigating}
+                icon={Search}
+                color="text-purple-400"
+              />
+              <MetricCard
+                label="Tasks Created"
+                value={summary.tasks_created}
+                icon={CheckSquare}
+                color="text-green-400"
+              />
+              <MetricCard
+                label="Auto-Resolved"
+                value={summary.auto_resolved}
+                icon={Sparkles}
+                color="text-blue-400"
+              />
+            </div>
+          )}
 
-      {isLoading ? (
-        <SkeletonRow rows={6} columns={4} />
-      ) : totalItems === 0 ? (
-        <EmptyState
-          icon={Eye}
-          title="No issues found"
-          description="All quiet across your fleet"
-        />
-      ) : (
-        <FadeIn>
-          <div className="space-y-1">
-            {CATEGORIES.map((def) => {
-              const key = def.key as keyof typeof filtered;
-              const items = filtered[key];
-              const count = Array.isArray(items) ? items.length : 0;
+          <SearchFilterBar
+            value={search}
+            onChange={setSearch}
+            placeholder="Search issues..."
+            filters={
+              <>
+                <Select value={severityFilter} onValueChange={setSeverityFilter}>
+                  <SelectTrigger className="h-7 w-auto min-w-[100px] border-0 bg-transparent text-xs shadow-none">
+                    <SelectValue placeholder="Severity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All severities</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={timeWindow} onValueChange={setTimeWindow}>
+                  <SelectTrigger className="h-7 w-auto min-w-[60px] border-0 bg-transparent text-xs shadow-none">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1h">1h</SelectItem>
+                    <SelectItem value="4h">4h</SelectItem>
+                    <SelectItem value="24h">24h</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            }
+          />
 
-              return (
-                <CollapsibleCategory
-                  key={def.key}
-                  def={def}
-                  count={count}
-                  defaultOpen={count > 0}
-                >
-                  {key === "remediating"
-                    ? (filtered.remediating as Execution[]).map((exec) => (
-                        <ExecutionRow
-                          key={exec.id}
-                          execution={exec}
-                          category="remediating"
-                          onCancel={() => cancelExec.mutate(exec.id)}
-                          onApprove={() => approveExec.mutate(exec.id)}
-                          onReject={(reason) =>
-                            rejectExec.mutate({ id: exec.id, reason })
-                          }
-                        />
-                      ))
-                    : key === "approvals"
-                      ? (filtered.approvals as Execution[]).map((exec) => (
-                          <ExecutionRow
-                            key={exec.id}
-                            execution={exec}
-                            category="approvals"
-                            onCancel={() => cancelExec.mutate(exec.id)}
-                            onApprove={() => approveExec.mutate(exec.id)}
-                            onReject={(reason) =>
-                              rejectExec.mutate({ id: exec.id, reason })
-                            }
-                          />
-                        ))
-                      : (items as Issue[]).map((issue) => (
-                          <IssueRow
-                            key={issue.id}
-                            issue={issue}
-                            category={key as IssueCategory}
-                            onSuppress={() => suppress.mutate(issue.id)}
-                            onResolve={() => resolve.mutate(issue.id)}
-                            onEscalate={() => escalate.mutate(issue.id)}
-                            onInvestigate={() => investigate.mutate(issue.id)}
-                          />
-                        ))}
-                </CollapsibleCategory>
-              );
-            })}
-          </div>
-        </FadeIn>
-      )}
+          {isLoading ? (
+            <SkeletonRow rows={6} columns={4} />
+          ) : totalItems === 0 ? (
+            <EmptyState
+              icon={Eye}
+              title="No issues found"
+              description="All quiet across your fleet"
+            />
+          ) : (
+            <FadeIn>
+              <div className="space-y-1">
+                {CATEGORIES.map((def) => {
+                  const key = def.key as keyof typeof filtered;
+                  const items = filtered[key];
+                  const count = Array.isArray(items) ? items.length : 0;
+
+                  return (
+                    <CollapsibleCategory
+                      key={def.key}
+                      def={def}
+                      count={count}
+                      defaultOpen={count > 0}
+                    >
+                      {key === "remediating"
+                        ? (filtered.remediating as Execution[]).map((exec) => (
+                            <ExecutionRow
+                              key={exec.id}
+                              execution={exec}
+                              category="remediating"
+                              onCancel={() => cancelExec.mutate(exec.id)}
+                              onApprove={() => approveExec.mutate(exec.id)}
+                              onReject={(reason) =>
+                                rejectExec.mutate({ id: exec.id, reason })
+                              }
+                            />
+                          ))
+                        : key === "approvals"
+                          ? (filtered.approvals as Execution[]).map((exec) => (
+                              <ExecutionRow
+                                key={exec.id}
+                                execution={exec}
+                                category="approvals"
+                                onCancel={() => cancelExec.mutate(exec.id)}
+                                onApprove={() => approveExec.mutate(exec.id)}
+                                onReject={(reason) =>
+                                  rejectExec.mutate({ id: exec.id, reason })
+                                }
+                              />
+                            ))
+                          : (items as Issue[]).map((issue) => (
+                              <IssueRow
+                                key={issue.id}
+                                issue={issue}
+                                category={key as IssueCategory}
+                                onSuppress={() => suppress.mutate(issue.id)}
+                                onResolve={() => resolve.mutate(issue.id)}
+                                onEscalate={() => escalate.mutate(issue.id)}
+                                onInvestigate={() => investigate.mutate(issue.id)}
+                              />
+                            ))}
+                    </CollapsibleCategory>
+                  );
+                })}
+              </div>
+            </FadeIn>
+          )}
+        </TabsContent>
+
+        <TabsContent value="signals">
+          <SignalsTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

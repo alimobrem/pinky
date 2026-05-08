@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import Link from "next/link";
 import { Plus, Server } from "lucide-react";
 import { DeleteButton } from "./delete-button";
 import { toast } from "sonner";
@@ -74,7 +75,11 @@ export function ClustersTab() {
               <TableBody>
                 {clusters.map((c) => (
                   <TableRow key={c.id}>
-                    <TableCell className="font-medium">{c.display_name}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link href={`/clusters/${c.id}`} className="hover:underline">
+                        {c.display_name}
+                      </Link>
+                    </TableCell>
                     <TableCell><StatusDot status={c.onboarding_state === "ready" ? "done" : "blocked"} /> {c.onboarding_state}</TableCell>
                     <TableCell><RelativeTime date={c.created_at} /></TableCell>
                     <TableCell><DeleteButton onConfirm={() => del.mutate(c.id)} label={c.display_name} /></TableCell>
