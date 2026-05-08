@@ -117,17 +117,30 @@ async def get_cluster(
     if cluster is None:
         raise HTTPException(status_code=404, detail="Cluster not found")
     result = _serialize_cluster(cluster)
-    obs_result = await db.execute(
+    obs_binding_result = await db.execute(
         select(ClusterObserverBinding).where(ClusterObserverBinding.cluster_id == cid)
     )
-    obs_binding = obs_result.scalar_one_or_none()
+    obs_binding = obs_binding_result.scalar_one_or_none()
     if obs_binding:
         result["observer_health"] = obs_binding.health_state
         last_obs = obs_binding.last_observation_at
         result["last_observation_at"] = last_obs.isoformat() if last_obs else None
     else:
-        result["observer_health"] = "unknown"
-        result["last_observation_at"] = None
+        from pinky_api.models.observation import Observation
+        last_obs_result = await db.execute(
+            select(Observation.observed_at)
+            .where(Observation.cluster_id == cid)
+            .order_by(Observation.observed_at.desc())
+            .limit(1)
+        )
+        last_row = last_obs_result.scalar_one_or_none()
+        if last_row:
+            age = (datetime.now(UTC) - last_row).total_seconds()
+            result["observer_health"] = "healthy" if age < 600 else "degraded"
+            result["last_observation_at"] = last_row.isoformat()
+        else:
+            result["observer_health"] = "unknown"
+            result["last_observation_at"] = None
     return result
 
 
