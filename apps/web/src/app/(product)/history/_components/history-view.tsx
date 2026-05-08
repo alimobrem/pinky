@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { historyOptions } from "../queries";
@@ -114,8 +114,12 @@ export function HistoryView() {
     [clusterId, eventType],
   );
 
-  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useInfiniteQuery(historyOptions(filters));
+  const [cursor, setCursor] = useState<string | undefined>(undefined);
+  const [allPages, setAllPages] = useState<HistoryEvent[]>([]);
+
+  const { data, isLoading, error, isFetching } = useQuery(
+    historyOptions({ ...filters, cursor }),
+  );
 
   const { data: clustersData } = useQuery(clustersOptions());
 
@@ -135,10 +139,13 @@ export function HistoryView() {
     },
   });
 
-  const allItems = useMemo(
-    () => data?.pages.flatMap((p) => p.items) ?? [],
-    [data],
-  );
+  const allItems = useMemo(() => {
+    if (!cursor) return data?.items ?? [];
+    const newItems = data?.items ?? [];
+    const seen = new Set(allPages.map((e) => e.id));
+    const unique = newItems.filter((e) => !seen.has(e.id));
+    return [...allPages, ...unique];
+  }, [data, cursor, allPages]);
 
   const filtered = useMemo(() => {
     if (!search) return allItems;
@@ -190,6 +197,12 @@ export function HistoryView() {
 
       {isLoading ? (
         <SkeletonRow rows={8} columns={6} />
+      ) : error ? (
+        <EmptyState
+          icon={Clock}
+          title="Failed to load history"
+          description={error.message}
+        />
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={Clock}
@@ -232,15 +245,18 @@ export function HistoryView() {
             </TableBody>
           </Table>
 
-          {hasNextPage && (
+          {data?.has_more && (
             <div className="flex justify-center pt-4">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => fetchNextPage()}
-                disabled={isFetchingNextPage}
+                onClick={() => {
+                  setAllPages(allItems);
+                  setCursor(data.next_cursor ?? undefined);
+                }}
+                disabled={isFetching}
               >
-                {isFetchingNextPage ? (
+                {isFetching && cursor ? (
                   <>
                     <Loader2 size={14} className="mr-1.5 animate-spin" />
                     Loading...
