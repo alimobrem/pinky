@@ -6,6 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.auth.deps import (
@@ -16,6 +17,7 @@ from pinky_api.auth.deps import (
 )
 from pinky_api.db.deps import get_db
 from pinky_api.events import emit
+from pinky_api.models.work_item import WorkItem
 from pinky_api.repositories.bindings import BindingRepository
 from pinky_api.repositories.executions import ExecutionRepository
 
@@ -95,8 +97,11 @@ async def get_execution(
 
 @router.post("")
 async def start_execution(
-    work_item_id: str, execution_type: str = "investigation",
-    db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated),
+    work_item_id: str | None = None,
+    issue_id: str | None = None,
+    execution_type: str = "investigation",
+    db: AsyncSession = Depends(get_db),
+    principal: dict = Depends(require_authenticated),
 ) -> dict:
     from pinky_api.temporal_state import get_client
 
@@ -105,10 +110,20 @@ async def start_execution(
     binding_id = ""
     approval_id = ""
 
-    wi_id = _parse_uuid(work_item_id, "Work item")
     from pinky_api.repositories.work_items import WorkItemRepository
     wi_repo = WorkItemRepository(db)
-    wi = await wi_repo.get(wi_id)
+
+    if work_item_id:
+        wi_id = _parse_uuid(work_item_id, "Work item")
+        wi = await wi_repo.get(wi_id)
+    elif issue_id:
+        result = await db.execute(
+            sa_select(WorkItem).where(WorkItem.issue_id == _parse_uuid(issue_id, "Issue"))
+        )
+        wi = result.scalar_one_or_none()
+    else:
+        raise HTTPException(status_code=422, detail="work_item_id or issue_id required")
+
     if wi is None:
         raise HTTPException(status_code=404, detail="Work item not found")
 

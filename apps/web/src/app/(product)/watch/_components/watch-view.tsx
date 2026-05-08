@@ -714,6 +714,7 @@ export function WatchView() {
       qc.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Issue suppressed");
     },
+    onError: () => toast.error("Failed to suppress issue"),
   });
 
   const resolve = useMutation({
@@ -722,6 +723,7 @@ export function WatchView() {
       qc.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Issue resolved");
     },
+    onError: () => toast.error("Failed to resolve issue"),
   });
 
   const escalate = useMutation({
@@ -730,19 +732,18 @@ export function WatchView() {
       qc.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Issue escalated to investigation");
     },
+    onError: () => toast.error("Failed to escalate issue"),
   });
 
   const investigate = useMutation({
-    mutationFn: (workItemId: string) =>
-      api.post("/api/v1/executions", {
-        work_item_id: workItemId,
-        execution_type: "investigation",
-      }),
+    mutationFn: (issueId: string) =>
+      api.post(`/api/v1/executions?issue_id=${encodeURIComponent(issueId)}&execution_type=investigation`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["issues"] });
       qc.invalidateQueries({ queryKey: ["executions"] });
       toast.success("Investigation started");
     },
+    onError: () => toast.error("Failed to start investigation"),
   });
 
   const cancelExec = useMutation({
@@ -751,6 +752,7 @@ export function WatchView() {
       qc.invalidateQueries({ queryKey: ["executions"] });
       toast.info("Execution cancelled");
     },
+    onError: () => toast.error("Failed to cancel execution"),
   });
 
   const approveExec = useMutation({
@@ -760,6 +762,7 @@ export function WatchView() {
       qc.invalidateQueries({ queryKey: ["executions"] });
       toast.success("Execution approved");
     },
+    onError: () => toast.error("Failed to approve execution"),
   });
 
   const rejectExec = useMutation({
@@ -769,6 +772,7 @@ export function WatchView() {
       qc.invalidateQueries({ queryKey: ["executions"] });
       toast.info("Execution rejected");
     },
+    onError: () => toast.error("Failed to reject execution"),
   });
 
   const isLoading = issuesLoading || executionsLoading;
