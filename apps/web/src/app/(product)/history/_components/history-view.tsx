@@ -16,7 +16,6 @@ import { SkeletonRow } from "@/components/shared/skeleton-row";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { StatusDot } from "@/components/shared/status-indicator";
 import { FadeIn } from "@/components/motion/fade-in";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -32,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Clock, ChevronRight, Loader2 } from "lucide-react";
+import { Clock, ChevronRight } from "lucide-react";
 import type { HistoryEvent } from "@pinky/contracts";
 import type { WorkItemStatus } from "@pinky/contracts";
 
@@ -114,12 +113,7 @@ export function HistoryView() {
     [clusterId, eventType],
   );
 
-  const [cursor, setCursor] = useState<string | undefined>(undefined);
-  const [allPages, setAllPages] = useState<HistoryEvent[]>([]);
-
-  const { data, isLoading, error, isFetching } = useQuery(
-    historyOptions({ ...filters, cursor }),
-  );
+  const { data, isLoading, error } = useQuery(historyOptions(filters));
 
   const { data: clustersData } = useQuery(clustersOptions());
 
@@ -139,13 +133,7 @@ export function HistoryView() {
     },
   });
 
-  const allItems = useMemo(() => {
-    if (!cursor) return data?.items ?? [];
-    const newItems = data?.items ?? [];
-    const seen = new Set(allPages.map((e) => e.id));
-    const unique = newItems.filter((e) => !seen.has(e.id));
-    return [...allPages, ...unique];
-  }, [data, cursor, allPages]);
+  const allItems = data?.items ?? [];
 
   const filtered = useMemo(() => {
     if (!search) return allItems;
@@ -246,26 +234,9 @@ export function HistoryView() {
           </Table>
 
           {data?.has_more && (
-            <div className="flex justify-center pt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setAllPages(allItems);
-                  setCursor(data.next_cursor ?? undefined);
-                }}
-                disabled={isFetching}
-              >
-                {isFetching && cursor ? (
-                  <>
-                    <Loader2 size={14} className="mr-1.5 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  "Load more"
-                )}
-              </Button>
-            </div>
+            <p className="pt-4 text-center text-caption text-text-tertiary">
+              Showing first {allItems.length} of {data.total_count} events
+            </p>
           )}
         </FadeIn>
       )}
