@@ -6,11 +6,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.auth.deps import principal_uuid, require_admin, require_authenticated
 from pinky_api.db.deps import get_db
 from pinky_api.events import emit
+from pinky_api.models.fleet import ClusterObserverBinding
 from pinky_api.repositories.bindings import BindingRepository
 from pinky_api.repositories.clusters import ClusterRepository
 from pinky_api.repositories.service_bindings import ServiceBindingRepository
@@ -115,15 +117,14 @@ async def get_cluster(
     if cluster is None:
         raise HTTPException(status_code=404, detail="Cluster not found")
     result = _serialize_cluster(cluster)
-    sb_repo = ServiceBindingRepository(db)
-    observers = [
-        b for b in await sb_repo.list(cluster_id=cluster_id)
-        if b.service_type == "observer"
-    ]
-    if observers:
-        obs = observers[0]
-        result["observer_health"] = obs.health_state
-        result["last_observation_at"] = obs.last_check_at.isoformat() if obs.last_check_at else None
+    obs_result = await db.execute(
+        select(ClusterObserverBinding).where(ClusterObserverBinding.cluster_id == cid)
+    )
+    obs_binding = obs_result.scalar_one_or_none()
+    if obs_binding:
+        result["observer_health"] = obs_binding.health_state
+        last_obs = obs_binding.last_observation_at
+        result["last_observation_at"] = last_obs.isoformat() if last_obs else None
     else:
         result["observer_health"] = "unknown"
         result["last_observation_at"] = None
