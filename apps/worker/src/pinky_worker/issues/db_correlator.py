@@ -30,23 +30,23 @@ class DbIssueCorrelator:
             obs_id = uuid.uuid4()
             try:
                 await conn.execute(
-                    """INSERT INTO observations (id, cluster_id, scanner, fingerprint, severity,
+                    """INSERT INTO observations (id, cluster_id, scanner, fingerprint, check_id, severity,
                     resource_kind, resource_namespace, resource_name, payload,
                     observed_at, correlation_key)
-                    VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                    VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                     ON CONFLICT DO NOTHING""",
-                    obs_id, obs.cluster_id, obs.scanner, obs.fingerprint, obs.severity,
-                    obs.resource_kind, obs.resource_namespace or "", obs.resource_name,
+                    obs_id, obs.cluster_id, obs.scanner, obs.fingerprint, obs.check_id,
+                    obs.severity, obs.resource_kind, obs.resource_namespace or "", obs.resource_name,
                     "{}", obs.observed_at, obs.correlation_key,
                 )
             except Exception:
                 await conn.execute(
-                    """INSERT INTO observations (id, cluster_id, scanner, fingerprint, severity,
+                    """INSERT INTO observations (id, cluster_id, scanner, fingerprint, check_id, severity,
                     resource_kind, resource_namespace, resource_name, payload, observed_at)
-                    VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10)
+                    VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                     ON CONFLICT DO NOTHING""",
-                    obs_id, obs.cluster_id, obs.scanner, obs.fingerprint, obs.severity,
-                    obs.resource_kind, obs.resource_namespace or "", obs.resource_name,
+                    obs_id, obs.cluster_id, obs.scanner, obs.fingerprint, obs.check_id,
+                    obs.severity, obs.resource_kind, obs.resource_namespace or "", obs.resource_name,
                     "{}", obs.observed_at,
                 )
 
