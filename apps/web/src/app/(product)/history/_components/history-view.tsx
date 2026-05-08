@@ -157,7 +157,15 @@ export function HistoryView() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="History" description="Audit trail across your fleet" />
+      <PageHeader
+        title="History"
+        description="Audit trail across your fleet"
+        meta={
+          <span className="font-mono tabular-nums text-text-tertiary">
+            {isLoading ? "loading..." : error ? `error: ${error.message}` : `${filtered.length} events`}
+          </span>
+        }
+      />
 
       <SearchFilterBar
         value={search}
