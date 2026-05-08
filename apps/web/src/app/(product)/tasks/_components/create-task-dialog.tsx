@@ -75,7 +75,7 @@ export function CreateTaskDialog() {
         labels: {},
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks() });
+      qc.invalidateQueries({ queryKey: ["tasks"] });
       reset();
       setOpen(false);
       toast.success("Task created");

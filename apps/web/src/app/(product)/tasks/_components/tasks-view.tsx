@@ -48,7 +48,7 @@ export function TasksView() {
 
   useSSE("/api/v1/streams/events", {
     onEvent: {
-      update: () => qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks() }),
+      update: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
     },
   });
 

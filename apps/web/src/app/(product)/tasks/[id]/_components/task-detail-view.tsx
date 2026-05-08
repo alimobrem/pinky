@@ -89,10 +89,10 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
 
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: QUERY_KEYS.task(taskId) });
-    qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks() });
+    qc.invalidateQueries({ queryKey: ["tasks"] });
     qc.invalidateQueries({ queryKey: QUERY_KEYS.taskInvestigation(taskId) });
     qc.invalidateQueries({ queryKey: QUERY_KEYS.taskTimeline(taskId) });
-    qc.invalidateQueries({ queryKey: [...QUERY_KEYS.executions(), taskId] });
+    qc.invalidateQueries({ queryKey: ["executions"] });
   };
 
   // SSE: real-time updates for this work item

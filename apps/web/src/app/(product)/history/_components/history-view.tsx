@@ -130,7 +130,7 @@ export function HistoryView() {
   useSSE("/api/v1/streams/events", {
     onEvent: {
       update: () => {
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.history() });
+        qc.invalidateQueries({ queryKey: ["history"] });
       },
     },
   });

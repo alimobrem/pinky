@@ -698,10 +698,10 @@ export function WatchView() {
   const { state, lastUpdated } = useSSE("/api/v1/streams/events", {
     onEvent: {
       update: () => {
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.issues() });
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.executions() });
+        qc.invalidateQueries({ queryKey: ["issues"] });
+        qc.invalidateQueries({ queryKey: ["executions"] });
         qc.invalidateQueries({ queryKey: QUERY_KEYS.watchSummary() });
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.alerts() });
+        qc.invalidateQueries({ queryKey: ["alerts"] });
       },
     },
   });
@@ -711,7 +711,7 @@ export function WatchView() {
   const suppress = useMutation({
     mutationFn: (id: string) => api.post(`/api/v1/issues/${id}/suppress`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.issues() });
+      qc.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Issue suppressed");
     },
   });
@@ -719,7 +719,7 @@ export function WatchView() {
   const resolve = useMutation({
     mutationFn: (id: string) => api.post(`/api/v1/issues/${id}/resolve`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.issues() });
+      qc.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Issue resolved");
     },
   });
@@ -727,7 +727,7 @@ export function WatchView() {
   const escalate = useMutation({
     mutationFn: (id: string) => api.post(`/api/v1/issues/${id}/escalate`, {}),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.issues() });
+      qc.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Issue escalated to investigation");
     },
   });
@@ -739,8 +739,8 @@ export function WatchView() {
         execution_type: "investigation",
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.issues() });
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.executions() });
+      qc.invalidateQueries({ queryKey: ["issues"] });
+      qc.invalidateQueries({ queryKey: ["executions"] });
       toast.success("Investigation started");
     },
   });
@@ -748,7 +748,7 @@ export function WatchView() {
   const cancelExec = useMutation({
     mutationFn: (id: string) => api.post(`/api/v1/executions/${id}/cancel`, {}),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.executions() });
+      qc.invalidateQueries({ queryKey: ["executions"] });
       toast.info("Execution cancelled");
     },
   });
@@ -757,7 +757,7 @@ export function WatchView() {
     mutationFn: (id: string) =>
       api.post(`/api/v1/executions/${id}/approve`, {}),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.executions() });
+      qc.invalidateQueries({ queryKey: ["executions"] });
       toast.success("Execution approved");
     },
   });
@@ -766,7 +766,7 @@ export function WatchView() {
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       api.post(`/api/v1/executions/${id}/reject`, { reason }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: QUERY_KEYS.executions() });
+      qc.invalidateQueries({ queryKey: ["executions"] });
       toast.info("Execution rejected");
     },
   });

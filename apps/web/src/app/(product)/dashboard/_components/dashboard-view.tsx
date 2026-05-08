@@ -37,8 +37,8 @@ export function DashboardView() {
   useSSE("/api/v1/streams/events", {
     onEvent: {
       update: () => {
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks() });
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.issues() });
+        qc.invalidateQueries({ queryKey: ["tasks"] });
+        qc.invalidateQueries({ queryKey: ["issues"] });
       },
     },
   });
