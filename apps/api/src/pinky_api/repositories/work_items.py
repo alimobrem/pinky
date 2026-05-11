@@ -40,6 +40,8 @@ class WorkItemRepository(BaseRepository):
         if status:
             statuses = [s.strip() for s in status.split(",")]
             stmt = stmt.where(WorkItem.status.in_(statuses))
+        else:
+            stmt = stmt.where(WorkItem.status != "done")
         if owner_id:
             stmt = stmt.where(WorkItem.owner_id == owner_id)
         if priority:

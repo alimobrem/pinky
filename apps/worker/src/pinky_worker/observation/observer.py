@@ -198,6 +198,11 @@ async def _handle_suppress(result, decision) -> None:
                 "updated_at = now() WHERE id = $2::uuid",
                 suppress_until, result.issue_id,
             )
+            await conn.execute(
+                "UPDATE work_items SET status = 'done', updated_at = now() "
+                "WHERE issue_id = $1::uuid AND status IN ('ready', 'in_progress')",
+                result.issue_id,
+            )
         logger.info("suppressed issue", issue_id=result.issue_id, until=suppress_until)
 
 
