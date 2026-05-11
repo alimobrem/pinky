@@ -82,6 +82,7 @@ import {
   Bot,
   Loader2,
   ArrowUpRight,
+  ExternalLink,
   XCircle,
   ThumbsUp,
   ThumbsDown,
@@ -359,13 +360,15 @@ function IssueRow({
   onResolve,
   onEscalate,
   onInvestigate,
+  disabled,
 }: {
   issue: Issue;
   category: IssueCategory;
-  onSuppress: () => void;
+  onSuppress: (id: string, until: string) => void;
   onResolve: () => void;
   onEscalate: () => void;
   onInvestigate: () => void;
+  disabled?: boolean;
 }) {
   const severityConfig = SEVERITY[issue.severity];
   const borderClass = severityConfig?.border ?? "";
@@ -407,6 +410,17 @@ function IssueRow({
             </Badge>
           )}
           <RelativeTime date={issue.last_seen_at} />
+          {issue.runbook_url && (
+            <a
+              href={issue.runbook_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-caption text-brand-pink hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Runbook <ExternalLink size={10} />
+            </a>
+          )}
         </div>
       </div>
 
@@ -419,31 +433,44 @@ function IssueRow({
 
         {/* Suppress button — shown for analyzing & grouped */}
         {(category === "analyzing" || category === "grouped") && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
+          <Dialog>
+            <DialogTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-text-tertiary"
+                className="h-7 w-7"
+                title="Suppress"
+                disabled={disabled}
               >
                 <EyeOff size={14} />
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Suppress issue?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will hide the issue from the active feed.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={onSuppress}>
-                  Suppress
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            </DialogTrigger>
+            <DialogContent className="max-w-xs">
+              <DialogHeader>
+                <DialogTitle>Suppress for...</DialogTitle>
+              </DialogHeader>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { label: "1 hour", hours: 1 },
+                  { label: "4 hours", hours: 4 },
+                  { label: "24 hours", hours: 24 },
+                  { label: "7 days", hours: 168 },
+                ].map((opt) => (
+                  <Button
+                    key={opt.hours}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const until = new Date(Date.now() + opt.hours * 3600000).toISOString();
+                      onSuppress(issue.id, until);
+                    }}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
 
         {/* Investigate button — grouped issues */}
@@ -452,6 +479,7 @@ function IssueRow({
             variant="ghost"
             size="sm"
             className="h-7 text-xs"
+            disabled={disabled}
             onClick={onInvestigate}
           >
             <Search size={14} className="mr-1" />
@@ -465,6 +493,7 @@ function IssueRow({
             variant="ghost"
             size="sm"
             className="h-7 text-xs"
+            disabled={disabled}
             onClick={onEscalate}
           >
             <ArrowUpRight size={14} className="mr-1" />
@@ -472,14 +501,15 @@ function IssueRow({
           </Button>
         )}
 
-        {/* Resolve button — analyzing, grouped, candidates */}
-        {category !== "suppressed" && (
+        {/* Resolve button — grouped, candidates */}
+        {category !== "suppressed" && category !== "analyzing" && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-text-tertiary"
+                disabled={disabled}
               >
                 <CheckCheck size={14} />
               </Button>
@@ -511,12 +541,14 @@ function ExecutionRow({
   onCancel,
   onApprove,
   onReject,
+  disabled,
 }: {
   execution: Execution;
   category: ExecCategory;
   onCancel: () => void;
   onApprove: () => void;
   onReject: (reason: string) => void;
+  disabled?: boolean;
 }) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -552,6 +584,7 @@ function ExecutionRow({
             variant="ghost"
             size="sm"
             className="h-7 text-xs text-text-tertiary"
+            disabled={disabled}
             onClick={onCancel}
           >
             <XCircle size={14} className="mr-1" />
@@ -576,6 +609,7 @@ function ExecutionRow({
                     variant="ghost"
                     size="sm"
                     className="h-7 text-xs text-green-600"
+                    disabled={disabled}
                   >
                     <ThumbsUp size={14} className="mr-1" />
                     Approve
@@ -604,6 +638,7 @@ function ExecutionRow({
                     variant="ghost"
                     size="sm"
                     className="h-7 text-xs text-red-600"
+                    disabled={disabled}
                   >
                     <ThumbsDown size={14} className="mr-1" />
                     Reject
@@ -710,7 +745,8 @@ export function WatchView() {
   // -- Mutations --
 
   const suppress = useMutation({
-    mutationFn: (id: string) => api.post(`/api/v1/issues/${id}/suppress`),
+    mutationFn: ({ id, until }: { id: string; until: string }) =>
+      api.post(`/api/v1/issues/${id}/suppress`, { until }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Issue suppressed");
@@ -775,6 +811,9 @@ export function WatchView() {
     },
     onError: () => toast.error("Failed to reject execution"),
   });
+
+  const anyMutating = suppress.isPending || resolve.isPending || escalate.isPending || investigate.isPending;
+  const execMutating = cancelExec.isPending || approveExec.isPending || rejectExec.isPending;
 
   const isLoading = issuesLoading || executionsLoading;
 
@@ -948,6 +987,7 @@ export function WatchView() {
                               onReject={(reason) =>
                                 rejectExec.mutate({ id: exec.id, reason })
                               }
+                              disabled={execMutating}
                             />
                           ))
                         : key === "approvals"
@@ -961,6 +1001,7 @@ export function WatchView() {
                                 onReject={(reason) =>
                                   rejectExec.mutate({ id: exec.id, reason })
                                 }
+                                disabled={execMutating}
                               />
                             ))
                           : (items as Issue[]).map((issue) => (
@@ -968,10 +1009,11 @@ export function WatchView() {
                                 key={issue.id}
                                 issue={issue}
                                 category={key as IssueCategory}
-                                onSuppress={() => suppress.mutate(issue.id)}
+                                onSuppress={(id, until) => suppress.mutate({ id, until })}
                                 onResolve={() => resolve.mutate(issue.id)}
                                 onEscalate={() => escalate.mutate(issue.id)}
                                 onInvestigate={() => investigate.mutate(issue.id)}
+                                disabled={anyMutating}
                               />
                             ))}
                     </CollapsibleCategory>
