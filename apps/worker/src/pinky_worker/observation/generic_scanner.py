@@ -31,18 +31,29 @@ logger = structlog.get_logger(__name__)
 
 _OLM_OWNER_KINDS = {"ClusterServiceVersion", "OperatorGroup", "Subscription"}
 _OLM_LABEL_PREFIX = "operators.coreos.com/"
+_OPERATOR_ANNOTATION_SUFFIXES = (
+    ".operator.openshift.io/",
+    ".operator.openshift.io",
+    "operatorframework.io/",
+)
 MIN_RESOURCE_AGE_SECONDS = int(os.environ.get("PINKY_MIN_RESOURCE_AGE_SECONDS", "300"))
 
 
 def is_operator_managed(resource: dict) -> bool:
     metadata = resource.get("metadata", {})
     labels = metadata.get("labels", {})
+    annotations = metadata.get("annotations", {})
     owner_refs = metadata.get("owner_references", [])
     if any(k.startswith(_OLM_LABEL_PREFIX) for k in labels):
         return True
     if labels.get("app.kubernetes.io/managed-by", "").lower() == "operator-lifecycle-manager":
         return True
-    return any(ref.get("kind") in _OLM_OWNER_KINDS for ref in owner_refs)
+    if any(ref.get("kind") in _OLM_OWNER_KINDS for ref in owner_refs):
+        return True
+    return any(
+        any(sfx in k for sfx in _OPERATOR_ANNOTATION_SUFFIXES)
+        for k in annotations
+    )
 
 
 def has_scan_override(resource: dict, scanner_name: str) -> bool:

@@ -21,6 +21,7 @@ def _extract_metadata(obj: Any) -> dict:
         return {"labels": {}, "owner_references": []}
     return {
         "labels": dict(meta.labels or {}),
+        "annotations": dict(meta.annotations or {}),
         "owner_references": [
             {"kind": ref.kind, "name": ref.name, "api_version": ref.api_version}
             for ref in (meta.owner_references or [])
