@@ -164,6 +164,7 @@ export function DataTable<T>({
 
   return (
     <div className={cn("group/table rounded-lg border border-border-default overflow-hidden", className)}>
+      {/* eslint-disable-next-line react/forbid-component-props -- table-layout:fixed needed for column resize */}
       <Table ref={tableRef} style={Object.keys(colWidths).length > 0 ? { tableLayout: "fixed" } : undefined}>
         <TableHeader>
           <TableRow className="border-b border-border-default bg-bg-surface hover:bg-bg-surface">
@@ -176,6 +177,7 @@ export function DataTable<T>({
                   col.sortable && "cursor-pointer select-none hover:text-text-secondary",
                   col.headerClassName,
                 )}
+                // eslint-disable-next-line react/forbid-component-props -- runtime-computed column width from drag resize
                 style={colWidths[col.id] ? { width: colWidths[col.id] } : undefined}
                 onClick={col.sortable ? () => handleSort(col.id) : undefined}
               >
@@ -223,6 +225,7 @@ export function DataTable<T>({
                   <TableCell
                     key={col.id}
                     className={cn("py-2.5 text-sm overflow-hidden", col.className)}
+                    // eslint-disable-next-line react/forbid-component-props -- runtime-computed column width from drag resize
                     style={colWidths[col.id] ? { width: colWidths[col.id] } : undefined}
                   >
                     {col.cell(row)}
