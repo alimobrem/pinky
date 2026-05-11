@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import select
 
 from pinky_api.models.extensibility import DomainEvent
@@ -14,6 +16,7 @@ class HistoryRepository(BaseRepository):
         cluster_id: str | None = None,
         aggregate_type: str | None = None,
         event_type: str | None = None,
+        since: str | None = None,
         limit: int = 50,
         cursor: str | None = None,
     ) -> dict:
@@ -25,6 +28,9 @@ class HistoryRepository(BaseRepository):
             stmt = stmt.where(DomainEvent.aggregate_type == aggregate_type)
         if event_type:
             stmt = stmt.where(DomainEvent.event_type == event_type)
+        if since:
+            since_dt = datetime.fromisoformat(since)
+            stmt = stmt.where(DomainEvent.occurred_at >= since_dt)
 
         return await self.paginate(stmt, DomainEvent, limit=limit, cursor=cursor, order_column="occurred_at")
 

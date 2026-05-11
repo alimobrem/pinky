@@ -31,7 +31,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Clock, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Clock, ChevronRight, Download } from "lucide-react";
 import type { HistoryEvent } from "@pinky/contracts";
 import type { WorkItemStatus } from "@pinky/contracts";
 
@@ -58,21 +59,32 @@ function eventTypeToStatus(eventType: string): WorkItemStatus {
 
 function EntityLink({ event }: { event: HistoryEvent }) {
   const truncated = event.aggregate_id.slice(0, 8);
-  const linkClass = "text-accent-brand hover:underline font-mono text-caption";
+  const linkClass =
+    "text-accent-brand hover:underline font-mono text-caption truncate max-w-48 inline-block";
+  const title = event.aggregate_title;
 
   switch (event.aggregate_type) {
     case "work_item":
       return (
         <Link href={`/tasks/${event.aggregate_id}`} className={linkClass}>
-          {truncated}
+          {title ?? truncated}
         </Link>
       );
-    case "issue":
+    case "issue": {
+      const workItemId = event.payload.work_item_id;
+      if (typeof workItemId === "string") {
+        return (
+          <Link href={`/tasks/${workItemId}`} className={linkClass}>
+            {title ?? truncated}
+          </Link>
+        );
+      }
       return (
-        <Link href="/watch" className={linkClass}>
-          {truncated}
-        </Link>
+        <span className="font-mono text-caption text-text-tertiary truncate max-w-48 inline-block">
+          {title ?? truncated}
+        </span>
       );
+    }
     case "execution": {
       const workItemId = event.payload.work_item_id;
       if (typeof workItemId === "string") {
@@ -81,20 +93,28 @@ function EntityLink({ event }: { event: HistoryEvent }) {
             href={`/tasks/${workItemId}/execution/${event.aggregate_id}`}
             className={linkClass}
           >
-            {truncated}
+            Investigation
           </Link>
         );
       }
-      return <span className="font-mono text-caption text-text-tertiary">{truncated}</span>;
+      return (
+        <span className="font-mono text-caption text-text-tertiary">
+          {truncated}
+        </span>
+      );
     }
     case "cluster":
       return (
         <Link href={`/clusters/${event.aggregate_id}`} className={linkClass}>
-          {truncated}
+          {title ?? truncated}
         </Link>
       );
     default:
-      return <span className="font-mono text-caption text-text-tertiary">{truncated}</span>;
+      return (
+        <span className="font-mono text-caption text-text-tertiary">
+          {truncated}
+        </span>
+      );
   }
 }
 
@@ -103,14 +123,29 @@ export function HistoryView() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [eventType, setEventType] = useState<string>("");
+  const [timeWindow, setTimeWindow] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const since = useMemo(() => {
+    if (!timeWindow) return undefined;
+    const ms: Record<string, number> = {
+      "1h": 3600000,
+      "6h": 21600000,
+      "24h": 86400000,
+      "7d": 604800000,
+    };
+    return ms[timeWindow]
+      ? new Date(Date.now() - ms[timeWindow]).toISOString()
+      : undefined;
+  }, [timeWindow]);
 
   const filters = useMemo(
     () => ({
       cluster_id: clusterId ?? undefined,
       event_type: eventType || undefined,
+      since,
     }),
-    [clusterId, eventType],
+    [clusterId, eventType, since],
   );
 
   const { data, isLoading, error } = useQuery(historyOptions(filters));
@@ -161,9 +196,26 @@ export function HistoryView() {
         title="History"
         description="Audit trail across your fleet"
         meta={
-          <span className="font-mono tabular-nums text-text-tertiary">
-            {isLoading ? "loading..." : error ? `error: ${error.message}` : `${filtered.length} events`}
-          </span>
+          <span className="font-mono tabular-nums">{filtered.length} events</span>
+        }
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => {
+              const params = new URLSearchParams();
+              if (filters.cluster_id)
+                params.set("cluster_id", filters.cluster_id);
+              if (filters.event_type)
+                params.set("event_type", filters.event_type);
+              if (since) params.set("since", since);
+              window.open(`/api/v1/history/export?${params}`, "_blank");
+            }}
+          >
+            <Download size={14} />
+            Export
+          </Button>
         }
       />
 
@@ -172,22 +224,39 @@ export function HistoryView() {
         onChange={setSearch}
         placeholder="Filter events..."
         filters={
-          <Select
-            value={eventType}
-            onValueChange={(v) => setEventType(v === "all" ? "" : v)}
-          >
-            <SelectTrigger size="sm" className="h-7 min-w-[140px] border-0 bg-transparent text-body-sm shadow-none">
-              <SelectValue placeholder="All types" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              {EVENT_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <>
+            <Select
+              value={eventType}
+              onValueChange={(v) => setEventType(v === "all" ? "" : v)}
+            >
+              <SelectTrigger size="sm" className="h-7 min-w-[140px] border-0 bg-transparent text-body-sm shadow-none">
+                <SelectValue placeholder="All types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                {EVENT_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={timeWindow || "all"}
+              onValueChange={(v) => setTimeWindow(v === "all" ? "" : v)}
+            >
+              <SelectTrigger className="h-7 w-auto min-w-[60px] border-0 bg-transparent text-body-sm shadow-none">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All time</SelectItem>
+                <SelectItem value="1h">1h</SelectItem>
+                <SelectItem value="6h">6h</SelectItem>
+                <SelectItem value="24h">24h</SelectItem>
+                <SelectItem value="7d">7d</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
         }
       />
 
@@ -278,14 +347,14 @@ function ExpandableRow({
           <span className="inline-flex items-center gap-1.5 text-body-sm">
             <StatusDot status={eventTypeToStatus(event.event_type)} />
             <span className="text-text-secondary">
-              {event.event_type.replace(/_/g, " ")}
+              {event.description ?? event.event_type.replace(/_/g, " ")}
             </span>
           </span>
         </TableCell>
         <TableCell className="w-24">
           {event.principal_id ? (
             <span className="font-mono text-caption text-text-primary">
-              {event.principal_id.slice(0, 8)}
+              {event.principal_display_name ?? event.principal_id.slice(0, 8)}
             </span>
           ) : (
             <span className="text-caption italic text-text-tertiary">System</span>

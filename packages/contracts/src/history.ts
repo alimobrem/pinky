@@ -7,4 +7,7 @@ export interface HistoryEvent {
   principal_id: string | null;
   payload: Record<string, unknown>;
   occurred_at: string;
+  aggregate_title?: string;
+  principal_display_name?: string;
+  description?: string;
 }
