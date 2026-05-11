@@ -154,6 +154,29 @@ async def run() -> None:
     loaded = registry.load_filesystem(definitions_dir)
     logger.info("definitions loaded", count=loaded)
 
+    # Load DB definition overrides (API-created definitions take precedence)
+    pool = await get_pool()
+    db_rows = await pool.fetch(
+        "SELECT kind, name, version, body, frontmatter, enabled FROM definitions"
+    )
+    if db_rows:
+        from pinky_worker.definitions.loader import Definition
+
+        db_defs = [
+            Definition(
+                kind=row["kind"],
+                name=row["name"],
+                version=row["version"] or "1.0.0",
+                frontmatter=row["frontmatter"] or {},
+                body=row["body"] or "",
+                source="database",
+                enabled=row["enabled"],
+            )
+            for row in db_rows
+        ]
+        registry.load_database_overrides(db_defs)
+        logger.info("loaded DB definition overrides", count=len(db_defs))
+
     correlator = DbIssueCorrelator()
 
     observer_enabled = os.environ.get("PINKY_OBSERVER_ENABLED", "true") == "true"

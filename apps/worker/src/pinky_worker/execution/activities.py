@@ -481,6 +481,70 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
         datetime.now(UTC),
     )
     logger.info("artifact stored: %s", artifact.artifact_id)
+
+    # Create approval and populate artifact_refs when remediation steps exist
+    if artifact.remediation_steps:
+        try:
+            exec_row = await pool.fetchrow(
+                "SELECT work_item_id, cluster_id FROM executions WHERE id = $1",
+                exec_uuid,
+            )
+            if exec_row and exec_row["work_item_id"]:
+                work_item_id = exec_row["work_item_id"]
+                cluster_id = exec_row["cluster_id"]
+
+                plan_steps = artifact.remediation_steps
+                changeset_digest = hashlib.sha256(
+                    json.dumps(plan_steps, sort_keys=True).encode(),
+                ).hexdigest()[:16]
+                target_resources = [
+                    {
+                        "kind": s.get("resource_kind", ""),
+                        "namespace": s.get("resource_namespace", ""),
+                        "name": s.get("resource_name", ""),
+                    }
+                    for s in plan_steps
+                ]
+
+                approval_id = uuid4()
+                await pool.execute(
+                    """INSERT INTO approvals
+                       (id, execution_id, changeset_digest, target_resources, status, expires_at)
+                       VALUES ($1, $2, $3, $4, 'pending', now() + interval '24 hours')""",
+                    approval_id, exec_uuid, changeset_digest,
+                    json.dumps(target_resources),
+                )
+
+                # Look up the active binding for this cluster so remediation
+                # can proceed without the user having to supply it separately.
+                binding_row = await pool.fetchrow(
+                    """SELECT id FROM cluster_identity_bindings
+                       WHERE cluster_id = $1 AND status IN ('valid', 'expiring')
+                       ORDER BY expires_at DESC NULLS LAST LIMIT 1""",
+                    cluster_id,
+                )
+                refs: dict[str, Any] = {
+                    "approval_id": str(approval_id),
+                    "plan_steps": plan_steps,
+                }
+                if binding_row:
+                    refs["binding_id"] = str(binding_row["id"])
+
+                await pool.execute(
+                    """UPDATE work_items
+                       SET artifact_refs = COALESCE(artifact_refs, '{}'::jsonb) || $2::jsonb,
+                           updated_at = now()
+                       WHERE id = $1""",
+                    work_item_id, json.dumps(refs),
+                )
+
+                logger.info(
+                    "approval created: %s for work_item %s",
+                    str(approval_id), str(work_item_id),
+                )
+        except Exception:
+            logger.exception("failed to create approval after investigation")
+
     return artifact.artifact_id
 
 

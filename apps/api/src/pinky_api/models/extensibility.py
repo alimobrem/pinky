@@ -106,9 +106,3 @@ class ApiToken(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class ProjectionCursor(Base):
-    __tablename__ = "projection_cursors"
-
-    workflow_id: Mapped[str] = mapped_column(String, primary_key=True)
-    last_event_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, String
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from pinky_api.models.base import Base, gen_uuid
@@ -22,11 +22,3 @@ class Session(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class SessionAuditLog(Base):
-    __tablename__ = "session_audit_log"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=gen_uuid)
-    session_id: Mapped[uuid.UUID] = mapped_column(UUID, nullable=False)
-    event_type: Mapped[str] = mapped_column(String, nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()")
-    metadata_: Mapped[dict] = mapped_column("metadata", JSONB, server_default="{}")

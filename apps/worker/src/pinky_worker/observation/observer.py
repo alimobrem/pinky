@@ -18,6 +18,7 @@ from typing import Any
 
 import structlog
 
+from pinky_worker.db import get_pool
 from pinky_worker.definitions.loader import DefinitionRegistry
 from pinky_worker.issues.db_correlator import DbIssueCorrelator
 from pinky_worker.observation.generic_scanner import run_generic_checks
@@ -37,7 +38,14 @@ from pinky_worker.observation.k8s_client import (
     list_statefulsets,
     list_tls_secrets,
 )
-from pinky_worker.policy.engine import PolicyInput, evaluate, rules_from_definitions
+from pinky_worker.policy.engine import (
+    PolicyAction,
+    PolicyConditions,
+    PolicyInput,
+    PolicyRule,
+    evaluate,
+    rules_from_definitions,
+)
 from pinky_worker.queues import INVESTIGATION_QUEUE
 
 logger = structlog.get_logger(__name__)
@@ -381,6 +389,47 @@ async def observe_cluster(
     scanner_defs = registry.list_by_kind("scanner")
     policy_defs = registry.list_by_kind("policy")
     policy_rules = rules_from_definitions(policy_defs)
+
+    # Merge DB policy rules (API-created rules)
+    try:
+        pool = await get_pool()
+        db_rules_rows = await pool.fetch(
+            "SELECT name, priority, conditions, action FROM policy_rules "
+            "WHERE enabled = true ORDER BY priority ASC"
+        )
+        for row in db_rules_rows:
+            conditions_raw = row["conditions"] if isinstance(row["conditions"], dict) else {}
+            action_raw = row["action"] if isinstance(row["action"], dict) else {}
+            db_rule = PolicyRule(
+                name=row["name"],
+                priority=row["priority"],
+                conditions=PolicyConditions(
+                    scanner=conditions_raw.get("scanner"),
+                    check_id=conditions_raw.get("check_id"),
+                    check_id_regex=conditions_raw.get("check_id_regex"),
+                    severity=conditions_raw.get("severity"),
+                    severity_gte=conditions_raw.get("severity_gte"),
+                    resource_kind=conditions_raw.get("resource_kind"),
+                    resource_namespace_regex=conditions_raw.get("resource_namespace_regex"),
+                    cluster_id=conditions_raw.get("cluster_id"),
+                    labels=conditions_raw.get("labels", {}),
+                    recurrence_count_gte=conditions_raw.get("recurrence_count_gte"),
+                    reopen_count_gte=conditions_raw.get("reopen_count_gte"),
+                ),
+                action=PolicyAction(
+                    action_type=action_raw.get("type", "observe"),
+                    suppress_duration_minutes=action_raw.get("suppress_duration_minutes"),
+                    risk_class=action_raw.get("risk_class"),
+                    runbook_url=action_raw.get("runbook_url"),
+                    skill=action_raw.get("skill"),
+                ),
+            )
+            policy_rules.append(db_rule)
+        if db_rules_rows:
+            policy_rules.sort(key=lambda r: r.priority)
+            logger.info("merged DB policy rules", count=len(db_rules_rows))
+    except Exception:
+        logger.exception("failed to load DB policy rules, using filesystem only")
 
     prom_client = None
 
