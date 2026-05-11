@@ -96,6 +96,93 @@ async def get_events(
         return {"items": items}
 
 
+async def get_top_pods(
+    api_endpoint: str, token: str, namespace: str = "",
+) -> dict[str, Any]:
+    if namespace:
+        url = f"{api_endpoint}/apis/metrics.k8s.io/v1beta1/namespaces/{namespace}/pods"
+    else:
+        url = f"{api_endpoint}/apis/metrics.k8s.io/v1beta1/pods"
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+    async with httpx.AsyncClient(verify=False) as client:
+        resp = await client.get(url, headers=headers, timeout=30)
+        if resp.status_code == 403:
+            return {"error": "forbidden", "status": 403}
+        if resp.status_code == 404:
+            return {"error": "metrics_unavailable", "message": "metrics-server not installed"}
+        resp.raise_for_status()
+        data = resp.json()
+        pods = []
+        for item in data.get("items", []):
+            meta = item.get("metadata", {})
+            containers = item.get("containers", [])
+            total_cpu = sum(int(c["usage"].get("cpu", "0").rstrip("n")) for c in containers if "usage" in c)
+            total_mem = sum(int(c["usage"].get("memory", "0").rstrip("Ki")) for c in containers if "usage" in c)
+            pods.append({
+                "name": meta.get("name"),
+                "namespace": meta.get("namespace", ""),
+                "cpu_nanocores": total_cpu,
+                "cpu": f"{total_cpu / 1_000_000:.1f}m",
+                "memory_ki": total_mem,
+                "memory": f"{total_mem // 1024}Mi",
+            })
+        return {"items": pods}
+
+
+async def get_top_nodes(
+    api_endpoint: str, token: str,
+) -> dict[str, Any]:
+    url = f"{api_endpoint}/apis/metrics.k8s.io/v1beta1/nodes"
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+    async with httpx.AsyncClient(verify=False) as client:
+        resp = await client.get(url, headers=headers, timeout=30)
+        if resp.status_code == 403:
+            return {"error": "forbidden", "status": 403}
+        if resp.status_code == 404:
+            return {"error": "metrics_unavailable", "message": "metrics-server not installed"}
+        resp.raise_for_status()
+        data = resp.json()
+        nodes = []
+        for item in data.get("items", []):
+            usage = item.get("usage", {})
+            nodes.append({
+                "name": item.get("metadata", {}).get("name"),
+                "cpu": usage.get("cpu", ""),
+                "memory": usage.get("memory", ""),
+            })
+        return {"items": nodes}
+
+
+async def query_prometheus(
+    api_endpoint: str, token: str, query: str,
+) -> dict[str, Any]:
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    params = {"query": query}
+    thanos_base = "https://thanos-querier.openshift-monitoring.svc:9091"
+
+    for base in [thanos_base, api_endpoint]:
+        try:
+            prom_url = f"{base}/api/v1/query"
+            async with httpx.AsyncClient(verify=False) as client:
+                resp = await client.get(prom_url, headers=headers, params=params, timeout=30)
+                if resp.status_code == 403:
+                    continue
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                if data.get("status") == "success":
+                    results = data.get("data", {}).get("result", [])
+                    return {"items": [
+                        {"metric": r.get("metric", {}), "value": r.get("value", [None, None])[1]}
+                        for r in results
+                    ]}
+        except Exception:
+            logger.debug("prometheus query failed at %s", base)
+    return {"error": "prometheus_unavailable", "message": "Could not reach Prometheus/Thanos"}
+
+
 async def apply_resource(
     api_endpoint: str, token: str, namespace: str, kind: str, name: str,
     manifest: dict[str, Any],

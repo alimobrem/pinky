@@ -413,7 +413,15 @@ async def chat_with_brain(
         messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
     messages.append({"role": "user", "content": req.message})
 
-    from pinky_api.k8s import get_events, get_nodes, get_resource, list_resources
+    from pinky_api.k8s import (
+        get_events,
+        get_nodes,
+        get_resource,
+        get_top_nodes,
+        get_top_pods,
+        list_resources,
+        query_prometheus,
+    )
     from pinky_api.repositories.clusters import ClusterRepository
 
     cluster_repo = ClusterRepository(db)
@@ -476,6 +484,32 @@ async def chat_with_brain(
                 },
             },
         },
+        {
+            "name": "get_top_pods",
+            "description": "Get real-time CPU/memory usage for pods (requires metrics-server).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "namespace": {"type": "string", "description": "K8s namespace (empty for all)"},
+                },
+            },
+        },
+        {
+            "name": "get_top_nodes",
+            "description": "Get real-time CPU and memory usage for all cluster nodes (requires metrics-server).",
+            "input_schema": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "query_prometheus",
+            "description": "Execute a PromQL query against Prometheus/Thanos.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "PromQL expression"},
+                },
+                "required": ["query"],
+            },
+        },
     ]
 
     try:
@@ -498,6 +532,13 @@ async def chat_with_brain(
             "get_nodes": lambda _inp: get_nodes(api_endpoint, cluster_token),
             "get_events": lambda inp: get_events(
                 api_endpoint, cluster_token, inp.get("namespace", ""),
+            ),
+            "get_top_pods": lambda inp: get_top_pods(
+                api_endpoint, cluster_token, inp.get("namespace", ""),
+            ),
+            "get_top_nodes": lambda _inp: get_top_nodes(api_endpoint, cluster_token),
+            "query_prometheus": lambda inp: query_prometheus(
+                api_endpoint, cluster_token, inp["query"],
             ),
         }
 
