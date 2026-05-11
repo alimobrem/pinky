@@ -9,6 +9,7 @@ checks in definition frontmatter — no hardcoded runner functions.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re as re_mod
 import uuid
@@ -71,7 +72,7 @@ RESOURCE_KIND_FETCHERS: dict[str, Fetcher] = {
 
 _DEFAULT_EXCLUDE_NS = os.environ.get(
     "PINKY_EXCLUDE_NAMESPACES_REGEX",
-    r"^(openshift-|kube-|default$)",
+    r"^(openshift-|openshift$|kube-|default$|stackrox$)",
 )
 
 
@@ -270,14 +271,31 @@ async def _sweep_stale_issues(
                    WHERE issue_id = $1 AND status IN ('ready', 'in_progress')""",
                 issue_id,
             )
-            event_id = uuid.uuid4()
-            await conn.execute(
-                """INSERT INTO domain_events
-                   (id, event_type, aggregate_type, aggregate_id, cluster_id, payload, occurred_at)
-                   VALUES ($1, 'issue.auto_resolved', 'issue', $2, $3::uuid,
-                           '{"status": "resolved", "resolved_by": "staleness"}', now())""",
-                event_id, issue_id, cluster_id,
+            existing_event = await conn.fetchrow(
+                """SELECT id, payload FROM domain_events
+                   WHERE event_type = 'issue.auto_resolved'
+                     AND aggregate_id = $1
+                   ORDER BY occurred_at DESC LIMIT 1""",
+                issue_id,
             )
+            if existing_event:
+                prev_payload = existing_event["payload"] if isinstance(existing_event["payload"], dict) else {}
+                count = prev_payload.get("resolve_count", 1) + 1
+                await conn.execute(
+                    """UPDATE domain_events
+                       SET payload = $2, occurred_at = now()
+                       WHERE id = $1""",
+                    existing_event["id"],
+                    json.dumps({"status": "resolved", "resolved_by": "staleness", "resolve_count": count}),
+                )
+            else:
+                await conn.execute(
+                    """INSERT INTO domain_events
+                       (id, event_type, aggregate_type, aggregate_id, cluster_id, payload, occurred_at)
+                       VALUES ($1, 'issue.auto_resolved', 'issue', $2, $3::uuid,
+                               '{"status": "resolved", "resolved_by": "staleness", "resolve_count": 1}', now())""",
+                    uuid.uuid4(), issue_id, cluster_id,
+                )
             await conn.execute(
                 "SELECT pg_notify('pinky_issues', $1)",
                 f'{{"event_type": "issue.auto_resolved", "aggregate_id": "{issue_id}"}}',
