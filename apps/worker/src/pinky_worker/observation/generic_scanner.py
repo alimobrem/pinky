@@ -9,6 +9,7 @@ RawObservations.
 from __future__ import annotations
 
 import base64
+import os
 import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -23,6 +24,35 @@ from pinky_worker.observation.fingerprint import (
 )
 
 logger = structlog.get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# Operator-managed detection & age filtering
+# ---------------------------------------------------------------------------
+
+_OLM_OWNER_KINDS = {"ClusterServiceVersion", "OperatorGroup", "Subscription"}
+_OLM_LABEL_PREFIX = "operators.coreos.com/"
+MIN_RESOURCE_AGE_SECONDS = int(os.environ.get("PINKY_MIN_RESOURCE_AGE_SECONDS", "300"))
+
+
+def is_operator_managed(resource: dict) -> bool:
+    metadata = resource.get("metadata", {})
+    labels = metadata.get("labels", {})
+    owner_refs = metadata.get("owner_references", [])
+    if any(k.startswith(_OLM_LABEL_PREFIX) for k in labels):
+        return True
+    if labels.get("app.kubernetes.io/managed-by", "").lower() == "operator-lifecycle-manager":
+        return True
+    return any(ref.get("kind") in _OLM_OWNER_KINDS for ref in owner_refs)
+
+
+def has_scan_override(resource: dict, scanner_name: str) -> bool:
+    metadata = resource.get("metadata", {})
+    labels = metadata.get("labels", {})
+    override = labels.get("pinky.io/scan-override", "")
+    if not override:
+        return False
+    return override == "all" or scanner_name in override.split(",")
+
 
 # ---------------------------------------------------------------------------
 # Path resolution
@@ -477,6 +507,26 @@ async def _run_single_check(
     ns = resource.get("namespace", "")
     name = resource.get("name", "")
 
+    # --- Pre-emission filters ---
+    # Skip resources younger than minimum age threshold
+    created_at_str = resource.get("created_at") or resource.get("metadata", {}).get("created_at")
+    if created_at_str:
+        try:
+            created_dt = datetime.fromisoformat(str(created_at_str).replace("Z", "+00:00"))
+            age = (now - created_dt).total_seconds()
+            if age < MIN_RESOURCE_AGE_SECONDS:
+                return
+        except (ValueError, TypeError):
+            pass
+
+    # Skip completed (Succeeded) pods for pod-health scanner
+    if scanner_name == "pod-health" and resource.get("phase") == "Succeeded":
+        return
+
+    # Detect operator-managed status
+    op_managed = is_operator_managed(resource)
+    scan_override = has_scan_override(resource, scanner_name)
+
     if iterate_path:
         elements = resolve_path(resource, iterate_path)
         if not isinstance(elements, list):
@@ -499,6 +549,7 @@ async def _run_single_check(
                     name=name,
                     now=now,
                     observations=observations,
+                    operator_managed=op_managed and not scan_override,
                 )
     else:
         if await evaluate_condition(resource, condition, now, prom_client):
@@ -516,6 +567,7 @@ async def _run_single_check(
                 name=name,
                 now=now,
                 observations=observations,
+                operator_managed=op_managed and not scan_override,
             )
 
 
@@ -533,6 +585,7 @@ def _emit_observation(
     name: str,
     now: datetime,
     observations: list[RawObservation],
+    operator_managed: bool = False,
 ) -> None:
     # Build title
     title_template = check.get("title_template", "")
@@ -540,6 +593,8 @@ def _emit_observation(
 
     # Build payload
     payload = _build_payload(check.get("payload_fields", []), resource, element)
+    if operator_managed:
+        payload["operator_managed"] = True
 
     fp = compute_observation_fingerprint(
         cluster_id, scanner_name, check_id, resource_kind, ns, name,

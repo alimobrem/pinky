@@ -25,6 +25,7 @@ class PolicyConditions:
     labels: dict[str, str] = field(default_factory=dict)
     recurrence_count_gte: int | None = None
     reopen_count_gte: int | None = None
+    is_operator_managed: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,7 @@ class PolicyInput:
     labels: dict[str, str] = field(default_factory=dict)
     recurrence_count: int = 1
     reopen_count: int = 0
+    is_operator_managed: bool = False
 
 
 @dataclass(frozen=True)
@@ -101,9 +103,14 @@ def matches(conditions: PolicyConditions, input: PolicyInput) -> bool:
         and input.recurrence_count < conditions.recurrence_count_gte
     ):
         return False
-    return not (
+    if (
         conditions.reopen_count_gte is not None
         and input.reopen_count < conditions.reopen_count_gte
+    ):
+        return False
+    return not (
+        conditions.is_operator_managed is not None
+        and conditions.is_operator_managed != input.is_operator_managed
     )
 
 
@@ -134,6 +141,7 @@ def rules_from_definitions(definitions: list) -> list[PolicyRule]:
             labels=conditions_raw.get("labels", {}),
             recurrence_count_gte=conditions_raw.get("recurrence_count_gte"),
             reopen_count_gte=conditions_raw.get("reopen_count_gte"),
+            is_operator_managed=conditions_raw.get("is_operator_managed"),
         )
 
         action = PolicyAction(

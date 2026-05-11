@@ -16,7 +16,10 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import type { WatchSummary } from "@pinky/contracts";
+import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 import {
   dashboardTasksOptions,
   dashboardIssuesOptions,
@@ -47,6 +50,11 @@ export function DashboardView() {
   const { data: issues } = useQuery(dashboardIssuesOptions());
   const { data: history } = useQuery(dashboardHistoryOptions());
   const { data: clusters } = useQuery(clustersOptions());
+  const { data: summary } = useQuery({
+    queryKey: QUERY_KEYS.watchSummary("24h"),
+    queryFn: () => api.get<WatchSummary>("/api/v1/analytics/watch-summary?since=24h"),
+    staleTime: 30_000,
+  });
 
   const items = tasks?.items ?? [];
   const readyCount = items.filter((t) => t.status === "ready").length;
@@ -138,6 +146,14 @@ export function DashboardView() {
                 <MetricRow label="Open issues" value={String(issueCount)} valueClass={issueCount > 0 ? "text-status-blocked" : "text-status-done"} />
                 <MetricRow label="Active tasks" value={String(readyCount + activeCount + blockedCount + approvalCount)} />
                 <MetricRow label="Pending approval" value={String(approvalCount)} valueClass={approvalCount > 0 ? "text-status-approval" : undefined} />
+                <MetricRow
+                  label="Last scan"
+                  value={summary?.last_scan_at ? formatDistanceToNow(new Date(summary.last_scan_at), { addSuffix: true }) : "—"}
+                />
+                <MetricRow
+                  label="Workloads scanned"
+                  value={String(summary?.workloads_scanned ?? "—")}
+                />
               </div>
             </CardContent>
           </Card>

@@ -15,6 +15,19 @@ logger = logging.getLogger(__name__)
 _SA_TOKEN = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
 
 
+def _extract_metadata(obj: Any) -> dict:
+    meta = obj.metadata
+    if meta is None:
+        return {"labels": {}, "owner_references": []}
+    return {
+        "labels": dict(meta.labels or {}),
+        "owner_references": [
+            {"kind": ref.kind, "name": ref.name, "api_version": ref.api_version}
+            for ref in (meta.owner_references or [])
+        ],
+    }
+
+
 async def create_client(kubeconfig: str | None = None) -> ApiClient:
     if kubeconfig:
         await config.load_kube_config(config_file=kubeconfig)
@@ -271,8 +284,10 @@ def _pod_summary(pod: Any) -> dict:
         "name": pod.metadata.name,
         "namespace": pod.metadata.namespace or "",
         "phase": pod.status.phase if pod.status else "Unknown",
+        "created_at": created.isoformat() if created else None,
         "creation_timestamp": created.isoformat() if created else None,
         "restart_count": sum(c.restart_count or 0 for c in containers),
+        "metadata": _extract_metadata(pod),
         "containers": [
             {
                 "name": c.name,
@@ -349,13 +364,16 @@ def _deployment_summary(dep: Any) -> dict:
     spec = dep.spec or SimpleNamespace(replicas=1)
     status = dep.status or SimpleNamespace(ready_replicas=None, unavailable_replicas=None, conditions=None)
     conditions = status.conditions or []
+    created = dep.metadata.creation_timestamp if dep.metadata else None
     return {
         "kind": "Deployment",
         "name": dep.metadata.name,
         "namespace": dep.metadata.namespace or "",
+        "created_at": created.isoformat() if created else None,
         "desired_replicas": spec.replicas or 1,
         "ready_replicas": status.ready_replicas or 0,
         "unavailable_replicas": status.unavailable_replicas or 0,
+        "metadata": _extract_metadata(dep),
         "conditions": [
             {"type": c.type, "status": c.status, "reason": c.reason or "", "message": c.message or ""}
             for c in conditions
@@ -427,16 +445,19 @@ def _statefulset_summary(sts: Any) -> dict:
         ready_replicas=None, updated_replicas=None, replicas=None,
         current_revision=None, update_revision=None,
     )
+    created = sts.metadata.creation_timestamp if sts.metadata else None
     return {
         "kind": "StatefulSet",
         "name": sts.metadata.name,
         "namespace": sts.metadata.namespace or "",
+        "created_at": created.isoformat() if created else None,
         "replicas": spec.replicas or 1,
         "ready_replicas": status.ready_replicas or 0,
         "updated_replicas": status.updated_replicas or 0,
         "current_replicas": status.replicas or 0,
         "current_revision": getattr(status, "current_revision", None) or "",
         "update_revision": getattr(status, "update_revision", None) or "",
+        "metadata": _extract_metadata(sts),
         "containers": _pod_template_containers(spec),
     }
 
@@ -447,13 +468,16 @@ def _job_summary(job: Any) -> dict:
     )
     spec = job.spec or SimpleNamespace(backoff_limit=6)
     conditions = status.conditions or []
+    created = job.metadata.creation_timestamp if job.metadata else None
     return {
         "kind": "Job",
         "name": job.metadata.name,
         "namespace": job.metadata.namespace or "",
+        "created_at": created.isoformat() if created else None,
         "succeeded": status.succeeded or 0,
         "failed": status.failed or 0,
         "backoff_limit": getattr(spec, "backoff_limit", 6) or 6,
+        "metadata": _extract_metadata(job),
         "conditions": [
             {"type": c.type, "status": c.status, "reason": c.reason or ""}
             for c in conditions
@@ -468,12 +492,15 @@ def _cronjob_summary(cj: Any) -> dict:
     last_schedule = status.last_schedule_time
     job_template = getattr(spec, "job_template", None)
     job_spec = getattr(job_template, "spec", None) if job_template else None
+    created = cj.metadata.creation_timestamp if cj.metadata else None
     return {
         "kind": "CronJob",
         "name": cj.metadata.name,
         "namespace": cj.metadata.namespace or "",
+        "created_at": created.isoformat() if created else None,
         "schedule": getattr(spec, "schedule", "") or "",
         "last_schedule_time": last_schedule.isoformat() if last_schedule else None,
+        "metadata": _extract_metadata(cj),
         "containers": _pod_template_containers(job_spec) if job_spec else [],
     }
 
@@ -509,15 +536,18 @@ def _daemonset_summary(ds: Any) -> dict:
         number_ready=0, number_unavailable=None,
         number_misscheduled=0,
     )
+    created = ds.metadata.creation_timestamp if ds.metadata else None
     return {
         "kind": "DaemonSet",
         "name": ds.metadata.name,
         "namespace": ds.metadata.namespace or "",
+        "created_at": created.isoformat() if created else None,
         "desired": status.desired_number_scheduled or 0,
         "current": status.current_number_scheduled or 0,
         "ready": status.number_ready or 0,
         "number_unavailable": getattr(status, "number_unavailable", None) or 0,
         "number_misscheduled": status.number_misscheduled or 0,
+        "metadata": _extract_metadata(ds),
         "containers": _pod_template_containers(ds.spec) if ds.spec else [],
     }
 

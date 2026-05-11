@@ -433,6 +433,7 @@ async def observe_cluster(
                     labels=conditions_raw.get("labels", {}),
                     recurrence_count_gte=conditions_raw.get("recurrence_count_gte"),
                     reopen_count_gte=conditions_raw.get("reopen_count_gte"),
+                    is_operator_managed=conditions_raw.get("is_operator_managed"),
                 ),
                 action=PolicyAction(
                     action_type=action_raw.get("type", "observe"),
@@ -510,6 +511,7 @@ async def observe_cluster(
                         cluster_id=cluster_id,
                         recurrence_count=result.observation_count,
                         reopen_count=reopen_count,
+                        is_operator_managed=bool(obs.payload.get("operator_managed")) if obs.payload else False,
                     )
                     decision = evaluate(policy_rules, policy_input)
                     logger.info(

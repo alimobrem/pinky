@@ -79,6 +79,7 @@ import {
   VolumeX,
   Sparkles,
   Shield,
+  Bot,
   Loader2,
   ArrowUpRight,
   XCircle,
@@ -842,7 +843,7 @@ export function WatchView() {
         <TabsContent value="issues">
           {/* Activity Summary Strip */}
           {summary && (
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
               <MetricCard
                 label="Signals"
                 value={summary.signals_processed}
@@ -871,6 +872,12 @@ export function WatchView() {
                 value={summary.auto_resolved}
                 icon={Sparkles}
                 color="text-blue-400"
+              />
+              <MetricCard
+                label="Operator-Managed"
+                value={summary.operator_managed_skipped ?? 0}
+                icon={Bot}
+                color="text-text-tertiary"
               />
             </div>
           )}

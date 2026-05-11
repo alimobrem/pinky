@@ -26,4 +26,7 @@ export interface WatchSummary {
   investigating: number;
   tasks_created: number;
   auto_resolved: number;
+  workloads_scanned?: number;
+  last_scan_at?: string;
+  operator_managed_skipped?: number;
 }

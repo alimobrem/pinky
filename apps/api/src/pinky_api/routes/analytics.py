@@ -51,6 +51,15 @@ async def watch_summary(since: str = "1h", db: AsyncSession = Depends(get_db)) -
         {"cutoff": cutoff},
     )).scalar_one()
 
+    since_seconds = int(delta.total_seconds())
+    coverage_result = await db.execute(text("""
+        SELECT count(DISTINCT resource_namespace || '/' || resource_name) as workloads_scanned,
+               max(observed_at) as last_scan_at
+        FROM observations
+        WHERE observed_at > now() - make_interval(secs => :since_seconds)
+    """), {"since_seconds": since_seconds})
+    coverage = coverage_result.fetchone()
+
     return {
         "since": since,
         "signals_processed": signals_processed,
@@ -58,6 +67,9 @@ async def watch_summary(since: str = "1h", db: AsyncSession = Depends(get_db)) -
         "investigating": investigating,
         "tasks_created": tasks_created,
         "auto_resolved": auto_resolved,
+        "workloads_scanned": coverage.workloads_scanned if coverage else 0,
+        "last_scan_at": coverage.last_scan_at.isoformat() if coverage and coverage.last_scan_at else None,
+        "operator_managed_skipped": 0,
     }
 
 
