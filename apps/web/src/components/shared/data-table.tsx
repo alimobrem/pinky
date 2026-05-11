@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode, type MouseEvent as ReactMouseEvent } from "react";
 import { cn } from "@/lib/utils";
-import { ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -21,6 +21,7 @@ export interface Column<T> {
   sortValue?: (row: T) => string | number;
   className?: string;
   headerClassName?: string;
+  minWidth?: number;
 }
 
 type SortDir = "asc" | "desc" | null;
@@ -57,7 +58,35 @@ export function DataTable<T>({
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
   const [internalFocus, setInternalFocus] = useState<number>(-1);
+  const [colWidths, setColWidths] = useState<Record<string, number>>({});
   const tableRef = useRef<HTMLTableElement>(null);
+  const resizingRef = useRef<{ colId: string; startX: number; startW: number } | null>(null);
+
+  const onResizeStart = useCallback((colId: string, e: ReactMouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const th = (e.target as HTMLElement).closest("th");
+    if (!th) return;
+    const startW = th.offsetWidth;
+    resizingRef.current = { colId, startX: e.clientX, startW };
+
+    const onMove = (me: globalThis.MouseEvent) => {
+      if (!resizingRef.current) return;
+      const delta = me.clientX - resizingRef.current.startX;
+      const minW = columns.find((c) => c.id === colId)?.minWidth ?? 50;
+      const newW = Math.max(minW, resizingRef.current.startW + delta);
+      setColWidths((prev) => ({ ...prev, [colId]: newW }));
+    };
+
+    const onUp = () => {
+      resizingRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [columns]);
 
   const sortedData = useMemo(() => {
     if (!sortCol || !sortDir) return data;
@@ -134,19 +163,20 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={cn("rounded-lg border border-border-default overflow-hidden", className)}>
-      <Table ref={tableRef}>
+    <div className={cn("group/table rounded-lg border border-border-default overflow-hidden", className)}>
+      <Table ref={tableRef} style={Object.keys(colWidths).length > 0 ? { tableLayout: "fixed" } : undefined}>
         <TableHeader>
           <TableRow className="border-b border-border-default bg-bg-surface hover:bg-bg-surface">
             {columns.map((col) => (
               <TableHead
                 key={col.id}
                 className={cn(
-                  "h-9 text-caption font-semibold uppercase tracking-wider text-text-tertiary",
+                  "relative h-9 text-caption font-semibold uppercase tracking-wider text-text-tertiary",
                   stickyHeader && "sticky top-0 z-10 bg-bg-surface",
                   col.sortable && "cursor-pointer select-none hover:text-text-secondary",
                   col.headerClassName,
                 )}
+                style={colWidths[col.id] ? { width: colWidths[col.id] } : undefined}
                 onClick={col.sortable ? () => handleSort(col.id) : undefined}
               >
                 <span className="inline-flex items-center gap-1">
@@ -154,6 +184,12 @@ export function DataTable<T>({
                   {col.sortable && sortCol === col.id && (
                     sortDir === "asc" ? <ArrowUp size={12} /> : sortDir === "desc" ? <ArrowDown size={12} /> : null
                   )}
+                </span>
+                <span
+                  className="absolute right-0 top-0 flex h-full w-4 cursor-col-resize items-center justify-center opacity-0 hover:opacity-100 group-hover/table:opacity-50"
+                  onMouseDown={(e) => onResizeStart(col.id, e)}
+                >
+                  <GripVertical size={10} className="text-text-tertiary" />
                 </span>
               </TableHead>
             ))}
@@ -184,7 +220,11 @@ export function DataTable<T>({
                 }}
               >
                 {columns.map((col) => (
-                  <TableCell key={col.id} className={cn("py-2.5 text-sm", col.className)}>
+                  <TableCell
+                    key={col.id}
+                    className={cn("py-2.5 text-sm overflow-hidden", col.className)}
+                    style={colWidths[col.id] ? { width: colWidths[col.id] } : undefined}
+                  >
                     {col.cell(row)}
                   </TableCell>
                 ))}
