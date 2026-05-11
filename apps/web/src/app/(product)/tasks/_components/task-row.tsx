@@ -49,7 +49,7 @@ export function taskColumns(clusterMap: Record<string, string>) {
     },
     {
       id: "confidence",
-      header: "Conf.",
+      header: "Confidence",
       sortable: true,
       cell: (task: WorkItem) => <ConfidenceBadge value={task.confidence} />,
       className: "w-16 text-right",

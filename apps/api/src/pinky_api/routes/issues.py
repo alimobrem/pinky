@@ -105,7 +105,8 @@ async def suppress_issue(
     issue = await repo.suppress(UUID(issue_id), until=req.until)
     if issue is None:
         raise HTTPException(status_code=404, detail="Issue not found")
-    await emit(db, "issue.suppressed", "issue", UUID(issue_id), {"status": "suppressed"})
+    await emit(db, "issue.suppressed", "issue", UUID(issue_id), {"status": "suppressed"},
+               cluster_id=current.cluster_id, principal_id=principal_uuid(_principal))
     await db.commit()
     return _serialize(issue)
 
@@ -124,7 +125,8 @@ async def resolve_issue(
     issue = await repo.resolve(UUID(issue_id))
     if issue is None:
         raise HTTPException(status_code=404, detail="Issue not found")
-    await emit(db, "issue.resolved", "issue", UUID(issue_id), {"status": "resolved"})
+    await emit(db, "issue.resolved", "issue", UUID(issue_id), {"status": "resolved"},
+               cluster_id=current.cluster_id, principal_id=principal_uuid(_principal))
     await db.commit()
     return _serialize(issue)
 
@@ -145,6 +147,7 @@ async def escalate_issue(
     issue = await repo.escalate(UUID(issue_id))
     if issue is None:
         raise HTTPException(status_code=404, detail="Issue not found")
-    await emit(db, "issue.escalated", "issue", UUID(issue_id), {"status": "open"})
+    await emit(db, "issue.escalated", "issue", UUID(issue_id), {"status": "open"},
+               cluster_id=current.cluster_id, principal_id=principal_uuid(_principal))
     await db.commit()
     return _serialize(issue)

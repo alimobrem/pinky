@@ -112,7 +112,8 @@ async def create_work_item(
         runbook_url=req.runbook_url,
         labels=req.labels,
     )
-    await emit(db, "work_item.created", "work_item", item.id, {"status": "ready"})
+    await emit(db, "work_item.created", "work_item", item.id, {"status": "ready"},
+               cluster_id=cluster_uuid, principal_id=principal_uuid(principal))
     await db.commit()
     return _serialize(item)
 
@@ -144,7 +145,8 @@ async def start_work_item(
         raise HTTPException(status_code=409, detail=str(e)) from None
     if item is None:
         raise HTTPException(status_code=404, detail="Work item not found")
-    await emit(db, "work_item.started", "work_item", UUID(work_item_id), {"status": "in_progress"})
+    await emit(db, "work_item.started", "work_item", UUID(work_item_id), {"status": "in_progress"},
+               cluster_id=current.cluster_id, principal_id=principal_uuid(_principal))
     await db.commit()
     return _serialize(item)
 
@@ -164,7 +166,8 @@ async def complete_work_item(
         raise HTTPException(status_code=409, detail=str(e)) from None
     if item is None:
         raise HTTPException(status_code=404, detail="Work item not found")
-    await emit(db, "work_item.completed", "work_item", UUID(work_item_id), {"status": "done"})
+    await emit(db, "work_item.completed", "work_item", UUID(work_item_id), {"status": "done"},
+               cluster_id=current.cluster_id, principal_id=principal_uuid(_principal))
     await db.commit()
     return _serialize(item)
 
@@ -187,7 +190,8 @@ async def block_work_item(
         raise HTTPException(status_code=409, detail=str(e)) from None
     if item is None:
         raise HTTPException(status_code=404, detail="Work item not found")
-    await emit(db, "work_item.blocked", "work_item", UUID(work_item_id), {"status": "blocked", "reason": req.reason})
+    await emit(db, "work_item.blocked", "work_item", UUID(work_item_id), {"status": "blocked", "reason": req.reason},
+               cluster_id=current.cluster_id, principal_id=principal_uuid(_principal))
     await db.commit()
     return _serialize(item)
 
@@ -234,7 +238,8 @@ async def take_work_item(
         item = await repo.get(UUID(work_item_id))
     if item is None:
         raise HTTPException(status_code=404, detail="Work item not found")
-    await emit(db, "work_item.taken", "work_item", UUID(work_item_id), {"status": item.status})
+    await emit(db, "work_item.taken", "work_item", UUID(work_item_id), {"status": item.status},
+               cluster_id=current.cluster_id, principal_id=principal_uuid(principal))
     await db.commit()
     return _serialize(item)
 
@@ -260,7 +265,8 @@ async def release_work_item(
         raise HTTPException(status_code=404, detail="Work item not found")
     await repo.unassign(UUID(work_item_id))
     item = await repo.get(UUID(work_item_id))
-    await emit(db, "work_item.released", "work_item", UUID(work_item_id), {"status": "ready"})
+    await emit(db, "work_item.released", "work_item", UUID(work_item_id), {"status": "ready"},
+               cluster_id=current.cluster_id, principal_id=principal_uuid(principal))
     await db.commit()
     return _serialize(item)
 
@@ -282,7 +288,8 @@ async def bulk_action(
         try:
             item = await repo.transition(UUID(item_id), req.action)
             if item:
-                await emit(db, f"work_item.{req.action}", "work_item", UUID(item_id), {"status": req.action})
+                await emit(db, f"work_item.{req.action}", "work_item", UUID(item_id), {"status": req.action},
+                           cluster_id=item.cluster_id, principal_id=principal_uuid(_principal))
                 results.append({"id": item_id, "status": "ok"})
             else:
                 results.append({"id": item_id, "status": "not_found"})

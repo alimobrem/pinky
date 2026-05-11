@@ -163,7 +163,9 @@ async def start_execution(
         ) from None
 
     ex = await repo.create(work_item_id=wi_id, cluster_id=wi.cluster_id, execution_type=execution_type)
-    await emit(db, "execution.started", "execution", ex.id, {"type": execution_type, "work_item_id": work_item_id})
+    await emit(db, "execution.started", "execution", ex.id,
+               {"type": execution_type, "work_item_id": str(wi.id)},
+               cluster_id=wi.cluster_id, principal_id=principal_uuid(principal))
     await db.commit()
 
     try:
@@ -224,7 +226,8 @@ async def cancel_execution(
         raise HTTPException(status_code=409, detail=f"Cannot cancel execution in '{ex.status}' state")
 
     await repo.update_status(ex.id, "cancelled")
-    await emit(db, "execution.cancelled", "execution", ex.id, {}, cluster_id=ex.cluster_id)
+    await emit(db, "execution.cancelled", "execution", ex.id, {},
+               cluster_id=ex.cluster_id, principal_id=principal_uuid(principal))
     await db.commit()
 
     workflow_id = f"{ex.execution_type}-{execution_id}"
@@ -264,7 +267,8 @@ async def approve_execution(
         await handle.signal("approve", {"changeset_digest": req.changeset_digest})
         await emit(
             db, "approval.granted", "execution", ex.id,
-            {"changeset_digest": req.changeset_digest}, cluster_id=ex.cluster_id,
+            {"changeset_digest": req.changeset_digest},
+            cluster_id=ex.cluster_id, principal_id=principal_uuid(principal),
         )
         await db.commit()
         return {"status": "approved", "execution_id": execution_id}
@@ -299,7 +303,8 @@ async def reject_execution(
         await handle.signal("reject", {"reason": req.reason})
         await emit(
             db, "approval.rejected", "execution", ex.id,
-            {"reason": req.reason}, cluster_id=ex.cluster_id,
+            {"reason": req.reason},
+            cluster_id=ex.cluster_id, principal_id=principal_uuid(principal),
         )
         await db.commit()
         return {"status": "rejected", "execution_id": execution_id}

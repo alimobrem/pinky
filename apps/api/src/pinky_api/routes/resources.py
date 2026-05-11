@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.auth.deps import (
     get_cluster_binding_for_principal,
+    principal_uuid,
     require_authenticated,
     require_cluster_read_access,
     require_cluster_write_access,
@@ -116,7 +117,7 @@ async def apply_cluster_resource(
 
     await emit(db, "resource.applied", "cluster", cid, {
         "namespace": namespace, "kind": kind, "name": name,
-    }, cluster_id=cid)
+    }, cluster_id=cid, principal_id=principal_uuid(principal))
     await db.commit()
 
     updated_yaml = yaml.dump(result, default_flow_style=False, sort_keys=False)
