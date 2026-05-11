@@ -190,7 +190,7 @@ async def test_project_started_updates_execution(
     assert row["started_at"] is not None
 
     history = await conn.fetchrow(
-        "SELECT event_type FROM history_events WHERE aggregate_id = $1 AND event_type = 'started'",
+        "SELECT event_type FROM domain_events WHERE aggregate_id = $1 AND event_type = 'started'",
         uuid.UUID(execution_id),
     )
     assert history is not None

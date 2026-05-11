@@ -12,7 +12,6 @@ from pinky_api.models.extensibility import (
     WebhookSubscription,
 )
 from pinky_api.models.fleet import ClusterIdentityBinding, ClusterObserverBinding, ClusterRegistry
-from pinky_api.models.history import HistoryEvent
 from pinky_api.models.issue import Issue
 from pinky_api.models.observation import Observation
 from pinky_api.models.principal import Principal
@@ -25,7 +24,6 @@ __all__ = [
     "ClusterRegistry", "ClusterObserverBinding", "ClusterIdentityBinding",
     "Observation", "Issue", "WorkItem",
     "Execution", "ExecutionEvent", "Approval",
-    "HistoryEvent",
     "AnalyticsEvent", "EvalRun",
     "Definition", "ServiceBinding", "DomainEvent",
     "WebhookSubscription", "WebhookDelivery",

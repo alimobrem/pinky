@@ -658,7 +658,7 @@ async def project_to_postgres(execution_id: str, event_type: str, payload: dict)
         )
 
     await pool.execute(
-        """INSERT INTO history_events (id, aggregate_type, aggregate_id, event_type, payload, occurred_at)
+        """INSERT INTO domain_events (id, aggregate_type, aggregate_id, event_type, payload, occurred_at)
            VALUES ($1, $2, $3, $4, $5, $6)""",
         uuid4(), "execution", UUID(execution_id), event_type,
         json.dumps(payload), datetime.now(UTC),
