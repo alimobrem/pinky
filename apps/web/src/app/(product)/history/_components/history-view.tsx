@@ -261,7 +261,7 @@ export function HistoryView() {
       />
 
       {isLoading ? (
-        <SkeletonRow rows={8} columns={7} />
+        <SkeletonRow rows={8} columns={6} />
       ) : error ? (
         <EmptyState
           icon={Clock}
@@ -281,7 +281,6 @@ export function HistoryView() {
               <TableRow>
                 <TableHead className="w-28">Time</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead className="w-20">Status</TableHead>
                 <TableHead className="w-24">Actor</TableHead>
                 <TableHead className="w-28">Cluster</TableHead>
                 <TableHead className="w-24">Entity</TableHead>
@@ -346,13 +345,11 @@ function ExpandableRow({
         </TableCell>
         <TableCell>
           <span className="inline-flex items-center gap-1.5 text-body-sm">
+            <StatusDot status={eventTypeToStatus(event.event_type)} />
             <span className="text-text-secondary">
               {event.description ?? event.event_type.replace(/_/g, " ")}
             </span>
           </span>
-        </TableCell>
-        <TableCell className="w-20">
-          <StatusDot status={eventTypeToStatus(event.event_type)} />
         </TableCell>
         <TableCell className="w-24">
           {event.principal_id ? (
@@ -384,7 +381,7 @@ function ExpandableRow({
 
       {isExpanded && hasPayload && (
         <TableRow className="hover:bg-transparent">
-          <TableCell colSpan={7} className="px-2 pb-3 pt-0">
+          <TableCell colSpan={6} className="px-2 pb-3 pt-0">
             <pre className="whitespace-pre-wrap text-caption font-mono text-text-secondary rounded-lg bg-bg-elevated p-3 max-h-48 overflow-auto">
               {JSON.stringify(event.payload, null, 2)}
             </pre>
