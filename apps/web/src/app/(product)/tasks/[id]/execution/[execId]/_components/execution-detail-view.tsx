@@ -31,12 +31,6 @@ export function ExecutionDetailView({ taskId, execId }: ExecutionDetailViewProps
     qc.invalidateQueries({ queryKey: QUERY_KEYS.taskTimeline(taskId) });
   };
 
-  // SSE: work-items stream for broad updates
-  useSSE("/api/v1/streams/events", {
-    onEvent: { update: () => invalidateAll() },
-  });
-
-  // SSE: execution-specific stream for this execution
   const { state, lastUpdated } = useSSE(
     `/api/v1/streams/executions/${execId}`,
     {
