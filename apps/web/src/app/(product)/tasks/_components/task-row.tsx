@@ -1,17 +1,23 @@
 "use client";
 
 import type { WorkItem } from "@pinky/contracts";
+import type { Column } from "@/components/shared/data-table";
 import { StatusIndicator } from "@/components/shared/status-indicator";
 import { PriorityBadge } from "@/components/shared/priority-badge";
 import { ConfidenceBadge } from "@/components/shared/confidence-badge";
 import { RelativeTime } from "@/components/shared/relative-time";
+
+const PRIORITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+const STATUS_ORDER: Record<string, number> = {
+  ready: 0, in_progress: 1, blocked: 2, waiting_for_approval: 3, done: 4,
+};
 
 interface TaskRowProps {
   task: WorkItem;
   clusterName?: string;
 }
 
-export function taskColumns(clusterMap: Record<string, string>) {
+export function taskColumns(clusterMap: Record<string, string>): Column<WorkItem>[] {
   return [
     {
       id: "title",
@@ -37,21 +43,24 @@ export function taskColumns(clusterMap: Record<string, string>) {
       id: "priority",
       header: "Priority",
       sortable: true,
-      cell: (task: WorkItem) => <PriorityBadge priority={task.priority} />,
+      sortValue: (task) => PRIORITY_ORDER[task.priority] ?? 99,
+      cell: (task) => <PriorityBadge priority={task.priority} />,
       className: "w-24",
     },
     {
       id: "status",
       header: "Status",
       sortable: true,
-      cell: (task: WorkItem) => <StatusIndicator status={task.status} />,
+      sortValue: (task) => STATUS_ORDER[task.status] ?? 99,
+      cell: (task) => <StatusIndicator status={task.status} />,
       className: "w-32",
     },
     {
       id: "confidence",
       header: "Confidence",
       sortable: true,
-      cell: (task: WorkItem) => <ConfidenceBadge value={task.confidence} />,
+      sortValue: (task) => task.confidence ?? 0,
+      cell: (task) => <ConfidenceBadge value={task.confidence} />,
       className: "w-16 text-right",
       headerClassName: "text-right",
     },
@@ -59,7 +68,8 @@ export function taskColumns(clusterMap: Record<string, string>) {
       id: "age",
       header: "Age",
       sortable: true,
-      cell: (task: WorkItem) => <RelativeTime date={task.created_at} />,
+      sortValue: (task) => new Date(task.created_at).getTime(),
+      cell: (task) => <RelativeTime date={task.created_at} />,
       className: "w-28 text-right",
       headerClassName: "text-right",
     },

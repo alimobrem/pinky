@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, type ReactNode } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { ArrowUp, ArrowDown } from "lucide-react";
 import {
@@ -18,6 +18,7 @@ export interface Column<T> {
   header: string;
   cell: (row: T) => ReactNode;
   sortable?: boolean;
+  sortValue?: (row: T) => string | number;
   className?: string;
   headerClassName?: string;
 }
@@ -58,7 +59,24 @@ export function DataTable<T>({
   const [internalFocus, setInternalFocus] = useState<number>(-1);
   const tableRef = useRef<HTMLTableElement>(null);
 
-  const focused = focusedKey ?? (internalFocus >= 0 ? keyFn(data[internalFocus]) : null);
+  const sortedData = useMemo(() => {
+    if (!sortCol || !sortDir) return data;
+    const col = columns.find((c) => c.id === sortCol);
+    if (!col?.sortable) return data;
+    const getValue = col.sortValue ?? ((row: T) => {
+      const v = (row as Record<string, unknown>)[col.id];
+      return typeof v === "string" || typeof v === "number" ? v : String(v ?? "");
+    });
+    const sorted = [...data].sort((a, b) => {
+      const va = getValue(a);
+      const vb = getValue(b);
+      if (typeof va === "number" && typeof vb === "number") return va - vb;
+      return String(va).localeCompare(String(vb));
+    });
+    return sortDir === "desc" ? sorted.reverse() : sorted;
+  }, [data, sortCol, sortDir, columns]);
+
+  const focused = focusedKey ?? (internalFocus >= 0 ? keyFn(sortedData[internalFocus]) : null);
 
   const handleSort = useCallback((colId: string) => {
     setSortCol((prev) => {
@@ -80,23 +98,23 @@ export function DataTable<T>({
       if (data.length === 0) return;
       setInternalFocus((prev) => {
         const next = Math.max(0, Math.min(data.length - 1, prev + delta));
-        onFocusChange?.(keyFn(data[next]));
+        onFocusChange?.(keyFn(sortedData[next]));
         return next;
       });
     },
-    [data, keyFn, onFocusChange],
+    [data, sortedData, keyFn, onFocusChange],
   );
 
   useHotkey("j", () => moveFocus(1));
   useHotkey("k", () => moveFocus(-1));
   useHotkey("enter", () => {
     if (internalFocus >= 0 && onRowClick) {
-      onRowClick(data[internalFocus]);
+      onRowClick(sortedData[internalFocus]);
     }
   });
   useHotkey("x", () => {
     if (internalFocus >= 0 && onRowSelect && selectedKeys) {
-      const key = keyFn(data[internalFocus]);
+      const key = keyFn(sortedData[internalFocus]);
       const next = new Set(selectedKeys);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -105,13 +123,13 @@ export function DataTable<T>({
   });
 
   useEffect(() => {
-    if (focusedKey && data.length > 0) {
-      const idx = data.findIndex((r) => keyFn(r) === focusedKey);
+    if (focusedKey && sortedData.length > 0) {
+      const idx = sortedData.findIndex((r) => keyFn(r) === focusedKey);
       if (idx >= 0) setInternalFocus(idx);
     }
-  }, [focusedKey, data, keyFn]);
+  }, [focusedKey, sortedData, keyFn]);
 
-  if (data.length === 0 && emptyState) {
+  if (sortedData.length === 0 && emptyState) {
     return <>{emptyState}</>;
   }
 
@@ -142,7 +160,7 @@ export function DataTable<T>({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.map((row, i) => {
+          {sortedData.map((row, i) => {
             const key = keyFn(row);
             const isFocused = key === focused;
             const isSelected = selectedKeys?.has(key);
