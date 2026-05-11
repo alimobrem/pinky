@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 
 import structlog
@@ -93,18 +94,36 @@ class DbIssueCorrelator:
                 )
 
             issue_id = uuid.uuid4()
+            _payload = obs.payload if isinstance(obs.payload, dict) else {}
+            issue_labels = json.dumps({
+                "scanner": obs.scanner,
+                "check_id": obs.check_id or "",
+                "resource_kind": obs.resource_kind,
+            })
             await conn.execute(
                 """INSERT INTO issues (id, cluster_id, correlation_key, title, severity,
                 status, labels, annotations, first_seen_at, last_seen_at, created_at, updated_at)
                 VALUES ($1, $2::uuid, $3, $4, $5, 'open', $6, '{}', $7, $7, $7, $7)""",
                 issue_id, obs.cluster_id, obs.correlation_key, obs.title, obs.severity,
-                f'{{"scanner": "{obs.scanner}", "check_id": "{obs.check_id}", "resource_kind": "{obs.resource_kind}"}}',
+                issue_labels,
                 obs.observed_at,
             )
 
             work_item_id = uuid.uuid4()
             why_now = f"{obs.resource_kind}/{obs.resource_namespace}/{obs.resource_name}: {obs.title}"
             recommended = f"Investigate {obs.check_id} on {obs.resource_namespace}/{obs.resource_name}"
+
+            work_item_labels = json.dumps({
+                "scanner": obs.scanner,
+                "check_id": obs.check_id or "",
+                "resource_kind": obs.resource_kind,
+                "namespace": obs.resource_namespace or "",
+                "name": obs.resource_name or "",
+                "managed_by": _payload.get("managed_by", ""),
+                "operator_managed": str(_payload.get("operator_managed", False)).lower(),
+                "replica_count": _payload.get("replica_count"),
+                "ready_replicas": _payload.get("ready_replicas"),
+            })
 
             await conn.execute(
                 """INSERT INTO work_items (id, issue_id, cluster_id, title, why_now,
@@ -113,7 +132,7 @@ class DbIssueCorrelator:
                 VALUES ($1, $2, $3::uuid, $4, $5, $6, 'ready', 0.7, $7, $8, '{}', '{}', $9, $9)""",
                 work_item_id, issue_id, obs.cluster_id, obs.title, why_now, recommended,
                 "high" if obs.severity in ("critical", "high") else "medium",
-                f'{{"component": "{obs.resource_kind}", "namespace": "{obs.resource_namespace}"}}',
+                work_item_labels,
                 obs.observed_at,
             )
 

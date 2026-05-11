@@ -613,6 +613,50 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">
+                  Resource Info
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {task.labels?.resource_kind && (
+                  <DetailRow label="Kind">
+                    <span className="font-mono text-caption">{task.labels.resource_kind}</span>
+                  </DetailRow>
+                )}
+                {task.labels?.namespace && (
+                  <DetailRow label="Namespace">
+                    <span className="font-mono text-caption">{task.labels.namespace}</span>
+                  </DetailRow>
+                )}
+                {task.labels?.name && (
+                  <DetailRow label="Name">
+                    <span className="font-mono text-caption">{task.labels.name}</span>
+                  </DetailRow>
+                )}
+                <DetailRow label="Managed by">
+                  <Badge variant="outline" className="text-caption">
+                    {task.labels?.managed_by || "Direct deploy"}
+                  </Badge>
+                </DetailRow>
+                {task.labels?.operator_managed === "true" && (
+                  <DetailRow label="Operator">
+                    <Badge variant="outline" className="text-caption border-purple-500/30 text-purple-400">
+                      OLM-managed
+                    </Badge>
+                  </DetailRow>
+                )}
+                {task.labels?.replica_count != null && (
+                  <DetailRow label="Replicas">
+                    <span className="font-mono text-caption tabular-nums">
+                      {task.labels.ready_replicas ?? "?"}/{task.labels.replica_count}
+                    </span>
+                  </DetailRow>
+                )}
+              </CardContent>
+            </Card>
+
             {activeExec && (
               <Card className="border-l-2 border-l-brand-purple">
                 <CardContent className="p-4">
