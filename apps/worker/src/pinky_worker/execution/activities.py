@@ -721,11 +721,15 @@ async def project_to_postgres(execution_id: str, event_type: str, payload: dict)
             UUID(execution_id), datetime.now(UTC),
         )
 
+    exec_row = await pool.fetchrow(
+        "SELECT cluster_id FROM executions WHERE id = $1", UUID(execution_id),
+    )
+    cluster_id = exec_row["cluster_id"] if exec_row else None
     await pool.execute(
-        """INSERT INTO domain_events (id, aggregate_type, aggregate_id, event_type, payload, occurred_at)
-           VALUES ($1, $2, $3, $4, $5, $6)""",
+        """INSERT INTO domain_events (id, aggregate_type, aggregate_id, event_type, cluster_id, payload, occurred_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)""",
         uuid4(), "execution", UUID(execution_id), event_type,
-        json.dumps(payload), datetime.now(UTC),
+        cluster_id, json.dumps(payload), datetime.now(UTC),
     )
 
     logger.info("projected to postgres: %s %s", execution_id, event_type)
