@@ -234,3 +234,32 @@ async def test_cluster_binding_status(seeded) -> None:
     r = await client.get(f"/api/v1/cluster-bindings/status?cluster_id={cluster_id}")
     assert r.status_code == 200
     assert r.json()["status"] == "valid"
+
+
+@pytest.mark.asyncio
+async def test_history_shows_events_from_mutations(seeded) -> None:
+    """Verify that actions (take, complete) produce domain events visible via the History API."""
+    client, _, wi1_id, _ = seeded
+
+    await client.post(f"/api/v1/work-items/{wi1_id}/take")
+    await client.post(f"/api/v1/work-items/{wi1_id}/complete")
+
+    r = await client.get("/api/v1/history")
+    assert r.status_code == 200
+    items = r.json()["items"]
+    event_types = {e["event_type"] for e in items}
+    assert "work_item.taken" in event_types
+    assert "work_item.completed" in event_types
+
+    for event in items:
+        assert event["id"]
+        assert event["event_type"]
+        assert event["aggregate_type"]
+        assert event["aggregate_id"]
+        assert event["occurred_at"]
+
+    # Cleanup domain events
+    from pinky_api.models.extensibility import DomainEvent
+    async with _factory() as s:
+        await s.execute(DomainEvent.__table__.delete().where(DomainEvent.aggregate_id == UUID(wi1_id)))
+        await s.commit()
