@@ -129,8 +129,8 @@ async def _dispatch_investigation(
         existing = await conn.fetchrow(
             "SELECT id, status FROM executions WHERE work_item_id IN "
             "(SELECT id FROM work_items WHERE issue_id = $1::uuid) "
-            "AND (status IN ('pending', 'running') "
-            "     OR (status IN ('completed', 'failed') AND completed_at > now() - make_interval(secs => $2))) "
+            "AND (status IN ('pending', 'running', 'completed') "
+            "     OR (status = 'failed' AND completed_at > now() - make_interval(secs => $2))) "
             "ORDER BY created_at DESC LIMIT 1",
             result.issue_id, float(cooldown_seconds),
         )
