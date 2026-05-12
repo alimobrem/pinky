@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { ShieldAlert, Check, X } from "lucide-react";
+import { ShieldAlert, Check, X, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -14,6 +14,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface ApprovalGateProps {
   executionId: string;
@@ -45,10 +50,26 @@ export function ApprovalGate({
           Approval required
         </p>
         {resources && resources.length > 0 && (
-          <p className="mt-0.5 text-caption text-text-secondary">
-            {resources.length} resource{resources.length !== 1 ? "s" : ""} will be
-            modified
-          </p>
+          <>
+            <p className="mt-0.5 text-caption text-text-secondary">
+              {resources.length} resource{resources.length !== 1 ? "s" : ""} will be
+              modified
+            </p>
+            <Collapsible>
+              <CollapsibleTrigger className="flex items-center gap-1 mt-1 text-caption text-text-tertiary hover:text-text-secondary">
+                <ChevronRight size={12} className="transition-transform data-[state=open]:rotate-90" />
+                View changes
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-2 space-y-1">
+                {resources.map((r, i) => (
+                  <div key={i} className="flex items-center gap-2 text-caption font-mono text-text-secondary">
+                    <span className="text-text-tertiary">{String(r.resource_kind ?? "")}</span>
+                    <span>{String(r.resource_namespace ?? "")}/{String(r.resource_name ?? "")}</span>
+                  </div>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          </>
         )}
       </div>
       <div className="flex items-center gap-2">
@@ -99,8 +120,7 @@ export function ApprovalGate({
             <AlertDialogHeader>
               <AlertDialogTitle>Approve execution?</AlertDialogTitle>
               <AlertDialogDescription>
-                The remediation will proceed with the proposed changes. This
-                action cannot be undone.
+                The remediation will proceed with changes to {resources?.length ?? 0} resource{(resources?.length ?? 0) !== 1 ? "s" : ""}. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -60,6 +60,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SignalsTab } from "./signals-tab";
 import { useCluster } from "@/hooks/use-cluster";
@@ -140,7 +141,7 @@ interface CategoryDef {
 const CATEGORIES: CategoryDef[] = [
   {
     key: "analyzing",
-    title: "Signals Under Analysis",
+    title: "Being Investigated",
     icon: Search,
     colorClasses: {
       icon: "text-purple-500",
@@ -150,7 +151,7 @@ const CATEGORIES: CategoryDef[] = [
   },
   {
     key: "remediating",
-    title: "Auto-Remediations In Progress",
+    title: "Remediations Running",
     icon: Zap,
     colorClasses: {
       icon: "text-amber-500",
@@ -160,7 +161,7 @@ const CATEGORIES: CategoryDef[] = [
   },
   {
     key: "grouped",
-    title: "Grouped Issues",
+    title: "Open Issues",
     icon: Layers,
     colorClasses: {
       icon: "text-blue-500",
@@ -169,7 +170,7 @@ const CATEGORIES: CategoryDef[] = [
   },
   {
     key: "suppressed",
-    title: "Suppressions / Dedup",
+    title: "Suppressed",
     icon: VolumeX,
     colorClasses: {
       icon: "text-text-tertiary",
@@ -178,7 +179,7 @@ const CATEGORIES: CategoryDef[] = [
   },
   {
     key: "candidates",
-    title: "Candidate Task Creation",
+    title: "Investigation Complete",
     icon: Sparkles,
     colorClasses: {
       icon: "text-purple-500",
@@ -187,7 +188,7 @@ const CATEGORIES: CategoryDef[] = [
   },
   {
     key: "approvals",
-    title: "Active Executions & Approvals",
+    title: "Pending Approvals",
     icon: Shield,
     colorClasses: {
       icon: "text-orange-500",
@@ -704,6 +705,7 @@ export function WatchView() {
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [timeWindow, setTimeWindow] = useState("1h");
+  const [namespaceFilter, setNamespaceFilter] = useState("");
 
   // -- Watch summary --
   const { data: summary } = useQuery({
@@ -818,14 +820,17 @@ export function WatchView() {
   const isLoading = issuesLoading || executionsLoading;
 
   // Categorize data
-  const categories = useMemo(
-    () =>
-      categorize(
-        issues?.items ?? [],
-        executions?.items ?? [],
-      ),
-    [issues, executions],
-  );
+  const categories = useMemo(() => {
+    let filteredIssues = issues?.items ?? [];
+    if (namespaceFilter) {
+      const ns = namespaceFilter.toLowerCase();
+      filteredIssues = filteredIssues.filter((i) => {
+        const issueNs = i.labels?.namespace || i.title.split("/")[0] || "";
+        return issueNs.toLowerCase().includes(ns);
+      });
+    }
+    return categorize(filteredIssues, executions?.items ?? []);
+  }, [issues, executions, namespaceFilter]);
 
   // Apply search filter across all issue categories
   const applySearch = (items: Issue[]): Issue[] => {
@@ -871,7 +876,7 @@ export function WatchView() {
         <TabsList className="border-b border-border-default bg-transparent">
           <TabsTrigger value="issues" className="gap-1.5">
             <Eye size={14} />
-            Issues
+            Issues ({issues?.items?.length ?? 0})
           </TabsTrigger>
           <TabsTrigger value="signals" className="gap-1.5">
             <Bell size={14} />
@@ -949,6 +954,12 @@ export function WatchView() {
                     <SelectItem value="24h">24h</SelectItem>
                   </SelectContent>
                 </Select>
+                <Input
+                  value={namespaceFilter}
+                  onChange={(e) => setNamespaceFilter(e.target.value)}
+                  placeholder="Namespace..."
+                  className="h-7 w-28 border-0 bg-transparent text-body-sm shadow-none placeholder:text-text-tertiary"
+                />
               </>
             }
           />
@@ -1020,6 +1031,11 @@ export function WatchView() {
                   );
                 })}
               </div>
+              {(issues?.items?.length ?? 0) >= 500 && (
+                <p className="text-center text-caption text-text-tertiary pt-2">
+                  Showing first 500 issues. Use filters to narrow results.
+                </p>
+              )}
             </FadeIn>
           )}
         </TabsContent>

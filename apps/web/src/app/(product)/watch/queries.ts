@@ -8,7 +8,7 @@ export const issuesOptions = (filters?: { cluster_id?: string; severity?: string
   if (filters?.cluster_id) params.set("cluster_id", filters.cluster_id);
   if (filters?.severity) params.set("severity", filters.severity);
   if (filters?.status && filters.status !== "all") params.set("status", filters.status);
-  params.set("limit", "100");
+  params.set("limit", "500");
 
   return queryOptions({
     queryKey: QUERY_KEYS.issues(filters),
