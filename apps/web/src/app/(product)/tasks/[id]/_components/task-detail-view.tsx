@@ -95,9 +95,16 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     qc.invalidateQueries({ queryKey: ["executions"] });
   };
 
-  // SSE: real-time updates for this work item
   useSSE("/api/v1/streams/events", {
-    onEvent: { update: () => invalidateAll() },
+    onEvent: {
+      update: (data) => {
+        const parsed = typeof data === "string" ? JSON.parse(data) : data;
+        const id = parsed?.aggregate_id;
+        if (id === taskId || id === task?.issue_id) {
+          invalidateAll();
+        }
+      },
+    },
   });
 
   const release = useMutation({
