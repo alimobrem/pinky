@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { alertsOptions } from "../queries";
 import { SearchFilterBar } from "@/components/shared/search-filter-bar";
@@ -25,7 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Bell } from "lucide-react";
+import { Bell, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { Observation } from "@pinky/contracts";
 
 export function SignalsTab() {
@@ -33,25 +34,41 @@ export function SignalsTab() {
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [allSignals, setAllSignals] = useState<Observation[]>([]);
+  const [cursor, setCursor] = useState<string | undefined>();
 
-  const { data, isLoading } = useQuery(
+  const { data, isLoading, isFetching } = useQuery(
     alertsOptions({
       cluster_id: clusterId ?? undefined,
       severity: severityFilter !== "all" ? severityFilter : undefined,
+      cursor,
     }),
   );
 
+  useEffect(() => {
+    if (data?.items) {
+      if (!cursor) {
+        setAllSignals(data.items);
+      } else {
+        setAllSignals((prev) => {
+          const existingIds = new Set(prev.map((o) => o.id));
+          const newItems = data.items.filter((o) => !existingIds.has(o.id));
+          return [...prev, ...newItems];
+        });
+      }
+    }
+  }, [data, cursor]);
+
   const filtered = useMemo(() => {
-    const items = data?.items ?? [];
-    if (!search) return items;
+    if (!search) return allSignals;
     const q = search.toLowerCase();
-    return items.filter(
+    return allSignals.filter(
       (o) =>
         o.scanner.toLowerCase().includes(q) ||
         o.check_id?.toLowerCase().includes(q) ||
         o.resource_name?.toLowerCase().includes(q),
     );
-  }, [data, search]);
+  }, [allSignals, search]);
 
   const toggleExpanded = (id: string) => {
     setExpanded((prev) => {
@@ -123,6 +140,30 @@ export function SignalsTab() {
               })}
             </TableBody>
           </Table>
+          {(data?.has_more || data?.total_count != null) && (
+            <div className="flex items-center justify-between pt-3 px-1">
+              {data?.total_count != null && (
+                <span className="text-caption text-text-tertiary">
+                  Showing {allSignals.length} of {data.total_count}
+                </span>
+              )}
+              {data?.has_more && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCursor(data.next_cursor ?? undefined)}
+                  disabled={isFetching && !!cursor}
+                  className="ml-auto text-caption"
+                >
+                  {isFetching && !!cursor ? (
+                    <><Loader2 size={12} className="mr-1 animate-spin" />Loading...</>
+                  ) : (
+                    "Load more"
+                  )}
+                </Button>
+              )}
+            </div>
+          )}
         </FadeIn>
       )}
     </div>

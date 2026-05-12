@@ -9,6 +9,7 @@ export interface WorkItem {
   id: string;
   issue_id: string | null;
   cluster_id: string;
+  cluster_display_name?: string;
   title: string;
   why_now: string | null;
   recommended_next_step: string | null;

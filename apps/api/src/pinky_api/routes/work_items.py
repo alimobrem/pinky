@@ -21,6 +21,7 @@ from pinky_api.db.deps import get_db
 from pinky_api.events import emit
 from pinky_api.repositories.bindings import BindingRepository
 from pinky_api.repositories.work_items import WorkItemRepository
+from pinky_api.routes._helpers import resolve_cluster_names
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +85,10 @@ async def list_work_items(
         cluster_id=cluster_id, cluster_ids=None if cluster_id else allowed_clusters, status=status, owner_id=owner,
         priority=priority, limit=limit, cursor=cursor,
     )
+    items = [_serialize(i) for i in result["items"]]
+    await resolve_cluster_names(items, db)
     return {
-        "items": [_serialize(i) for i in result["items"]],
+        "items": items,
         "next_cursor": result["next_cursor"],
         "has_more": result["has_more"],
         "total_count": result.get("total_count", len(result["items"])),
@@ -127,7 +130,9 @@ async def get_work_item(
     if item is None:
         raise HTTPException(status_code=404, detail="Work item not found")
     await require_cluster_read_access(item.cluster_id, principal, db, require_binding=True)
-    return _serialize(item)
+    serialized = _serialize(item)
+    await resolve_cluster_names([serialized], db)
+    return serialized
 
 
 @router.post("/{work_item_id}/start")

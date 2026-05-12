@@ -24,6 +24,7 @@ export interface Execution {
   id: string;
   work_item_id: string | null;
   cluster_id: string;
+  cluster_display_name?: string;
   execution_type: string;
   status: ExecutionStatus;
   started_at: string | null;

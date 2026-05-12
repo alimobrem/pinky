@@ -10,6 +10,7 @@ from pinky_api.auth.deps import principal_uuid, require_authenticated, require_c
 from pinky_api.db.deps import get_db
 from pinky_api.repositories.bindings import BindingRepository
 from pinky_api.repositories.observations import ObservationRepository
+from pinky_api.routes._helpers import resolve_cluster_names
 
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
@@ -51,8 +52,10 @@ async def list_alerts(
         limit=limit,
         cursor=cursor,
     )
+    items = [_serialize(o) for o in result["items"]]
+    await resolve_cluster_names(items, db)
     return {
-        "items": [_serialize(o) for o in result["items"]],
+        "items": items,
         "next_cursor": result["next_cursor"],
         "has_more": result["has_more"],
         "total_count": result.get("total_count", len(result["items"])),

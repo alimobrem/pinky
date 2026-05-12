@@ -27,7 +27,7 @@ import {
   timelineOptions,
   executionsOptions,
 } from "../queries";
-import { useSSE } from "@/hooks/use-sse";
+import { useEventBus } from "@/hooks/use-event-bus";
 import { MarkdownContent } from "@/components/shared/markdown-content";
 import { RemediationPlan } from "./remediation-plan";
 import { BrainChat } from "./brain-chat";
@@ -95,16 +95,12 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     qc.invalidateQueries({ queryKey: ["executions"] });
   };
 
-  useSSE("/api/v1/streams/events", {
-    onEvent: {
-      update: (data) => {
-        const parsed = typeof data === "string" ? JSON.parse(data) : data;
-        const id = parsed?.aggregate_id;
-        if (id === taskId || id === task?.issue_id) {
-          invalidateAll();
-        }
-      },
-    },
+  useEventBus("task-detail", (data) => {
+    const parsed = typeof data === "string" ? JSON.parse(data) : data;
+    const id = parsed?.aggregate_id;
+    if (id === taskId || id === task?.issue_id) {
+      invalidateAll();
+    }
   });
 
   const release = useMutation({

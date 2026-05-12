@@ -30,31 +30,31 @@ import { StatusDot } from "@/components/shared/status-indicator";
 import { PriorityBadge } from "@/components/shared/priority-badge";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { FadeIn } from "@/components/motion/fade-in";
-import { useSSE } from "@/hooks/use-sse";
+import { useEventBus } from "@/hooks/use-event-bus";
 import { QUERY_KEYS } from "@/lib/constants";
 
 export function DashboardView() {
   const qc = useQueryClient();
 
-  useSSE("/api/v1/streams/events", {
-    onEvent: {
-      update: () => {
-        qc.invalidateQueries({ queryKey: ["tasks"] });
-        qc.invalidateQueries({ queryKey: ["issues"] });
-      },
-    },
+  useEventBus("dashboard", () => {
+    qc.invalidateQueries({ queryKey: ["tasks"] });
+    qc.invalidateQueries({ queryKey: ["issues"] });
   });
 
-  const { data: tasks } = useQuery(dashboardTasksOptions());
-  const { data: issues } = useQuery(dashboardIssuesOptions());
-  const { data: history } = useQuery(dashboardHistoryOptions());
-  const { data: clusters } = useQuery(clustersOptions());
-  const { data: summary } = useQuery({
+  const { data: tasks, isLoading: tasksLoading, error: tasksError } = useQuery(dashboardTasksOptions());
+  const { data: issues, isLoading: issuesLoading, error: issuesError } = useQuery(dashboardIssuesOptions());
+  const { data: history, isLoading: historyLoading, error: historyError } = useQuery(dashboardHistoryOptions());
+  const { data: clusters, isLoading: clustersLoading, error: clustersError } = useQuery(clustersOptions());
+  const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: QUERY_KEYS.watchSummary("24h"),
     queryFn: () => api.get<WatchSummary>("/api/v1/analytics/watch-summary?since=24h"),
     staleTime: 30_000,
   });
+
+  const isLoading = tasksLoading || issuesLoading || historyLoading || clustersLoading || summaryLoading;
+  const hasError = tasksError || issuesError || historyError || clustersError;
 
   const items = tasks?.items ?? [];
   const readyCount = items.filter((t) => t.status === "ready").length;
@@ -79,7 +79,33 @@ export function DashboardView() {
         </p>
       </div>
 
+      {hasError && (
+        <Card className="border-status-blocked/30 bg-status-blocked/5">
+          <CardContent className="flex items-center gap-3 p-4">
+            <AlertTriangle size={18} className="text-status-blocked" />
+            <span className="text-body-sm text-text-primary">
+              Some data may be stale — API connection issues detected
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stat cards */}
+      {isLoading ? (
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="flex items-center gap-3 p-4">
+                <Skeleton className="h-10 w-10 rounded-lg" />
+                <div className="space-y-2">
+                  <Skeleton className="h-5 w-12" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
       <FadeIn>
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           <StatCard label="Ready" value={readyCount} icon={ListTodo} color="text-status-ready" href="/tasks?status=ready" />
@@ -88,6 +114,7 @@ export function DashboardView() {
           <StatCard label="Approval" value={approvalCount} icon={ShieldAlert} color="text-status-approval" href="/tasks?status=waiting_for_approval" />
         </div>
       </FadeIn>
+      )}
 
       {/* Main grid */}
       <FadeIn delay={0.05}>

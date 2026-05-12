@@ -20,6 +20,7 @@ from pinky_api.events import emit
 from pinky_api.models.work_item import WorkItem
 from pinky_api.repositories.bindings import BindingRepository
 from pinky_api.repositories.executions import ExecutionRepository
+from pinky_api.routes._helpers import resolve_cluster_names
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +76,10 @@ async def list_executions(
     items = result["items"]
     if not cluster_id:
         items = [e for e in items if e.cluster_id in allowed_clusters]
+    serialized = [_serialize(e) for e in items]
+    await resolve_cluster_names(serialized, db)
     return {
-        "items": [_serialize(e) for e in items],
+        "items": serialized,
         "next_cursor": result["next_cursor"],
         "has_more": result["has_more"],
         "total_count": result.get("total_count", len(items)),
@@ -92,7 +95,9 @@ async def get_execution(
     if ex is None:
         raise HTTPException(status_code=404, detail="Execution not found")
     await require_cluster_read_access(ex.cluster_id, principal, db, require_binding=True)
-    return _serialize(ex)
+    serialized = _serialize(ex)
+    await resolve_cluster_names([serialized], db)
+    return serialized
 
 
 @router.post("")

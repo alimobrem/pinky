@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, type ReactNode } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Issue, Execution, PaginatedResponse, WatchSummary } from "@pinky/contracts";
 import { formatDistanceToNow } from "date-fns";
@@ -64,7 +64,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SignalsTab } from "./signals-tab";
 import { useCluster } from "@/hooks/use-cluster";
-import { useSSE } from "@/hooks/use-sse";
+import { useEventBus } from "@/hooks/use-event-bus";
 import Link from "next/link";
 import {
   Activity,
@@ -388,7 +388,7 @@ function IssueRow({
         <div className="flex flex-wrap items-center gap-2">
           <PriorityBadge priority={issue.severity} />
           <StatusIndicator status={issue.status} />
-          <ClusterBadge name={issue.cluster_id} />
+          <ClusterBadge name={issue.cluster_display_name ?? issue.cluster_id} />
           {issue.labels?.scanner && (
             <Badge variant="outline" className="text-xs font-mono">
               {issue.labels.scanner}
@@ -568,7 +568,7 @@ function ExecutionRow({
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <StatusIndicator status={execution.status} />
-          <ClusterBadge name={execution.cluster_id} />
+          <ClusterBadge name={execution.cluster_display_name ?? execution.cluster_id} />
           <span className="text-xs text-text-tertiary">
             {formatDistanceToNow(new Date(execution.created_at), {
               addSuffix: false,
@@ -706,6 +706,8 @@ export function WatchView() {
   const [severityFilter, setSeverityFilter] = useState("all");
   const [timeWindow, setTimeWindow] = useState("1h");
   const [namespaceFilter, setNamespaceFilter] = useState("");
+  const [allIssues, setAllIssues] = useState<Issue[]>([]);
+  const [issuesCursor, setIssuesCursor] = useState<string | undefined>();
 
   // -- Watch summary --
   const { data: summary } = useQuery({
@@ -717,12 +719,27 @@ export function WatchView() {
     staleTime: 30_000,
   });
 
-  const { data: issues, isLoading: issuesLoading } = useQuery(
+  const { data: issues, isLoading: issuesLoading, isFetching: issuesFetching } = useQuery(
     issuesOptions({
       cluster_id: clusterId ?? undefined,
       severity: severityFilter !== "all" ? severityFilter : undefined,
+      cursor: issuesCursor,
     }),
   );
+
+  useEffect(() => {
+    if (issues?.items) {
+      if (!issuesCursor) {
+        setAllIssues(issues.items);
+      } else {
+        setAllIssues((prev) => {
+          const existingIds = new Set(prev.map((i) => i.id));
+          const newItems = issues.items.filter((i) => !existingIds.has(i.id));
+          return [...prev, ...newItems];
+        });
+      }
+    }
+  }, [issues, issuesCursor]);
 
   const { data: executions, isLoading: executionsLoading } = useQuery({
     queryKey: QUERY_KEYS.executions({ status: "pending,running,waiting_for_approval" }),
@@ -733,15 +750,13 @@ export function WatchView() {
     staleTime: 15_000,
   });
 
-  const { state, lastUpdated } = useSSE("/api/v1/streams/events", {
-    onEvent: {
-      update: () => {
-        qc.invalidateQueries({ queryKey: ["issues"] });
-        qc.invalidateQueries({ queryKey: ["executions"] });
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.watchSummary() });
-        qc.invalidateQueries({ queryKey: ["alerts"] });
-      },
-    },
+  const { state, lastUpdated } = useEventBus("watch", () => {
+    setIssuesCursor(undefined);
+    setAllIssues([]);
+    qc.invalidateQueries({ queryKey: ["issues"] });
+    qc.invalidateQueries({ queryKey: ["executions"] });
+    qc.invalidateQueries({ queryKey: QUERY_KEYS.watchSummary() });
+    qc.invalidateQueries({ queryKey: ["alerts"] });
   });
 
   // -- Mutations --
@@ -821,7 +836,7 @@ export function WatchView() {
 
   // Categorize data
   const categories = useMemo(() => {
-    let filteredIssues = issues?.items ?? [];
+    let filteredIssues = allIssues;
     if (namespaceFilter) {
       const ns = namespaceFilter.toLowerCase();
       filteredIssues = filteredIssues.filter((i) => {
@@ -830,7 +845,7 @@ export function WatchView() {
       });
     }
     return categorize(filteredIssues, executions?.items ?? []);
-  }, [issues, executions, namespaceFilter]);
+  }, [allIssues, executions, namespaceFilter]);
 
   // Apply search filter across all issue categories
   const applySearch = (items: Issue[]): Issue[] => {
@@ -876,7 +891,7 @@ export function WatchView() {
         <TabsList className="border-b border-border-default bg-transparent">
           <TabsTrigger value="issues" className="gap-1.5">
             <Eye size={14} />
-            Issues ({issues?.items?.length ?? 0})
+            Issues ({allIssues.length})
           </TabsTrigger>
           <TabsTrigger value="signals" className="gap-1.5">
             <Bell size={14} />
@@ -1031,10 +1046,29 @@ export function WatchView() {
                   );
                 })}
               </div>
-              {(issues?.items?.length ?? 0) >= 500 && (
-                <p className="text-center text-caption text-text-tertiary pt-2">
-                  Showing first 500 issues. Use filters to narrow results.
-                </p>
+              {(issues?.has_more || issues?.total_count != null) && (
+                <div className="flex items-center justify-between pt-3 px-1">
+                  {issues?.total_count != null && (
+                    <span className="text-caption text-text-tertiary">
+                      Showing {allIssues.length} of {issues.total_count}
+                    </span>
+                  )}
+                  {issues?.has_more && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIssuesCursor(issues.next_cursor ?? undefined)}
+                      disabled={issuesFetching && !!issuesCursor}
+                      className="ml-auto text-caption"
+                    >
+                      {issuesFetching && !!issuesCursor ? (
+                        <><Loader2 size={12} className="mr-1 animate-spin" />Loading...</>
+                      ) : (
+                        "Load more"
+                      )}
+                    </Button>
+                  )}
+                </div>
               )}
             </FadeIn>
           )}

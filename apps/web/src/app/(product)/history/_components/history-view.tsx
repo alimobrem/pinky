@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { historyOptions } from "../queries";
-import { clustersOptions } from "../../dashboard/queries";
 import { useCluster } from "@/hooks/use-cluster";
-import { useSSE } from "@/hooks/use-sse";
-import { QUERY_KEYS } from "@/lib/constants";
+import { useEventBus } from "@/hooks/use-event-bus";
 import { SearchFilterBar } from "@/components/shared/search-filter-bar";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -32,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Clock, ChevronRight, Download } from "lucide-react";
+import { Clock, ChevronRight, Download, Loader2 } from "lucide-react";
 import type { HistoryEvent } from "@pinky/contracts";
 import type { WorkItemStatus } from "@pinky/contracts";
 
@@ -125,6 +123,8 @@ export function HistoryView() {
   const [eventType, setEventType] = useState<string>("");
   const [timeWindow, setTimeWindow] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [allItems, setAllItems] = useState<HistoryEvent[]>([]);
+  const [cursor, setCursor] = useState<string | undefined>();
 
   const since = useMemo(() => {
     if (!timeWindow) return undefined;
@@ -144,31 +144,32 @@ export function HistoryView() {
       cluster_id: clusterId ?? undefined,
       event_type: eventType || undefined,
       since,
+      cursor,
     }),
-    [clusterId, eventType, since],
+    [clusterId, eventType, since, cursor],
   );
 
-  const { data, isLoading, error } = useQuery(historyOptions(filters));
+  const { data, isLoading, isFetching, error } = useQuery(historyOptions(filters));
 
-  const { data: clustersData } = useQuery(clustersOptions());
-
-  const clusterMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const c of clustersData?.items ?? []) {
-      map.set(c.id, c.display_name);
+  useEffect(() => {
+    if (data?.items) {
+      if (!cursor) {
+        setAllItems(data.items);
+      } else {
+        setAllItems((prev) => {
+          const existingIds = new Set(prev.map((e) => e.id));
+          const newItems = data.items.filter((e) => !existingIds.has(e.id));
+          return [...prev, ...newItems];
+        });
+      }
     }
-    return map;
-  }, [clustersData]);
+  }, [data, cursor]);
 
-  useSSE("/api/v1/streams/events", {
-    onEvent: {
-      update: () => {
-        qc.invalidateQueries({ queryKey: ["history"] });
-      },
-    },
+  useEventBus("history", () => {
+    setCursor(undefined);
+    setAllItems([]);
+    qc.invalidateQueries({ queryKey: ["history"] });
   });
-
-  const allItems = data?.items ?? [];
 
   const filtered = useMemo(() => {
     if (!search) return allItems;
@@ -298,11 +299,7 @@ export function HistoryView() {
                     event={event}
                     isExpanded={isExpanded}
                     hasPayload={hasPayload}
-                    clusterName={
-                      event.cluster_id
-                        ? clusterMap.get(event.cluster_id) ?? "—"
-                        : "—"
-                    }
+                    clusterName={event.cluster_display_name ?? "—"}
                     onToggle={() => toggleExpand(event.id)}
                   />
                 );
@@ -310,10 +307,29 @@ export function HistoryView() {
             </TableBody>
           </Table>
 
-          {data?.has_more && (
-            <p className="pt-4 text-center text-caption text-text-tertiary">
-              Showing first {allItems.length} of {data.total_count} events
-            </p>
+          {(data?.has_more || data?.total_count != null) && (
+            <div className="flex items-center justify-between pt-3 px-1">
+              {data?.total_count != null && (
+                <span className="text-caption text-text-tertiary">
+                  Showing {allItems.length} of {data.total_count} events
+                </span>
+              )}
+              {data?.has_more && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCursor(data.next_cursor ?? undefined)}
+                  disabled={isFetching && !!cursor}
+                  className="ml-auto text-caption"
+                >
+                  {isFetching && !!cursor ? (
+                    <><Loader2 size={12} className="mr-1 animate-spin" />Loading...</>
+                  ) : (
+                    "Load more"
+                  )}
+                </Button>
+              )}
+            </div>
           )}
         </FadeIn>
       )}

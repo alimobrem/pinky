@@ -41,7 +41,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { useSSE } from "@/hooks/use-sse";
+import { useEventBus } from "@/hooks/use-event-bus";
 import { QUERY_KEYS } from "@/lib/constants";
 import { ApiError, ClusterBindingError } from "@/lib/api";
 import {
@@ -61,16 +61,12 @@ export function ClusterDetailView({
   const router = useRouter();
   const qc = useQueryClient();
 
-  useSSE("/api/v1/streams/events", {
-    onEvent: {
-      update: () => {
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.cluster(id) });
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.clusterNodes(id) });
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.clusterNamespaces(id) });
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.clusterEvents(id) });
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.issues({ cluster_id: id }) });
-      },
-    },
+  useEventBus("cluster-detail", () => {
+    qc.invalidateQueries({ queryKey: QUERY_KEYS.cluster(id) });
+    qc.invalidateQueries({ queryKey: QUERY_KEYS.clusterNodes(id) });
+    qc.invalidateQueries({ queryKey: QUERY_KEYS.clusterNamespaces(id) });
+    qc.invalidateQueries({ queryKey: QUERY_KEYS.clusterEvents(id) });
+    qc.invalidateQueries({ queryKey: QUERY_KEYS.issues({ cluster_id: id }) });
   });
 
   const {

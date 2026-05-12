@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.db.deps import get_db
 from pinky_api.models.execution import Execution
+from pinky_api.models.fleet import ClusterRegistry
 from pinky_api.models.issue import Issue
 from pinky_api.models.principal import Principal
 from pinky_api.models.work_item import WorkItem
@@ -134,9 +135,26 @@ async def _enrich_events(items: list[dict], db: AsyncSession) -> None:
             if row[1] is not None:
                 actor_map[row[0]] = row[1]
 
+    # Batch resolve cluster names
+    cluster_ids = [uuid.UUID(item["cluster_id"]) for item in items if item.get("cluster_id")]
+    cluster_name_map: dict[uuid.UUID, str] = {}
+    if cluster_ids:
+        rows = (await db.execute(
+            select(ClusterRegistry.id, ClusterRegistry.display_name).where(
+                ClusterRegistry.id.in_(cluster_ids)
+            )
+        )).all()
+        for row in rows:
+            cluster_name_map[row[0]] = row[1]
+
     # Enrich each item
     for item in items:
         agg_id = uuid.UUID(item["aggregate_id"])
+        item["cluster_display_name"] = (
+            cluster_name_map.get(uuid.UUID(item["cluster_id"]))
+            if item.get("cluster_id")
+            else None
+        )
         item["aggregate_title"] = title_map.get(agg_id)
         item["principal_display_name"] = (
             actor_map.get(uuid.UUID(item["principal_id"]))

@@ -7,11 +7,13 @@ export const historyOptions = (filters?: {
   cluster_id?: string;
   event_type?: string;
   since?: string;
+  cursor?: string;
 }) => {
   const params = new URLSearchParams();
   if (filters?.cluster_id) params.set("cluster_id", filters.cluster_id);
   if (filters?.event_type) params.set("event_type", filters.event_type);
   if (filters?.since) params.set("since", filters.since);
+  if (filters?.cursor) params.set("cursor", filters.cursor);
   params.set("limit", "100");
 
   return queryOptions({

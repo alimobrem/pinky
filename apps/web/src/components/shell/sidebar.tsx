@@ -8,7 +8,7 @@ import type { PaginatedResponse } from "@pinky/contracts";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
-import { useSSE } from "@/hooks/use-sse";
+import { useEventBus } from "@/hooks/use-event-bus";
 import { NAV_ITEMS } from "@/components/shell/nav-config";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -16,13 +16,9 @@ export function Sidebar() {
   const pathname = usePathname();
   const qc = useQueryClient();
 
-  useSSE("/api/v1/streams/events", {
-    onEvent: {
-      update: () => {
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks({ status: "ready" }) });
-        qc.invalidateQueries({ queryKey: QUERY_KEYS.issues({ status: "open" }) });
-      },
-    },
+  useEventBus("sidebar", () => {
+    qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks({ status: "ready" }) });
+    qc.invalidateQueries({ queryKey: QUERY_KEYS.issues({ status: "open" }) });
   });
 
   const { data: taskData } = useQuery({

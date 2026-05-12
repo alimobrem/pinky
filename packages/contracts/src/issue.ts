@@ -3,6 +3,7 @@ export type IssueStatus = "open" | "investigating" | "resolved" | "suppressed";
 export interface Issue {
   id: string;
   cluster_id: string;
+  cluster_display_name?: string;
   correlation_key: string;
   title: string;
   severity: string;

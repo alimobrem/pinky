@@ -4,6 +4,7 @@ export interface HistoryEvent {
   aggregate_id: string;
   event_type: string;
   cluster_id: string | null;
+  cluster_display_name?: string;
   principal_id: string | null;
   payload: Record<string, unknown>;
   occurred_at: string;

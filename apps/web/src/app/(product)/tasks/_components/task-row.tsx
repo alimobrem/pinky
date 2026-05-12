@@ -17,7 +17,7 @@ interface TaskRowProps {
   clusterName?: string;
 }
 
-export function taskColumns(clusterMap: Record<string, string>): Column<WorkItem>[] {
+export function taskColumns(): Column<WorkItem>[] {
   return [
     {
       id: "title",
@@ -28,8 +28,8 @@ export function taskColumns(clusterMap: Record<string, string>): Column<WorkItem
             {task.title}
           </p>
           <div className="mt-0.5 flex items-center gap-2 truncate font-mono text-caption text-text-tertiary">
-            {clusterMap[task.cluster_id] && (
-              <span>{clusterMap[task.cluster_id]}</span>
+            {task.cluster_display_name && (
+              <span>{task.cluster_display_name}</span>
             )}
             {task.owner_display_name && (
               <span className="truncate">{task.owner_display_name}</span>

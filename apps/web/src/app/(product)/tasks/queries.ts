@@ -15,13 +15,14 @@ export interface TaskFilters {
   owner?: string;
 }
 
-export const tasksOptions = (filters?: TaskFilters) => {
+export const tasksOptions = (filters?: TaskFilters & { cursor?: string }) => {
   const params = new URLSearchParams();
   if (filters?.status && filters.status !== "all") params.set("status", filters.status);
   if (filters?.cluster_id) params.set("cluster_id", filters.cluster_id);
   if (filters?.priority) params.set("priority", filters.priority);
   if (filters?.owner) params.set("owner", filters.owner);
-  params.set("limit", "100");
+  if (filters?.cursor) params.set("cursor", filters.cursor);
+  params.set("limit", "50");
   const qs = params.toString();
 
   return queryOptions({

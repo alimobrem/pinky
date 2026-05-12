@@ -1,6 +1,7 @@
 export interface Observation {
   id: string;
   cluster_id: string;
+  cluster_display_name?: string;
   scanner: string;
   scanner_version: string | null;
   fingerprint: string;

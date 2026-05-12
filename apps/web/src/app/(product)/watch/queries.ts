@@ -3,12 +3,13 @@ import type { Issue, Observation, PaginatedResponse } from "@pinky/contracts";
 import { api } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 
-export const issuesOptions = (filters?: { cluster_id?: string; severity?: string; status?: string }) => {
+export const issuesOptions = (filters?: { cluster_id?: string; severity?: string; status?: string; cursor?: string }) => {
   const params = new URLSearchParams();
   if (filters?.cluster_id) params.set("cluster_id", filters.cluster_id);
   if (filters?.severity) params.set("severity", filters.severity);
   if (filters?.status && filters.status !== "all") params.set("status", filters.status);
-  params.set("limit", "500");
+  if (filters?.cursor) params.set("cursor", filters.cursor);
+  params.set("limit", "100");
 
   return queryOptions({
     queryKey: QUERY_KEYS.issues(filters),
@@ -17,10 +18,11 @@ export const issuesOptions = (filters?: { cluster_id?: string; severity?: string
   });
 };
 
-export const alertsOptions = (filters?: { cluster_id?: string; severity?: string }) => {
+export const alertsOptions = (filters?: { cluster_id?: string; severity?: string; cursor?: string }) => {
   const params = new URLSearchParams();
   if (filters?.cluster_id) params.set("cluster_id", filters.cluster_id);
   if (filters?.severity) params.set("severity", filters.severity);
+  if (filters?.cursor) params.set("cursor", filters.cursor);
   params.set("limit", "100");
 
   return queryOptions({

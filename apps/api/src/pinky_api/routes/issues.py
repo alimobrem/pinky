@@ -18,6 +18,7 @@ from pinky_api.db.deps import get_db
 from pinky_api.events import emit
 from pinky_api.repositories.bindings import BindingRepository
 from pinky_api.repositories.issues import IssueRepository
+from pinky_api.routes._helpers import resolve_cluster_names
 
 
 class SuppressRequest(BaseModel):
@@ -70,8 +71,10 @@ async def list_issues(
         limit=limit,
         cursor=cursor,
     )
+    items = [_serialize(i) for i in result["items"]]
+    await resolve_cluster_names(items, db)
     return {
-        "items": [_serialize(i) for i in result["items"]],
+        "items": items,
         "next_cursor": result["next_cursor"],
         "has_more": result["has_more"],
         "total_count": result.get("total_count", len(result["items"])),
@@ -87,7 +90,9 @@ async def get_issue(
     if issue is None:
         raise HTTPException(status_code=404, detail="Issue not found")
     await require_cluster_read_access(issue.cluster_id, principal, db, require_binding=True)
-    return _serialize(issue)
+    serialized = _serialize(issue)
+    await resolve_cluster_names([serialized], db)
+    return serialized
 
 
 @router.post("/{issue_id}/suppress")

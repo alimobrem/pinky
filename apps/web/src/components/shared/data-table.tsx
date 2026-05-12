@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode, type MouseEvent as ReactMouseEvent } from "react";
 import { cn } from "@/lib/utils";
-import { ArrowUp, ArrowDown, GripVertical } from "lucide-react";
+import { ArrowUp, ArrowDown, GripVertical, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -39,6 +40,10 @@ interface DataTableProps<T> {
   className?: string;
   rowClassName?: (row: T) => string;
   stickyHeader?: boolean;
+  hasMore?: boolean;
+  totalCount?: number;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
 }
 
 export function DataTable<T>({
@@ -54,6 +59,10 @@ export function DataTable<T>({
   className,
   rowClassName,
   stickyHeader = false,
+  hasMore,
+  totalCount,
+  onLoadMore,
+  isLoadingMore,
 }: DataTableProps<T>) {
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
@@ -236,6 +245,30 @@ export function DataTable<T>({
           })}
         </TableBody>
       </Table>
+      {(totalCount != null || hasMore) && (
+        <div className="flex items-center justify-between border-t border-border-default px-4 py-2">
+          {totalCount != null && (
+            <span className="text-caption text-text-tertiary">
+              Showing {sortedData.length} of {totalCount}
+            </span>
+          )}
+          {hasMore && onLoadMore && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onLoadMore}
+              disabled={isLoadingMore}
+              className="ml-auto text-caption"
+            >
+              {isLoadingMore ? (
+                <><Loader2 size={12} className="mr-1 animate-spin" />Loading...</>
+              ) : (
+                "Load more"
+              )}
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

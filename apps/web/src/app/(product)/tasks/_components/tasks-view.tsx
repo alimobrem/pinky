@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { WorkItem } from "@pinky/contracts";
 import { cn } from "@/lib/utils";
-import { tasksOptions, clustersOptions } from "../queries";
+import { tasksOptions } from "../queries";
 import { taskColumns, TaskRowCard } from "./task-row";
 import { TaskPreview } from "./task-preview";
 import { DataTable } from "@/components/shared/data-table";
@@ -15,8 +15,7 @@ import { SkeletonRow } from "@/components/shared/skeleton-row";
 import { PageHeader } from "@/components/shared/page-header";
 import { useCluster } from "@/hooks/use-cluster";
 import { useIsDesktop } from "@/hooks/use-media-query";
-import { useSSE } from "@/hooks/use-sse";
-import { QUERY_KEYS } from "@/lib/constants";
+import { useEventBus } from "@/hooks/use-event-bus";
 import { FadeIn } from "@/components/motion/fade-in";
 import {
   Select,
@@ -46,31 +45,39 @@ export function TasksView() {
   const qc = useQueryClient();
   const { user } = useCurrentUser();
 
-  useSSE("/api/v1/streams/events", {
-    onEvent: {
-      update: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
-    },
-  });
-
   const [activeTab, setActiveTab] = useState(searchParams.get("status") ?? "all");
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [allItems, setAllItems] = useState<WorkItem[]>([]);
+  const [cursor, setCursor] = useState<string | undefined>();
 
-  const allTasksQuery = tasksOptions({ cluster_id: clusterId ?? undefined });
-  const { data: tasks, isLoading } = useQuery(allTasksQuery);
-  const { data: clusters } = useQuery(clustersOptions());
+  useEventBus("tasks", () => {
+    setCursor(undefined);
+    setAllItems([]);
+    qc.invalidateQueries({ queryKey: ["tasks"] });
+  });
 
-  const clusterMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const c of clusters?.items ?? []) {
-      map[c.id] = c.display_name;
+  const { data: tasks, isLoading, isFetching } = useQuery(
+    tasksOptions({ cluster_id: clusterId ?? undefined, cursor }),
+  );
+
+  useEffect(() => {
+    if (tasks?.items) {
+      if (!cursor) {
+        setAllItems(tasks.items);
+      } else {
+        setAllItems((prev) => {
+          const existingIds = new Set(prev.map((t) => t.id));
+          const newItems = tasks.items.filter((t) => !existingIds.has(t.id));
+          return [...prev, ...newItems];
+        });
+      }
     }
-    return map;
-  }, [clusters]);
+  }, [tasks, cursor]);
 
   const filteredItems = useMemo(() => {
-    let items = tasks?.items ?? [];
+    let items = allItems;
 
     if (activeTab === "mine") {
       items = items.filter((t) => user && t.owner_id === user.id);
@@ -94,21 +101,20 @@ export function TasksView() {
     }
 
     return items;
-  }, [tasks, activeTab, priorityFilter, search, user]);
+  }, [allItems, activeTab, priorityFilter, search, user]);
 
   const tabCounts = useMemo(() => {
-    const items = tasks?.items ?? [];
     return {
-      all: items.length,
-      mine: user ? items.filter((t) => t.owner_id === user.id).length : 0,
-      ready: items.filter((t) => t.status === "ready").length,
-      active: items.filter((t) => t.status === "in_progress").length,
-      blocked: items.filter((t) => t.status === "blocked").length,
-      waiting_for_approval: items.filter(
+      all: allItems.length,
+      mine: user ? allItems.filter((t) => t.owner_id === user.id).length : 0,
+      ready: allItems.filter((t) => t.status === "ready").length,
+      active: allItems.filter((t) => t.status === "in_progress").length,
+      blocked: allItems.filter((t) => t.status === "blocked").length,
+      waiting_for_approval: allItems.filter(
         (t) => t.status === "waiting_for_approval",
       ).length,
     };
-  }, [tasks, user]);
+  }, [allItems, user]);
 
   const focusedTask = useMemo(
     () => filteredItems.find((t) => t.id === focusedId) ?? null,
@@ -122,7 +128,7 @@ export function TasksView() {
     [router],
   );
 
-  const columns = useMemo(() => taskColumns(clusterMap), [clusterMap]);
+  const columns = useMemo(() => taskColumns(), []);
 
   return (
     <div className="space-y-4">
@@ -201,6 +207,10 @@ export function TasksView() {
                   focusedKey={focusedId}
                   onFocusChange={setFocusedId}
                   stickyHeader
+                  hasMore={tasks?.has_more}
+                  totalCount={tasks?.total_count}
+                  onLoadMore={() => setCursor(tasks?.next_cursor ?? undefined)}
+                  isLoadingMore={isFetching && !!cursor}
                   emptyState={
                     <EmptyState
                       icon={ListTodo}
@@ -226,7 +236,7 @@ export function TasksView() {
                       >
                         <TaskRowCard
                           task={task}
-                          clusterName={clusterMap[task.cluster_id]}
+                          clusterName={task.cluster_display_name}
                         />
                       </div>
                     ))
@@ -238,9 +248,7 @@ export function TasksView() {
               <div className="w-[300px] shrink-0">
                 <TaskPreview
                   task={focusedTask}
-                  clusterName={
-                    focusedTask ? clusterMap[focusedTask.cluster_id] : undefined
-                  }
+                  clusterName={focusedTask?.cluster_display_name}
                 />
               </div>
             )}
