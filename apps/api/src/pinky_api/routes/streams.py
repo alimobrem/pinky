@@ -7,11 +7,10 @@ stateless resume (refetch from API on reconnect).
 """
 
 import asyncio
-from collections.abc import Callable
 import contextlib
 import json
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime
 
 import asyncpg
