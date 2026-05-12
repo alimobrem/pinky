@@ -306,10 +306,10 @@ async def _sweep_stale_issues(
                                '{"status": "resolved", "resolved_by": "staleness", "resolve_count": 1}', now())""",
                     uuid.uuid4(), issue_id, cluster_id,
                 )
-            await conn.execute(
-                "SELECT pg_notify('pinky_issues', $1)",
-                f'{{"event_type": "issue.auto_resolved", "aggregate_id": "{issue_id}"}}',
-            )
+                await conn.execute(
+                    "SELECT pg_notify('pinky_issues', $1)",
+                    f'{{"event_type": "issue.auto_resolved", "aggregate_id": "{issue_id}"}}',
+                )
 
         resolved_count += 1
         logger.info(
