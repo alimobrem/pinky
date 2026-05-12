@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -28,13 +29,42 @@ def _make_decision():
     return decision
 
 
+class _FakeConn:
+    def __init__(self, fetchrow_results):
+        self._fetchrow_results = list(fetchrow_results)
+        self._fetchrow_idx = 0
+        self.executed = []
+
+    async def fetchrow(self, query, *args):
+        if self._fetchrow_idx < len(self._fetchrow_results):
+            result = self._fetchrow_results[self._fetchrow_idx]
+            self._fetchrow_idx += 1
+            return result
+        return None
+
+    async def execute(self, query, *args):
+        self.executed.append((query, args))
+
+    @asynccontextmanager
+    async def transaction(self):
+        yield
+
+
 def _make_pool(cooldown_result=None, wi_result=None):
     """Create a fake pool with sequential fetchrow results.
     First call = cooldown check, second call = work_item lookup."""
-    fake_pool = AsyncMock()
-    fake_pool.fetchrow = AsyncMock(side_effect=[cooldown_result, wi_result])
-    fake_pool.execute = AsyncMock()
-    return fake_pool
+    conn = _FakeConn([cooldown_result, wi_result])
+
+    class FakePool:
+        def __init__(self):
+            self.conn = conn
+            self.execute = AsyncMock()
+
+        @asynccontextmanager
+        async def acquire(self):
+            yield self.conn
+
+    return FakePool()
 
 
 @pytest.mark.asyncio
@@ -80,8 +110,8 @@ async def test_dispatch_creates_execution_record():
         )
 
     insert_calls = [
-        call for call in fake_pool.execute.call_args_list
-        if "INSERT INTO executions" in str(call)
+        (q, a) for q, a in fake_pool.conn.executed
+        if "INSERT INTO executions" in q
     ]
     assert len(insert_calls) == 1
 
@@ -112,8 +142,8 @@ async def test_dispatch_marks_failed_on_unexpected_error():
         )
 
     failed_calls = [
-        call for call in fake_pool.execute.call_args_list
-        if "UPDATE executions SET status = 'failed'" in str(call)
+        (q, a) for q, a in fake_pool.execute.call_args_list
+        if "UPDATE executions SET status = 'failed'" in str(q)
     ]
     assert len(failed_calls) == 1
 
@@ -123,10 +153,9 @@ async def test_dispatch_skips_on_cooldown():
     from pinky_worker.observation.observer import _dispatch_investigation
 
     mock_client = AsyncMock()
-
-    fake_pool = AsyncMock()
-    fake_pool.fetchrow = AsyncMock(return_value={"id": uuid.uuid4(), "status": "completed"})
-    fake_pool.execute = AsyncMock()
+    fake_pool = _make_pool(
+        cooldown_result={"id": uuid.uuid4(), "status": "completed"},
+    )
 
     result = CorrelationResult(action="created", issue_id=str(uuid.uuid4()), observation_count=1)
 
@@ -143,10 +172,9 @@ async def test_dispatch_skips_on_recent_failure():
     from pinky_worker.observation.observer import _dispatch_investigation
 
     mock_client = AsyncMock()
-
-    fake_pool = AsyncMock()
-    fake_pool.fetchrow = AsyncMock(return_value={"id": uuid.uuid4(), "status": "failed"})
-    fake_pool.execute = AsyncMock()
+    fake_pool = _make_pool(
+        cooldown_result={"id": uuid.uuid4(), "status": "failed"},
+    )
 
     result = CorrelationResult(action="created", issue_id=str(uuid.uuid4()), observation_count=1)
 

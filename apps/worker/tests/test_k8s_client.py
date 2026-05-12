@@ -41,11 +41,12 @@ def _make_pod(
     containers: list | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
-        metadata=SimpleNamespace(name=name, namespace=namespace, creation_timestamp=None),
+        metadata=SimpleNamespace(name=name, namespace=namespace, creation_timestamp=None, labels=None, annotations=None, owner_references=None),
         status=SimpleNamespace(
             phase=phase,
             container_statuses=containers or [_make_container_status()],
         ),
+        spec=SimpleNamespace(node_name="test-node"),
     )
 
 
@@ -89,8 +90,9 @@ def test_pod_summary_basic() -> None:
 
 def test_pod_summary_no_status() -> None:
     pod = SimpleNamespace(
-        metadata=SimpleNamespace(name="broken", namespace="test", creation_timestamp=None),
+        metadata=SimpleNamespace(name="broken", namespace="test", creation_timestamp=None, labels=None, annotations=None, owner_references=None),
         status=None,
+        spec=SimpleNamespace(node_name=None),
     )
     summary = _pod_summary(pod)
     assert summary["phase"] == "Unknown"

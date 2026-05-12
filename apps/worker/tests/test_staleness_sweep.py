@@ -20,6 +20,13 @@ class FakeConn:
     async def execute(self, query, *args):
         self.executed.append((query, args))
 
+    async def fetchrow(self, query, *args):
+        return None
+
+    @asynccontextmanager
+    async def transaction(self):
+        yield
+
 
 class FakePool:
     def __init__(self, fetch_result=None):
