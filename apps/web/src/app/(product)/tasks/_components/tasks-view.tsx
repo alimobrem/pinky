@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { WorkItem } from "@pinky/contracts";
 import { cn } from "@/lib/utils";
 import { tasksOptions } from "../queries";
@@ -15,7 +15,7 @@ import { SkeletonRow } from "@/components/shared/skeleton-row";
 import { PageHeader } from "@/components/shared/page-header";
 import { useCluster } from "@/hooks/use-cluster";
 import { useIsDesktop } from "@/hooks/use-media-query";
-import { useEventBus } from "@/hooks/use-event-bus";
+import { usePaginatedData } from "@/hooks/use-paginated-data";
 import { FadeIn } from "@/components/motion/fade-in";
 import {
   Select,
@@ -42,39 +42,24 @@ export function TasksView() {
   const searchParams = useSearchParams();
   const clusterId = useCluster();
   const isDesktop = useIsDesktop();
-  const qc = useQueryClient();
   const { user } = useCurrentUser();
 
   const [activeTab, setActiveTab] = useState(searchParams.get("status") ?? "all");
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [focusedId, setFocusedId] = useState<string | null>(null);
-  const [allItems, setAllItems] = useState<WorkItem[]>([]);
   const [cursor, setCursor] = useState<string | undefined>();
-
-  useEventBus("tasks", () => {
-    setCursor(undefined);
-    setAllItems([]);
-    qc.invalidateQueries({ queryKey: ["tasks"] });
-  });
 
   const { data: tasks, isLoading, isFetching } = useQuery(
     tasksOptions({ cluster_id: clusterId ?? undefined, cursor }),
   );
 
-  useEffect(() => {
-    if (tasks?.items) {
-      if (!cursor) {
-        setAllItems(tasks.items);
-      } else {
-        setAllItems((prev) => {
-          const existingIds = new Set(prev.map((t) => t.id));
-          const newItems = tasks.items.filter((t) => !existingIds.has(t.id));
-          return [...prev, ...newItems];
-        });
-      }
-    }
-  }, [tasks, cursor]);
+  const { allItems, hasMore } = usePaginatedData(tasks, {
+    cursor,
+    onReset: () => setCursor(undefined),
+    eventBusId: "tasks",
+    invalidateKeys: [["tasks"]],
+  });
 
   const filteredItems = useMemo(() => {
     let items = allItems;
@@ -207,7 +192,7 @@ export function TasksView() {
                   focusedKey={focusedId}
                   onFocusChange={setFocusedId}
                   stickyHeader
-                  hasMore={tasks?.has_more}
+                  hasMore={hasMore}
                   totalCount={tasks?.total_count}
                   onLoadMore={() => setCursor(tasks?.next_cursor ?? undefined)}
                   isLoadingMore={isFetching && !!cursor}

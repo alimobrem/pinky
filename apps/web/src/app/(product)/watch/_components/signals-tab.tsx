@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { alertsOptions } from "../queries";
 import { SearchFilterBar } from "@/components/shared/search-filter-bar";
@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { SkeletonRow } from "@/components/shared/skeleton-row";
 import { FadeIn } from "@/components/motion/fade-in";
 import { useCluster } from "@/hooks/use-cluster";
+import { usePaginatedData } from "@/hooks/use-paginated-data";
 import {
   Table,
   TableBody,
@@ -34,7 +35,6 @@ export function SignalsTab() {
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [allSignals, setAllSignals] = useState<Observation[]>([]);
   const [cursor, setCursor] = useState<string | undefined>();
 
   const { data, isLoading, isFetching } = useQuery(
@@ -45,19 +45,10 @@ export function SignalsTab() {
     }),
   );
 
-  useEffect(() => {
-    if (data?.items) {
-      if (!cursor) {
-        setAllSignals(data.items);
-      } else {
-        setAllSignals((prev) => {
-          const existingIds = new Set(prev.map((o) => o.id));
-          const newItems = data.items.filter((o) => !existingIds.has(o.id));
-          return [...prev, ...newItems];
-        });
-      }
-    }
-  }, [data, cursor]);
+  const { allItems: allSignals } = usePaginatedData(data, {
+    cursor,
+    onReset: () => setCursor(undefined),
+  });
 
   const filtered = useMemo(() => {
     if (!search) return allSignals;

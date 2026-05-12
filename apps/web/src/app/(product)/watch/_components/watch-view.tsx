@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Issue, Execution, PaginatedResponse, WatchSummary } from "@pinky/contracts";
 import { formatDistanceToNow } from "date-fns";
@@ -64,7 +64,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SignalsTab } from "./signals-tab";
 import { useCluster } from "@/hooks/use-cluster";
-import { useEventBus } from "@/hooks/use-event-bus";
+import { usePaginatedData } from "@/hooks/use-paginated-data";
 import Link from "next/link";
 import {
   Activity,
@@ -706,7 +706,6 @@ export function WatchView() {
   const [severityFilter, setSeverityFilter] = useState("all");
   const [timeWindow, setTimeWindow] = useState("1h");
   const [namespaceFilter, setNamespaceFilter] = useState("");
-  const [allIssues, setAllIssues] = useState<Issue[]>([]);
   const [issuesCursor, setIssuesCursor] = useState<string | undefined>();
 
   // -- Watch summary --
@@ -727,19 +726,21 @@ export function WatchView() {
     }),
   );
 
-  useEffect(() => {
-    if (issues?.items) {
-      if (!issuesCursor) {
-        setAllIssues(issues.items);
-      } else {
-        setAllIssues((prev) => {
-          const existingIds = new Set(prev.map((i) => i.id));
-          const newItems = issues.items.filter((i) => !existingIds.has(i.id));
-          return [...prev, ...newItems];
-        });
-      }
-    }
-  }, [issues, issuesCursor]);
+  const {
+    allItems: allIssues,
+    sseState: state,
+    lastUpdated,
+  } = usePaginatedData(issues, {
+    cursor: issuesCursor,
+    onReset: () => setIssuesCursor(undefined),
+    eventBusId: "watch",
+    invalidateKeys: [
+      ["issues"],
+      ["executions"],
+      QUERY_KEYS.watchSummary(),
+      ["alerts"],
+    ],
+  });
 
   const { data: executions, isLoading: executionsLoading } = useQuery({
     queryKey: QUERY_KEYS.executions({ status: "pending,running,waiting_for_approval" }),
@@ -748,15 +749,6 @@ export function WatchView() {
         "/api/v1/executions?status=pending,running,waiting_for_approval",
       ),
     staleTime: 15_000,
-  });
-
-  const { state, lastUpdated } = useEventBus("watch", () => {
-    setIssuesCursor(undefined);
-    setAllIssues([]);
-    qc.invalidateQueries({ queryKey: ["issues"] });
-    qc.invalidateQueries({ queryKey: ["executions"] });
-    qc.invalidateQueries({ queryKey: QUERY_KEYS.watchSummary() });
-    qc.invalidateQueries({ queryKey: ["alerts"] });
   });
 
   // -- Mutations --

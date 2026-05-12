@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { historyOptions } from "../queries";
 import { useCluster } from "@/hooks/use-cluster";
-import { useEventBus } from "@/hooks/use-event-bus";
+import { usePaginatedData } from "@/hooks/use-paginated-data";
 import { SearchFilterBar } from "@/components/shared/search-filter-bar";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -118,12 +118,10 @@ function EntityLink({ event }: { event: HistoryEvent }) {
 
 export function HistoryView() {
   const clusterId = useCluster();
-  const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [eventType, setEventType] = useState<string>("");
   const [timeWindow, setTimeWindow] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [allItems, setAllItems] = useState<HistoryEvent[]>([]);
   const [cursor, setCursor] = useState<string | undefined>();
 
   const since = useMemo(() => {
@@ -151,24 +149,11 @@ export function HistoryView() {
 
   const { data, isLoading, isFetching, error } = useQuery(historyOptions(filters));
 
-  useEffect(() => {
-    if (data?.items) {
-      if (!cursor) {
-        setAllItems(data.items);
-      } else {
-        setAllItems((prev) => {
-          const existingIds = new Set(prev.map((e) => e.id));
-          const newItems = data.items.filter((e) => !existingIds.has(e.id));
-          return [...prev, ...newItems];
-        });
-      }
-    }
-  }, [data, cursor]);
-
-  useEventBus("history", () => {
-    setCursor(undefined);
-    setAllItems([]);
-    qc.invalidateQueries({ queryKey: ["history"] });
+  const { allItems } = usePaginatedData(data, {
+    cursor,
+    onReset: () => setCursor(undefined),
+    eventBusId: "history",
+    invalidateKeys: [["history"]],
   });
 
   const filtered = useMemo(() => {

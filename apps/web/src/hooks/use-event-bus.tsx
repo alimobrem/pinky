@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useSSE, type SSEConnectionState } from "@/hooks/use-sse";
+export type { SSEConnectionState } from "@/hooks/use-sse";
 
 type EventHandler = (data: unknown) => void;
 
