@@ -284,6 +284,7 @@ def _pod_summary(pod: Any) -> dict:
     return {
         "name": pod.metadata.name,
         "namespace": pod.metadata.namespace or "",
+        "node_name": pod.spec.node_name if pod.spec else "",
         "phase": pod.status.phase if pod.status else "Unknown",
         "created_at": created.isoformat() if created else None,
         "creation_timestamp": created.isoformat() if created else None,

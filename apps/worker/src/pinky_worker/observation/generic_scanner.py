@@ -613,6 +613,7 @@ def _emit_observation(
     payload["owner_references"] = metadata.get("owner_references", [])
     payload["replica_count"] = resource.get("desired_replicas") or resource.get("replicas")
     payload["ready_replicas"] = resource.get("ready_replicas")
+    payload["node_name"] = resource.get("node_name", "")
 
     fp = compute_observation_fingerprint(
         cluster_id, scanner_name, check_id, resource_kind, ns, name,

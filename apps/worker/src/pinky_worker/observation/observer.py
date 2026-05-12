@@ -497,7 +497,27 @@ async def observe_cluster(
                         scan_healthy = False
                         logger.exception("scanner failed", scanner=scanner_def.name)
 
+                # Root-cause correlation: identify NotReady nodes
+                not_ready_nodes: set[str] = set()
                 for obs in observations:
+                    if obs.scanner == "node-conditions" and obs.check_id == "not-ready":
+                        not_ready_nodes.add(obs.resource_name)
+
+                if not_ready_nodes:
+                    logger.info("root-cause correlation: nodes not ready",
+                                nodes=list(not_ready_nodes), count=len(not_ready_nodes))
+
+                for obs in observations:
+                    # Skip pod observations on NotReady nodes — they're symptoms, not root causes
+                    if (obs.resource_kind == "Pod"
+                            and not_ready_nodes
+                            and isinstance(obs.payload, dict)
+                            and obs.payload.get("node_name") in not_ready_nodes):
+                        logger.info("suppressing pod observation — node not ready",
+                                    pod=f"{obs.resource_namespace}/{obs.resource_name}",
+                                    node=obs.payload.get("node_name"))
+                        continue
+
                     result = await correlator.correlate(obs)
                     logger.info(
                         "observation",

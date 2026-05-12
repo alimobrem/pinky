@@ -123,6 +123,7 @@ class DbIssueCorrelator:
                 "operator_managed": str(_payload.get("operator_managed", False)).lower(),
                 "replica_count": _payload.get("replica_count"),
                 "ready_replicas": _payload.get("ready_replicas"),
+                "node_name": _payload.get("node_name", ""),
             })
 
             await conn.execute(
