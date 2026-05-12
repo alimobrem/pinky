@@ -21,79 +21,65 @@ depends_on: Union[str, None] = None
 
 
 def upgrade() -> None:
-    op.execute("""
-        WITH keepers AS (
-            SELECT DISTINCT ON (work_item_id)
-                id
-            FROM executions
-            WHERE execution_type = 'investigation'
-              AND status = 'completed'
-              AND work_item_id IS NOT NULL
-            ORDER BY work_item_id, completed_at DESC NULLS LAST
-        )
-        DELETE FROM execution_events
-        WHERE execution_id IN (
-            SELECT e.id FROM executions e
-            WHERE e.execution_type = 'investigation'
-              AND e.status = 'completed'
-              AND e.work_item_id IS NOT NULL
-              AND e.id NOT IN (SELECT id FROM keepers)
-        )
-    """)
+    for status in ("completed", "failed"):
+        op.execute(f"""
+            WITH keepers AS (
+                SELECT DISTINCT ON (work_item_id)
+                    id
+                FROM executions
+                WHERE execution_type = 'investigation'
+                  AND status = '{status}'
+                  AND work_item_id IS NOT NULL
+                ORDER BY work_item_id, completed_at DESC NULLS LAST
+            ),
+            duplicates AS (
+                SELECT e.id FROM executions e
+                WHERE e.execution_type = 'investigation'
+                  AND e.status = '{status}'
+                  AND e.work_item_id IS NOT NULL
+                  AND e.id NOT IN (SELECT id FROM keepers)
+            )
+            DELETE FROM approvals
+            WHERE execution_id IN (SELECT id FROM duplicates)
+        """)
 
-    op.execute("""
-        WITH keepers AS (
-            SELECT DISTINCT ON (work_item_id)
-                id
-            FROM executions
-            WHERE execution_type = 'investigation'
-              AND status = 'completed'
-              AND work_item_id IS NOT NULL
-            ORDER BY work_item_id, completed_at DESC NULLS LAST
-        )
-        DELETE FROM executions
-        WHERE execution_type = 'investigation'
-          AND status = 'completed'
-          AND work_item_id IS NOT NULL
-          AND id NOT IN (SELECT id FROM keepers)
-    """)
+        op.execute(f"""
+            WITH keepers AS (
+                SELECT DISTINCT ON (work_item_id)
+                    id
+                FROM executions
+                WHERE execution_type = 'investigation'
+                  AND status = '{status}'
+                  AND work_item_id IS NOT NULL
+                ORDER BY work_item_id, completed_at DESC NULLS LAST
+            ),
+            duplicates AS (
+                SELECT e.id FROM executions e
+                WHERE e.execution_type = 'investigation'
+                  AND e.status = '{status}'
+                  AND e.work_item_id IS NOT NULL
+                  AND e.id NOT IN (SELECT id FROM keepers)
+            )
+            DELETE FROM execution_events
+            WHERE execution_id IN (SELECT id FROM duplicates)
+        """)
 
-    op.execute("""
-        WITH keepers AS (
-            SELECT DISTINCT ON (work_item_id)
-                id
-            FROM executions
+        op.execute(f"""
+            WITH keepers AS (
+                SELECT DISTINCT ON (work_item_id)
+                    id
+                FROM executions
+                WHERE execution_type = 'investigation'
+                  AND status = '{status}'
+                  AND work_item_id IS NOT NULL
+                ORDER BY work_item_id, completed_at DESC NULLS LAST
+            )
+            DELETE FROM executions
             WHERE execution_type = 'investigation'
-              AND status = 'failed'
+              AND status = '{status}'
               AND work_item_id IS NOT NULL
-            ORDER BY work_item_id, completed_at DESC NULLS LAST
-        )
-        DELETE FROM execution_events
-        WHERE execution_id IN (
-            SELECT e.id FROM executions e
-            WHERE e.execution_type = 'investigation'
-              AND e.status = 'failed'
-              AND e.work_item_id IS NOT NULL
-              AND e.id NOT IN (SELECT id FROM keepers)
-        )
-    """)
-
-    op.execute("""
-        WITH keepers AS (
-            SELECT DISTINCT ON (work_item_id)
-                id
-            FROM executions
-            WHERE execution_type = 'investigation'
-              AND status = 'failed'
-              AND work_item_id IS NOT NULL
-            ORDER BY work_item_id, completed_at DESC NULLS LAST
-        )
-        DELETE FROM executions
-        WHERE execution_type = 'investigation'
-          AND status = 'failed'
-          AND work_item_id IS NOT NULL
-          AND id NOT IN (SELECT id FROM keepers)
-    """)
+              AND id NOT IN (SELECT id FROM keepers)
+        """)
 
     op.create_index(
         "uq_one_completed_investigation_per_work_item",
