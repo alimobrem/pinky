@@ -337,7 +337,10 @@ async def update_annotations(
 
 @router.get("/{work_item_id}/events")
 async def get_work_item_events(
-    work_item_id: str, db: AsyncSession = Depends(get_db), principal: dict = Depends(require_authenticated),
+    work_item_id: str,
+    all: bool = False,
+    db: AsyncSession = Depends(get_db),
+    principal: dict = Depends(require_authenticated),
 ) -> dict:
     work_item_repo = WorkItemRepository(db)
     item = await work_item_repo.get(UUID(work_item_id))
@@ -346,7 +349,10 @@ async def get_work_item_events(
     await require_cluster_read_access(item.cluster_id, principal, db, require_binding=True)
     from pinky_api.repositories.executions import ExecutionRepository
     repo = ExecutionRepository(db)
-    events = await repo.get_events_for_work_item(UUID(work_item_id))
+    if all:
+        events = await repo.get_events_for_work_item(UUID(work_item_id))
+    else:
+        events = await repo.get_events_for_latest_execution(UUID(work_item_id))
     return {
         "items": [
             {

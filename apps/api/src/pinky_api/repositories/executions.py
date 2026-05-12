@@ -57,6 +57,24 @@ class ExecutionRepository(BaseRepository):
         )
         return list(events.scalars().all())
 
+    async def get_events_for_latest_execution(self, work_item_id: UUID) -> builtins.list[Any]:
+        latest = await self.session.execute(
+            select(Execution.id)
+            .where(Execution.work_item_id == work_item_id)
+            .order_by(Execution.created_at.desc())
+            .limit(1)
+        )
+        exec_id = latest.scalar()
+        if not exec_id:
+            return []
+
+        events = await self.session.execute(
+            select(ExecutionEvent)
+            .where(ExecutionEvent.execution_id == exec_id)
+            .order_by(ExecutionEvent.occurred_at)
+        )
+        return list(events.scalars().all())
+
     async def get_investigation_for_work_item(self, work_item_id: UUID) -> dict | None:
         executions = await self.session.execute(
             select(Execution.id).where(Execution.work_item_id == work_item_id)
