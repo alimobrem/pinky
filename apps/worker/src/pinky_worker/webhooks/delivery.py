@@ -11,6 +11,7 @@ import asyncio
 import fnmatch
 import json
 import logging
+import os
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -21,10 +22,10 @@ from pinky_worker.webhooks.formatters import format_event
 
 logger = logging.getLogger(__name__)
 
-POLL_INTERVAL = 5
-MAX_RETRIES = 5
-BACKOFF_BASE = 1
-BACKOFF_CAP = 30
+POLL_INTERVAL = int(os.environ.get("PINKY_WEBHOOK_POLL_INTERVAL", "5"))
+MAX_RETRIES = int(os.environ.get("PINKY_WEBHOOK_MAX_RETRIES", "5"))
+BACKOFF_BASE = int(os.environ.get("PINKY_WEBHOOK_BACKOFF_BASE", "1"))
+BACKOFF_CAP = int(os.environ.get("PINKY_WEBHOOK_BACKOFF_CAP", "30"))
 
 
 def _matches_pattern(event_type: str, patterns: list[str]) -> bool:

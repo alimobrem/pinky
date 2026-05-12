@@ -120,13 +120,14 @@ async def _dispatch_investigation(
     workflow_id = f"investigation-{cluster_id[:8]}-{obs.fingerprint[:16]}"
 
     # Skip if there's already a pending/running OR recently completed investigation
+    cooldown_seconds = int(os.environ.get("PINKY_INVESTIGATION_COOLDOWN_SECONDS", "3600"))
     existing = await pool.fetchrow(
         "SELECT id, status FROM executions WHERE work_item_id IN "
         "(SELECT id FROM work_items WHERE issue_id = $1::uuid) "
         "AND (status IN ('pending', 'running') "
-        "     OR (status IN ('completed', 'failed') AND completed_at > now() - interval '1 hour')) "
+        "     OR (status IN ('completed', 'failed') AND completed_at > now() - make_interval(secs => $2))) "
         "ORDER BY created_at DESC LIMIT 1",
-        result.issue_id,
+        result.issue_id, float(cooldown_seconds),
     )
     if existing:
         logger.debug("investigation cooldown active",

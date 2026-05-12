@@ -131,7 +131,7 @@ class DbIssueCorrelator:
                 annotations, artifact_refs, created_at, updated_at)
                 VALUES ($1, $2, $3::uuid, $4, $5, $6, 'ready', $7, $8, $9, '{}', '{}', $10, $10)""",
                 work_item_id, issue_id, obs.cluster_id, obs.title, why_now, recommended,
-                {"critical": 0.95, "high": 0.90, "medium": 0.80, "low": 0.60}.get(obs.severity, 0.70),
+                None,
                 "high" if obs.severity in ("critical", "high") else "medium",
                 work_item_labels,
                 obs.observed_at,

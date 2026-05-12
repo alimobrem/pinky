@@ -10,7 +10,9 @@ interface ConfidenceBadgeProps {
 }
 
 export function ConfidenceBadge({ value, className }: ConfidenceBadgeProps) {
-  if (value === null || value === undefined) return null;
+  if (value == null) {
+    return <span className="text-caption text-text-tertiary">—</span>;
+  }
 
   return (
     <span

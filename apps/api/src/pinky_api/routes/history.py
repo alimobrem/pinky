@@ -2,6 +2,7 @@
 
 import csv
 import io
+import os
 import uuid
 from collections import defaultdict
 from typing import Any
@@ -160,9 +161,10 @@ async def export_history(
     since: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> Response:
+    _export_limit = int(os.environ.get("PINKY_EXPORT_LIMIT", "10000"))
     repo = HistoryRepository(db)
     result = await repo.list(
-        cluster_id=cluster_id, event_type=event_type, since=since, limit=10000,
+        cluster_id=cluster_id, event_type=event_type, since=since, limit=_export_limit,
     )
     items = [_serialize(e) for e in result["items"]]
     await _enrich_events(items, db)

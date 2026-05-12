@@ -102,7 +102,7 @@ class InvestigationWorkflow:
                         execution_id=exec_id,
                         event_type="completed",
                         sequence=10,
-                        payload={"artifact_id": cached.artifact_id, "cached": True},
+                        payload={"artifact_id": cached.artifact_id, "cached": True, "confidence": cached.confidence},
                     ),
                     start_to_close_timeout=timedelta(seconds=30),
                 )

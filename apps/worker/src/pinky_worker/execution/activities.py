@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -331,7 +332,8 @@ _GENERIC_SKILL_BODY = (
     "Identify the root cause and suggest specific remediation steps."
 )
 
-_MAX_EVIDENCE_CHARS = 8000
+_MAX_EVIDENCE_CHARS = int(os.environ.get("PINKY_MAX_EVIDENCE_CHARS", "8000"))
+_LLM_MAX_TOKENS = int(os.environ.get("PINKY_LLM_MAX_TOKENS", "4096"))
 _PROMPT_VERSION = "v2"
 
 
@@ -409,7 +411,7 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str, execution
     response = await router.complete(LLMRequest(
         messages=messages,
         model_tier=ModelTier.REASONING,
-        max_tokens=4096,
+        max_tokens=_LLM_MAX_TOKENS,
     ))
 
     activity.heartbeat("parsing response")
@@ -507,12 +509,13 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
                 ]
 
                 approval_id = uuid4()
+                approval_ttl_hours = int(os.environ.get("PINKY_APPROVAL_TTL_HOURS", "24"))
                 await pool.execute(
                     """INSERT INTO approvals
                        (id, execution_id, changeset_digest, target_resources, status, expires_at)
-                       VALUES ($1, $2, $3, $4, 'pending', now() + interval '24 hours')""",
+                       VALUES ($1, $2, $3, $4, 'pending', now() + make_interval(hours => $5))""",
                     approval_id, exec_uuid, changeset_digest,
-                    json.dumps(target_resources),
+                    json.dumps(target_resources), approval_ttl_hours,
                 )
 
                 # Look up the active binding for this cluster so remediation
@@ -715,6 +718,13 @@ async def project_to_postgres(execution_id: str, event_type: str, payload: dict)
             """UPDATE executions SET status = 'completed', completed_at = $2 WHERE id = $1""",
             UUID(execution_id), datetime.now(UTC),
         )
+        confidence = payload.get("confidence")
+        if confidence is not None:
+            await pool.execute(
+                """UPDATE work_items SET confidence = $2, updated_at = now()
+                   WHERE id = (SELECT work_item_id FROM executions WHERE id = $1)""",
+                UUID(execution_id), float(confidence),
+            )
     elif event_type == "failed":
         await pool.execute(
             """UPDATE executions SET status = 'failed', completed_at = $2 WHERE id = $1""",
