@@ -38,9 +38,11 @@ import { QUERY_KEYS } from "@/lib/constants";
 export function DashboardView() {
   const qc = useQueryClient();
 
-  useEventBus("dashboard", () => {
-    qc.invalidateQueries({ queryKey: ["tasks"] });
-    qc.invalidateQueries({ queryKey: ["issues"] });
+  useEventBus("dashboard", (envelope) => {
+    if (envelope.stream === "pinky_work_items" || envelope.stream === "pinky_issues") {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["issues"] });
+    }
   });
 
   const { data: tasks, isLoading: tasksLoading, error: tasksError } = useQuery(dashboardTasksOptions());

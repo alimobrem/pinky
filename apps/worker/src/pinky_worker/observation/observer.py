@@ -308,7 +308,7 @@ async def _sweep_stale_issues(
                 )
                 await conn.execute(
                     "SELECT pg_notify('pinky_issues', $1)",
-                    f'{{"event_type": "issue.auto_resolved", "aggregate_id": "{issue_id}"}}',
+                    json.dumps({"event_type": "issue.auto_resolved", "aggregate_id": str(issue_id)}),
                 )
 
         resolved_count += 1
@@ -355,7 +355,7 @@ async def _handle_create_task(result, decision, obs) -> None:
         )
         await conn.execute(
             "SELECT pg_notify('pinky_work_items', $1)",
-            f'{{"event_type": "work_item.created", "aggregate_id": "{work_item_id}"}}',
+            json.dumps({"event_type": "work_item.created", "aggregate_id": str(work_item_id)}),
         )
 
     logger.info(

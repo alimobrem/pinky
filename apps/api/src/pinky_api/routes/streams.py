@@ -7,6 +7,7 @@ stateless resume (refetch from API on reconnect).
 """
 
 import asyncio
+from collections.abc import Callable
 import contextlib
 import json
 import logging
@@ -36,6 +37,17 @@ def _raw_pg_url() -> str:
     return url.replace("postgresql+asyncpg://", "postgresql://")
 
 
+def _on_notify_factory(
+    queue: asyncio.Queue[tuple[str, str]],
+) -> Callable[[asyncpg.Connection, int, str, str], None]:
+    def _on_notify(conn: asyncpg.Connection, pid: int, channel: str, payload: str) -> None:
+        try:
+            queue.put_nowait((channel, payload))
+        except asyncio.QueueFull:
+            logger.warning("SSE queue full, dropping event on %s", channel)
+    return _on_notify
+
+
 async def _sse_with_channels(request: Request, channels: list[str]) -> AsyncGenerator[str, None]:
     """SSE generator that listens to one or more Postgres NOTIFY channels."""
     sequence = 0
@@ -51,12 +63,10 @@ async def _sse_with_channels(request: Request, channels: list[str]) -> AsyncGene
 
         queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue(maxsize=200)
 
-        def _on_notify(conn: asyncpg.Connection, pid: int, channel: str, payload: str) -> None:
-            with contextlib.suppress(asyncio.QueueFull):
-                queue.put_nowait((channel, payload))
+        on_notify = _on_notify_factory(queue)
 
         for ch in channels:
-            await conn.add_listener(ch, _on_notify)
+            await conn.add_listener(ch, on_notify)
 
         while True:
             if await request.is_disconnected():

@@ -140,11 +140,11 @@ class DbIssueCorrelator:
 
             await conn.execute(
                 "SELECT pg_notify('pinky_work_items', $1)",
-                f'{{"event_type": "work_item.created", "aggregate_id": "{work_item_id}"}}',
+                json.dumps({"event_type": "work_item.created", "aggregate_id": str(work_item_id)}),
             )
             await conn.execute(
                 "SELECT pg_notify('pinky_issues', $1)",
-                f'{{"event_type": "issue.created", "aggregate_id": "{issue_id}"}}',
+                json.dumps({"event_type": "issue.created", "aggregate_id": str(issue_id)}),
             )
 
             logger.info(

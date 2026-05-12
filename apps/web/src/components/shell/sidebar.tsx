@@ -16,9 +16,13 @@ export function Sidebar() {
   const pathname = usePathname();
   const qc = useQueryClient();
 
-  useEventBus("sidebar", () => {
-    qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks({ status: "ready" }) });
-    qc.invalidateQueries({ queryKey: QUERY_KEYS.issues({ status: "open" }) });
+  useEventBus("sidebar", (envelope) => {
+    if (envelope.stream === "pinky_work_items") {
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.tasks({ status: "ready" }) });
+    }
+    if (envelope.stream === "pinky_work_items" || envelope.stream === "pinky_issues") {
+      qc.invalidateQueries({ queryKey: QUERY_KEYS.issues({ status: "open" }) });
+    }
   });
 
   const { data: taskData } = useQuery({

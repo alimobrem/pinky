@@ -95,10 +95,8 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     qc.invalidateQueries({ queryKey: ["executions"] });
   };
 
-  useEventBus("task-detail", (data) => {
-    const parsed = typeof data === "string" ? JSON.parse(data) : data;
-    const id = parsed?.aggregate_id;
-    if (id === taskId || id === task?.issue_id) {
+  useEventBus("task-detail", (envelope) => {
+    if (envelope.aggregate_id === taskId || envelope.aggregate_id === task?.issue_id) {
       invalidateAll();
     }
   });

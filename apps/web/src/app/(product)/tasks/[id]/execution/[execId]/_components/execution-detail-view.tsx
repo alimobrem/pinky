@@ -11,7 +11,7 @@ import { StatusIndicator } from "@/components/shared/status-indicator";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useSSE } from "@/hooks/use-sse";
+import { useEventBus } from "@/hooks/use-event-bus";
 import { toast } from "sonner";
 
 interface ExecutionDetailViewProps {
@@ -31,12 +31,11 @@ export function ExecutionDetailView({ taskId, execId }: ExecutionDetailViewProps
     qc.invalidateQueries({ queryKey: QUERY_KEYS.taskTimeline(taskId) });
   };
 
-  const { state, lastUpdated } = useSSE(
-    `/api/v1/streams/executions/${execId}`,
-    {
-      onEvent: { update: () => invalidateAll() },
-    },
-  );
+  const { state, lastUpdated } = useEventBus("execution-detail", (envelope) => {
+    if (envelope.payload?.execution_id === execId || envelope.aggregate_id === execId) {
+      invalidateAll();
+    }
+  });
 
   const approve = useMutation({
     mutationFn: (id: string) => api.post(`/api/v1/executions/${id}/approve`),

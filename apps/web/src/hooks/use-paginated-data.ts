@@ -55,10 +55,13 @@ export function usePaginatedData<T extends { id: string }>(
     }
   }, [qc]);
 
-  // Subscribe to SSE if eventBusId is provided; noop otherwise
+  const sseHandler = useCallback(() => {
+    if (opts.eventBusId) reset();
+  }, [opts.eventBusId, reset]);
+
   const { state: sseState, lastUpdated } = useEventBus(
     opts.eventBusId ?? "__noop__",
-    opts.eventBusId ? reset : () => {},
+    sseHandler,
   );
 
   useEffect(() => {

@@ -61,7 +61,8 @@ export function ClusterDetailView({
   const router = useRouter();
   const qc = useQueryClient();
 
-  useEventBus("cluster-detail", () => {
+  useEventBus("cluster-detail", (envelope) => {
+    if (envelope.stream === "pinky_watch" && envelope.type === "tool_used") return;
     qc.invalidateQueries({ queryKey: QUERY_KEYS.cluster(id) });
     qc.invalidateQueries({ queryKey: QUERY_KEYS.clusterNodes(id) });
     qc.invalidateQueries({ queryKey: QUERY_KEYS.clusterNamespaces(id) });

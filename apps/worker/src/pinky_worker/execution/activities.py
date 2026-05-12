@@ -85,10 +85,9 @@ async def _emit_tool_event(pool: Any, execution_id: str, tool_name: str, seq: in
             json.dumps({"tool_name": tool_name}),
             datetime.now(UTC),
         )
-        await pool.execute(
-            "SELECT pg_notify($1, $2)", "pinky_watch",
-            json.dumps({"event_type": "tool_used", "execution_id": execution_id}),
-        )
+        payload = json.dumps({"event_type": "tool_used", "execution_id": execution_id})
+        await pool.execute("SELECT pg_notify($1, $2)", "pinky_watch", payload)
+        await pool.execute("SELECT pg_notify($1, $2)", f"pinky_execution_{execution_id}", payload)
     except Exception:
         logger.debug("tool event emission skipped")
 
@@ -585,10 +584,9 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
         await pool.execute(sql, exec_uuid, occurred)
 
     try:
-        await pool.execute(
-            "SELECT pg_notify($1, $2)", "pinky_watch",
-            json.dumps({"event_type": event.event_type, "execution_id": str(exec_uuid)}),
-        )
+        payload = json.dumps({"event_type": event.event_type, "execution_id": str(exec_uuid)})
+        await pool.execute("SELECT pg_notify($1, $2)", "pinky_watch", payload)
+        await pool.execute("SELECT pg_notify($1, $2)", f"pinky_execution_{exec_uuid}", payload)
     except Exception:
         logger.debug("NOTIFY skipped in execution event emission")
 
