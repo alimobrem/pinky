@@ -119,36 +119,40 @@ async def _dispatch_investigation(
     # Stable workflow ID for Temporal dedup (same issue = same workflow)
     workflow_id = f"investigation-{cluster_id[:8]}-{obs.fingerprint[:16]}"
 
-    # Skip if there's already a pending/running OR recently completed investigation
+    # Skip if there's already a pending/running OR recently completed investigation.
+    # Wrap cooldown check + work_item lookup + execution insert in a transaction
+    # to prevent duplicate executions from concurrent observer calls.
     cooldown_seconds = int(os.environ.get("PINKY_INVESTIGATION_COOLDOWN_SECONDS", "3600"))
-    existing = await pool.fetchrow(
-        "SELECT id, status FROM executions WHERE work_item_id IN "
-        "(SELECT id FROM work_items WHERE issue_id = $1::uuid) "
-        "AND (status IN ('pending', 'running') "
-        "     OR (status IN ('completed', 'failed') AND completed_at > now() - make_interval(secs => $2))) "
-        "ORDER BY created_at DESC LIMIT 1",
-        result.issue_id, float(cooldown_seconds),
-    )
-    if existing:
-        logger.debug("investigation cooldown active",
-                     issue_id=result.issue_id, status=existing["status"])
-        return
 
     exec_id = uuid.uuid4()
-    work_item_id = None
-    wi_row = await pool.fetchrow(
-        "SELECT id FROM work_items WHERE issue_id = $1::uuid ORDER BY created_at DESC LIMIT 1",
-        result.issue_id,
-    )
-    if wi_row:
-        work_item_id = wi_row["id"]
+    async with pool.acquire() as conn, conn.transaction():
+        existing = await conn.fetchrow(
+            "SELECT id, status FROM executions WHERE work_item_id IN "
+            "(SELECT id FROM work_items WHERE issue_id = $1::uuid) "
+            "AND (status IN ('pending', 'running') "
+            "     OR (status IN ('completed', 'failed') AND completed_at > now() - make_interval(secs => $2))) "
+            "ORDER BY created_at DESC LIMIT 1",
+            result.issue_id, float(cooldown_seconds),
+        )
+        if existing:
+            logger.debug("investigation cooldown active",
+                         issue_id=result.issue_id, status=existing["status"])
+            return
 
-    await pool.execute(
-        """INSERT INTO executions (id, work_item_id, cluster_id, execution_type, status, created_at)
-           VALUES ($1, $2, $3::uuid, 'investigation', 'pending', now())
-           ON CONFLICT DO NOTHING""",
-        exec_id, work_item_id, cluster_id,
-    )
+        work_item_id = None
+        wi_row = await conn.fetchrow(
+            "SELECT id FROM work_items WHERE issue_id = $1::uuid ORDER BY created_at DESC LIMIT 1",
+            result.issue_id,
+        )
+        if wi_row:
+            work_item_id = wi_row["id"]
+
+        await conn.execute(
+            """INSERT INTO executions (id, work_item_id, cluster_id, execution_type, status, created_at)
+               VALUES ($1, $2, $3::uuid, 'investigation', 'pending', now())
+               ON CONFLICT DO NOTHING""",
+            exec_id, work_item_id, cluster_id,
+        )
 
     try:
         await temporal_client.start_workflow(

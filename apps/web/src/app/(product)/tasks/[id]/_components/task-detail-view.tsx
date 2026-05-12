@@ -66,7 +66,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import type { Execution } from "@pinky/contracts";
 import { ResourceEditor } from "@/components/shared/resource-editor";
@@ -145,6 +145,20 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     },
     onError: () => toast.error("Failed to start investigation"),
   });
+  const startRemediation = useMutation({
+    mutationFn: () =>
+      api.post<Execution>(
+        `/api/v1/executions?work_item_id=${encodeURIComponent(taskId)}&execution_type=remediation`,
+      ),
+    onSuccess: () => {
+      invalidateAll();
+      toast.success("Remediation started");
+    },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Failed to start remediation";
+      toast.error(msg);
+    },
+  });
 
   const resourceInfo = useMemo(() => {
     if (!task) return null;
@@ -220,7 +234,12 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
             )}
 
             {isInvestigating && (
-              <InvestigationProgress execution={activeExec} />
+              <InvestigationProgress
+                execution={activeExec}
+                events={events.filter(
+                  (e) => activeExec && e.execution_id === activeExec.id,
+                )}
+              />
             )}
 
             {investigation?.has_investigation &&
@@ -289,6 +308,8 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                 steps={investigation.remediation_steps ?? []}
                 manualCommands={investigation.manual_commands ?? []}
                 clusterName={task?.cluster_id}
+                onApply={() => startRemediation.mutate()}
+                applyPending={startRemediation.isPending}
               />
             )}
 
@@ -685,54 +706,55 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   );
 }
 
-function InvestigationProgress({ execution }: { execution?: { created_at: string; started_at?: string | null; status: string } }) {
-  const [elapsed, setElapsed] = useState(0);
+function InvestigationProgress({
+  execution,
+  events = [],
+}: {
+  execution?: { created_at: string; started_at?: string | null; status: string };
+  events?: Array<{ event_type: string; sequence: number; payload: Record<string, unknown>; occurred_at: string }>;
+}) {
+  const latestProgress = [...events]
+    .filter((e) => e.event_type === "progress")
+    .sort((a, b) => a.sequence - b.sequence)
+    .at(-1);
 
-  useEffect(() => {
-    if (!execution) return;
-    const start = new Date(execution.started_at ?? execution.created_at).getTime();
-    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000));
-    tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [execution]);
-
-  const phase =
-    elapsed < 5 ? 0 :
-    elapsed < 25 ? 1 :
-    2;
+  const progress = (latestProgress?.payload?.progress as number | undefined) ?? 0.05;
+  const stepDescription =
+    (latestProgress?.payload?.step_description as string | undefined) ??
+    "Starting investigation...";
 
   const steps = [
-    { label: "Gathering evidence from cluster", threshold: 0 },
-    { label: "The Brain is analyzing...", threshold: 5 },
-    { label: "Finalizing investigation", threshold: 25 },
+    { label: "Gathering evidence from cluster", threshold: 0.1 },
+    { label: "Analyzing with The Brain", threshold: 0.5 },
+    { label: "Finalizing investigation", threshold: 0.9 },
   ];
 
   return (
     <Card className="border-brand-purple/20 bg-brand-purple/5">
       <CardContent className="p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin text-brand-purple" />
-            <span className="text-sm font-medium text-text-primary">Investigation in progress</span>
-          </div>
-          <span className="font-mono text-caption tabular-nums text-text-tertiary">{elapsed}s</span>
+        <div className="mb-3 flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin text-brand-purple" />
+          <span className="text-sm font-medium text-text-primary">
+            {stepDescription}
+          </span>
         </div>
         <div className="space-y-2">
           {steps.map((step, idx) => (
             <div key={idx} className="flex items-center gap-2 text-sm">
-              {idx < phase ? (
+              {progress >= step.threshold + 0.1 ? (
                 <CheckCircle className="h-3.5 w-3.5 text-status-done" />
-              ) : idx === phase ? (
+              ) : progress >= step.threshold ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-purple" />
               ) : (
                 <div className="h-3.5 w-3.5 rounded-full border border-border-default" />
               )}
-              <span className={
-                idx < phase ? "text-text-secondary" :
-                idx === phase ? "font-medium text-text-primary" :
-                "text-text-tertiary"
-              }>
+              <span
+                className={
+                  progress >= step.threshold
+                    ? "font-medium text-text-primary"
+                    : "text-text-tertiary"
+                }
+              >
                 {step.label}
               </span>
             </div>
@@ -741,7 +763,7 @@ function InvestigationProgress({ execution }: { execution?: { created_at: string
         <div className="mt-3 h-1.5 rounded-full bg-bg-hover overflow-hidden">
           <div
             className="h-full rounded-full bg-brand-purple transition-all duration-1000"
-            style={{ width: `${Math.min(95, (elapsed / 35) * 100)}%` }}
+            style={{ width: `${Math.min(95, progress * 100)}%` }}
           />
         </div>
       </CardContent>
