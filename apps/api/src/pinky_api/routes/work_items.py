@@ -1,7 +1,10 @@
 """Work item routes — the core task-first API."""
 
+import json as _json
 import logging
+import math
 import re
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -381,6 +384,102 @@ class ChatRequest(BaseModel):
     history: list[dict] = []
 
 
+_CHART_COLORS = ["#a78bfa", "#f472b6", "#6ba3f7", "#45c99a", "#e8be3c"]
+_CHARTABLE_TOOLS = {"get_top_pods", "get_top_nodes", "query_prometheus", "query_prometheus_range"}
+
+
+def _metric_label(metric: dict, fallback: str) -> str:
+    if not metric:
+        return fallback
+    return metric.get("__name__") or next(iter(metric.values()), fallback)
+
+
+def _safe_float(val: Any) -> float:
+    try:
+        f = float(val)
+        return 0.0 if math.isnan(f) or math.isinf(f) else f
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def _build_charts(captured: list[tuple[str, dict, dict]]) -> list[dict]:
+    charts: list[dict] = []
+    for tool_name, tool_input, result in captured:
+        if tool_name in ("get_top_pods", "get_top_nodes"):
+            items = result.get("items", [])
+            if not items:
+                continue
+            sorted_items = sorted(items, key=lambda x: x.get("cpu_nanocores", 0), reverse=True)[:15]
+            label = "Pod" if tool_name == "get_top_pods" else "Node"
+            ns = tool_input.get("namespace", "")
+            title = f"Top {label}s — CPU & Memory" + (f" ({ns})" if ns else "")
+            charts.append({
+                "type": "bar",
+                "title": title,
+                "xKey": "name",
+                "data": [
+                    {
+                        "name": it.get("name", ""),
+                        "CPU (millicores)": round(it.get("cpu_nanocores", 0) / 1_000_000, 1),
+                        "Memory (MiB)": round(it.get("memory_ki", 0) / 1024, 1),
+                    }
+                    for it in sorted_items
+                ],
+                "series": [
+                    {"key": "CPU (millicores)", "label": "CPU (millicores)", "color": _CHART_COLORS[0]},
+                    {"key": "Memory (MiB)", "label": "Memory (MiB)", "color": _CHART_COLORS[1]},
+                ],
+            })
+        elif tool_name == "query_prometheus":
+            items = result.get("items", [])
+            if not items:
+                continue
+            query_str = tool_input.get("query", "query")
+            data = []
+            for it in items[:20]:
+                name = _metric_label(it.get("metric", {}), "value")
+                val = _safe_float(it.get("value", 0))
+                data.append({"name": str(name), "value": round(val, 4)})
+            charts.append({
+                "type": "bar",
+                "title": query_str[:80],
+                "xKey": "name",
+                "data": data,
+                "series": [{"key": "value", "label": "Value", "color": _CHART_COLORS[2]}],
+            })
+        elif tool_name == "query_prometheus_range":
+            series_list = result.get("series", [])
+            if not series_list:
+                continue
+            query_str = tool_input.get("query", "query")
+            all_timestamps: set[float] = set()
+            for s in series_list:
+                for ts, _ in s.get("values", []):
+                    all_timestamps.add(float(ts))
+            sorted_ts = sorted(all_timestamps)
+            ts_data: dict[float, dict[str, str | float]] = {
+                ts: {"time": datetime.fromtimestamp(ts, tz=UTC).strftime("%H:%M")}
+                for ts in sorted_ts
+            }
+            chart_series = []
+            for idx, s in enumerate(series_list[:5]):
+                label = _metric_label(s.get("metric", {}), f"series-{idx}")
+                key = f"s{idx}"
+                chart_series.append({"key": key, "label": str(label), "color": _CHART_COLORS[idx % len(_CHART_COLORS)]})
+                for ts_raw, val in s.get("values", []):
+                    ts_f = float(ts_raw)
+                    if ts_f in ts_data:
+                        ts_data[ts_f][key] = round(_safe_float(val), 4)
+            charts.append({
+                "type": "line",
+                "title": query_str[:80],
+                "xKey": "time",
+                "data": [ts_data[ts] for ts in sorted_ts],
+                "series": chart_series,
+            })
+    return charts
+
+
 @router.post("/{work_item_id}/chat")
 async def chat_with_brain(
     work_item_id: str,
@@ -416,7 +515,10 @@ async def chat_with_brain(
             "content": (
                 "You are The Brain, an SRE agent. The operator is asking about an investigation. "
                 "Answer concisely using the context below. If they ask for YAML or commands, "
-                "provide them. Include relevant oc/kubectl commands in a 'commands' list in your response.\n\n"
+                "provide them. Include relevant oc/kubectl commands in a 'commands' list in your response. "
+                "When asked about metrics over time, use query_prometheus_range with appropriate time ranges "
+                "(use Unix timestamps for start/end). Charts are generated automatically from tool results — "
+                "focus your text on analysis and insights, not markdown tables.\n\n"
                 f"Context:\n{context}"
             ),
         },
@@ -433,6 +535,7 @@ async def chat_with_brain(
         get_top_pods,
         list_resources,
         query_prometheus,
+        query_prometheus_range,
     )
     from pinky_api.repositories.clusters import ClusterRepository
 
@@ -522,6 +625,20 @@ async def chat_with_brain(
                 "required": ["query"],
             },
         },
+        {
+            "name": "query_prometheus_range",
+            "description": "Execute a PromQL range query for time-series data. Use for metrics over time (CPU, memory, error rates). Results are visualized as charts automatically.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "PromQL expression"},
+                    "start": {"type": "string", "description": "Start time as Unix timestamp or RFC3339"},
+                    "end": {"type": "string", "description": "End time as Unix timestamp or RFC3339"},
+                    "step": {"type": "string", "description": "Resolution step (e.g. '60s', '5m')", "default": "60s"},
+                },
+                "required": ["query", "start", "end"],
+            },
+        },
     ]
 
     try:
@@ -552,7 +669,13 @@ async def chat_with_brain(
             "query_prometheus": lambda inp: query_prometheus(
                 api_endpoint, cluster_token, inp["query"],
             ),
+            "query_prometheus_range": lambda inp: query_prometheus_range(
+                api_endpoint, cluster_token, inp["query"],
+                inp["start"], inp["end"], inp.get("step", "60s"),
+            ),
         }
+
+        captured_charts: list[tuple[str, dict, dict]] = []
 
         remaining_rounds = 5
         response = await client.messages.create(
@@ -572,8 +695,9 @@ async def chat_with_brain(
                     if fn and cluster_token:
                         try:
                             result = await fn(block.input)
-                            import json as _json
                             result_text = _json.dumps(result, default=str)[:8000]
+                            if block.name in _CHARTABLE_TOOLS and isinstance(result, dict) and "error" not in result:
+                                captured_charts.append((block.name, block.input, result))
                         except Exception as exc:
                             logger.exception("tool call failed: %s", block.name)
                             result_text = f"Error: {exc}"
@@ -605,7 +729,8 @@ async def chat_with_brain(
         for match in re.finditer(r"`(oc\s[^`]+|kubectl\s[^`]+)`", content):
             commands.append(match.group(1))
 
-        return {"reply": content, "commands": commands}
+        charts = _build_charts(captured_charts)
+        return {"reply": content, "commands": commands, "charts": charts}
     except Exception:
         logger.exception("chat with brain failed")
         raise HTTPException(status_code=502, detail="Brain unavailable") from None

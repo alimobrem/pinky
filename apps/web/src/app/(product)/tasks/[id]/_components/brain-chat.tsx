@@ -8,6 +8,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MarkdownContent } from "@/components/shared/markdown-content";
+import { MetricChart } from "@/components/shared/metric-chart";
+import type { ChartData } from "@pinky/contracts";
 import {
   Collapsible,
   CollapsibleContent,
@@ -20,6 +22,7 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   commands?: string[];
+  charts?: ChartData[];
 }
 
 interface BrainChatProps {
@@ -35,7 +38,7 @@ export function BrainChat({ taskId, className }: BrainChatProps) {
 
   const chat = useMutation({
     mutationFn: async (message: string) => {
-      const res = await api.post<{ reply: string; commands?: string[] }>(
+      const res = await api.post<{ reply: string; commands?: string[]; charts?: ChartData[] }>(
         `/api/v1/work-items/${taskId}/chat`,
         { message, history: messages },
       );
@@ -44,7 +47,7 @@ export function BrainChat({ taskId, className }: BrainChatProps) {
     onSuccess: (data) => {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.reply, commands: data.commands },
+        { role: "assistant", content: data.reply, commands: data.commands, charts: data.charts },
       ]);
     },
     onError: () => {
@@ -140,6 +143,13 @@ export function BrainChat({ taskId, className }: BrainChatProps) {
                     <MarkdownContent content={msg.content} />
                   ) : (
                     <p className="text-sm text-text-primary">{msg.content}</p>
+                  )}
+                  {msg.charts && msg.charts.length > 0 && (
+                    <div className="mt-3 space-y-3">
+                      {msg.charts.map((chart, k) => (
+                        <MetricChart key={k} chart={chart} />
+                      ))}
+                    </div>
                   )}
                   {msg.commands && msg.commands.length > 0 && (
                     <div className="mt-2 space-y-1">

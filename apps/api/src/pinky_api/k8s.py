@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+_QUANTITY_RE = re.compile(r"^(\d+)(n|u|m|Ki|Mi|Gi|Ti)?$")
+_QUANTITY_MULTIPLIERS = {"n": 1, "u": 1_000, "m": 1_000_000, "": 1_000_000_000, "Ki": 1, "Mi": 1024, "Gi": 1024 * 1024, "Ti": 1024 * 1024 * 1024}
+_THANOS_BASE = "https://thanos-querier.openshift-monitoring.svc:9091"
 
 _KIND_TO_API: dict[str, tuple[str, str]] = {
     "pod": ("api/v1", "pods"),
@@ -130,6 +135,16 @@ async def get_top_pods(
         return {"items": pods}
 
 
+def _parse_k8s_quantity(val: str) -> int:
+    """Parse K8s resource quantity string to base units (nanocores for CPU, KiB for memory)."""
+    m = _QUANTITY_RE.match(val)
+    if not m:
+        return 0
+    num = int(m.group(1))
+    suffix = m.group(2) or ""
+    return num * _QUANTITY_MULTIPLIERS.get(suffix, 1)
+
+
 async def get_top_nodes(
     api_endpoint: str, token: str,
 ) -> dict[str, Any]:
@@ -147,40 +162,66 @@ async def get_top_nodes(
         nodes = []
         for item in data.get("items", []):
             usage = item.get("usage", {})
+            cpu_raw = usage.get("cpu", "0")
+            mem_raw = usage.get("memory", "0Ki")
+            total_cpu = _parse_k8s_quantity(cpu_raw)
+            total_mem = _parse_k8s_quantity(mem_raw)
             nodes.append({
                 "name": item.get("metadata", {}).get("name"),
-                "cpu": usage.get("cpu", ""),
-                "memory": usage.get("memory", ""),
+                "cpu_nanocores": total_cpu,
+                "cpu": f"{total_cpu / 1_000_000:.1f}m",
+                "memory_ki": total_mem,
+                "memory": f"{total_mem // 1024}Mi",
             })
         return {"items": nodes}
 
 
-async def query_prometheus(
-    api_endpoint: str, token: str, query: str,
-) -> dict[str, Any]:
+async def _query_prometheus_raw(
+    api_endpoint: str, token: str, path: str, params: dict[str, str],
+) -> dict[str, Any] | None:
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-    params = {"query": query}
-    thanos_base = "https://thanos-querier.openshift-monitoring.svc:9091"
-
-    for base in [thanos_base, api_endpoint]:
+    for base in [_THANOS_BASE, api_endpoint]:
         try:
-            prom_url = f"{base}/api/v1/query"
             async with httpx.AsyncClient(verify=False) as client:
-                resp = await client.get(prom_url, headers=headers, params=params, timeout=30)
+                resp = await client.get(f"{base}{path}", headers=headers, params=params, timeout=30)
                 if resp.status_code == 403:
                     continue
                 if resp.status_code != 200:
                     continue
                 data = resp.json()
                 if data.get("status") == "success":
-                    results = data.get("data", {}).get("result", [])
-                    return {"items": [
-                        {"metric": r.get("metric", {}), "value": r.get("value", [None, None])[1]}
-                        for r in results
-                    ]}
+                    return data
         except Exception:
             logger.debug("prometheus query failed at %s", base)
-    return {"error": "prometheus_unavailable", "message": "Could not reach Prometheus/Thanos"}
+    return None
+
+
+async def query_prometheus(
+    api_endpoint: str, token: str, query: str,
+) -> dict[str, Any]:
+    data = await _query_prometheus_raw(api_endpoint, token, "/api/v1/query", {"query": query})
+    if data is None:
+        return {"error": "prometheus_unavailable", "message": "Could not reach Prometheus/Thanos"}
+    results = data.get("data", {}).get("result", [])
+    return {"items": [
+        {"metric": r.get("metric", {}), "value": r.get("value", [None, None])[1]}
+        for r in results
+    ]}
+
+
+async def query_prometheus_range(
+    api_endpoint: str, token: str, query: str,
+    start: str, end: str, step: str = "60s",
+) -> dict[str, Any]:
+    params = {"query": query, "start": start, "end": end, "step": step}
+    data = await _query_prometheus_raw(api_endpoint, token, "/api/v1/query_range", params)
+    if data is None:
+        return {"error": "prometheus_unavailable", "message": "Could not reach Prometheus/Thanos"}
+    results = data.get("data", {}).get("result", [])
+    return {"series": [
+        {"metric": r.get("metric", {}), "values": r.get("values", [])}
+        for r in results
+    ]}
 
 
 async def apply_resource(
