@@ -12,7 +12,10 @@ import httpx
 logger = logging.getLogger(__name__)
 
 _QUANTITY_RE = re.compile(r"^(\d+)(n|u|m|Ki|Mi|Gi|Ti)?$")
-_QUANTITY_MULTIPLIERS = {"n": 1, "u": 1_000, "m": 1_000_000, "": 1_000_000_000, "Ki": 1, "Mi": 1024, "Gi": 1024 * 1024, "Ti": 1024 * 1024 * 1024}
+_QUANTITY_MULTIPLIERS = {
+    "n": 1, "u": 1_000, "m": 1_000_000, "": 1_000_000_000,
+    "Ki": 1, "Mi": 1024, "Gi": 1024 * 1024, "Ti": 1024 * 1024 * 1024,
+}
 _THANOS_BASE = "https://thanos-querier.openshift-monitoring.svc:9091"
 
 _KIND_TO_API: dict[str, tuple[str, str]] = {

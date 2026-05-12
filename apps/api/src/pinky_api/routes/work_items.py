@@ -627,7 +627,10 @@ async def chat_with_brain(
         },
         {
             "name": "query_prometheus_range",
-            "description": "Execute a PromQL range query for time-series data. Use for metrics over time (CPU, memory, error rates). Results are visualized as charts automatically.",
+            "description": (
+                "Execute a PromQL range query for time-series data. "
+                "Use for metrics over time. Results are visualized as charts."
+            ),
             "input_schema": {
                 "type": "object",
                 "properties": {
