@@ -79,7 +79,7 @@ export function DashboardView() {
         </p>
       </div>
 
-      {hasError && (
+      {!isLoading && hasError && (
         <Card className="border-status-blocked/30 bg-status-blocked/5">
           <CardContent className="flex items-center gap-3 p-4">
             <AlertTriangle size={18} className="text-status-blocked" />
