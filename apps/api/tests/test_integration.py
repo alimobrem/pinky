@@ -263,3 +263,95 @@ async def test_history_shows_events_from_mutations(seeded) -> None:
     async with _factory() as s:
         await s.execute(DomainEvent.__table__.delete().where(DomainEvent.aggregate_id == UUID(wi1_id)))
         await s.commit()
+
+
+@pytest.mark.asyncio
+async def test_history_enrichment(seeded) -> None:
+    """Verify history events include description, actor name, and cluster name."""
+    client, cluster_id, wi1_id, _ = seeded
+
+    await client.post(f"/api/v1/work-items/{wi1_id}/take")
+
+    r = await client.get("/api/v1/history")
+    assert r.status_code == 200
+    taken = next((e for e in r.json()["items"] if e["event_type"] == "work_item.taken"), None)
+    assert taken is not None
+    assert taken["description"]
+    assert taken["principal_display_name"] is not None
+    assert taken["cluster_display_name"] == "int-test-cluster"
+
+    from pinky_api.models.extensibility import DomainEvent
+    async with _factory() as s:
+        await s.execute(DomainEvent.__table__.delete().where(DomainEvent.aggregate_id == UUID(wi1_id)))
+        await s.commit()
+
+
+@pytest.mark.asyncio
+async def test_cluster_display_name_in_work_items(seeded) -> None:
+    """Verify work items include cluster_display_name from API."""
+    client, cluster_id, wi1_id, _ = seeded
+
+    r = await client.get(f"/api/v1/work-items/{wi1_id}")
+    assert r.status_code == 200
+    assert r.json()["cluster_display_name"] == "int-test-cluster"
+
+    r = await client.get("/api/v1/work-items")
+    assert r.status_code == 200
+    item = next((i for i in r.json()["items"] if i["id"] == wi1_id), None)
+    assert item is not None
+    assert item["cluster_display_name"] == "int-test-cluster"
+
+
+@pytest.mark.asyncio
+async def test_work_items_exclude_done_by_default(seeded) -> None:
+    """Verify done tasks are excluded from the default list."""
+    client, _, wi1_id, wi2_id = seeded
+
+    await client.post(f"/api/v1/work-items/{wi1_id}/take")
+    await client.post(f"/api/v1/work-items/{wi1_id}/complete")
+
+    r = await client.get("/api/v1/work-items")
+    assert r.status_code == 200
+    ids = {i["id"] for i in r.json()["items"]}
+    assert wi1_id not in ids
+    assert wi2_id in ids
+
+    r = await client.get("/api/v1/work-items?status=done")
+    assert r.status_code == 200
+    ids = {i["id"] for i in r.json()["items"]}
+    assert wi1_id in ids
+
+
+@pytest.mark.asyncio
+async def test_pagination_cursor(seeded) -> None:
+    """Verify cursor-based pagination returns has_more and next_cursor."""
+    client, *_ = seeded
+
+    r = await client.get("/api/v1/work-items?limit=1")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["items"]) == 1
+    assert body["has_more"] is True
+    assert body["next_cursor"] is not None
+    assert body["total_count"] >= 2
+
+
+@pytest.mark.asyncio
+async def test_history_export_csv(seeded) -> None:
+    """Verify CSV export returns proper content-type and data."""
+    client, _, wi1_id, _ = seeded
+
+    await client.post(f"/api/v1/work-items/{wi1_id}/take")
+
+    r = await client.get("/api/v1/history/export")
+    assert r.status_code == 200
+    assert "text/csv" in r.headers.get("content-type", "")
+    assert "pinky-history.csv" in r.headers.get("content-disposition", "")
+    lines = r.text.strip().split("\n")
+    assert len(lines) >= 2
+    assert "Time" in lines[0]
+
+    from pinky_api.models.extensibility import DomainEvent
+    async with _factory() as s:
+        await s.execute(DomainEvent.__table__.delete().where(DomainEvent.aggregate_id == UUID(wi1_id)))
+        await s.commit()
