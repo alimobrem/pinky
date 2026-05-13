@@ -492,18 +492,21 @@ async def observe_cluster(
 
             try:
                 observations: list = []
-                scan_healthy = True
+                scanners_run = 0
+                scanners_failed = 0
                 for scanner_def in scanner_defs:
                     if not scanner_def.frontmatter.get("checks"):
                         continue
+                    scanners_run += 1
                     try:
                         data = await _fetch_for_scanner(api_client, scanner_def)
                         observations.extend(
                             await run_generic_checks(data, cluster_id, scanner_def, prom_client=prom_client),
                         )
                     except Exception:
-                        scan_healthy = False
+                        scanners_failed += 1
                         logger.exception("scanner failed", scanner=scanner_def.name)
+                scan_healthy = scanners_run > 0 and scanners_failed < scanners_run
 
                 # Root-cause correlation: identify NotReady nodes
                 not_ready_nodes: set[str] = set()
