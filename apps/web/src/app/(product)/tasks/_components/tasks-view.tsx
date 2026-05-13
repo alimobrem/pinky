@@ -118,7 +118,7 @@ export function TasksView() {
         (t) => t.status === "waiting_for_approval",
       ).length,
     };
-  }, [allItems, doneItems, doneTasks, user]);
+  }, [allItems, doneItems, doneTasks, isDoneTab, user]);
 
   const focusedTask = useMemo(
     () => filteredItems.find((t) => t.id === focusedId) ?? null,

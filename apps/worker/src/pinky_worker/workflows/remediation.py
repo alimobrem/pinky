@@ -74,7 +74,11 @@ class RemediationWorkflow:
                         execution_id=input.execution_id,
                         event_type="progress",
                         sequence=2 + i * 2,
-                        payload={"step": i + 1, "total": len(input.plan_steps), "description": step.get("description", "")},
+                        payload={
+                            "step": i + 1,
+                            "total": len(input.plan_steps),
+                            "description": step.get("description", ""),
+                        },
                     ),
                     start_to_close_timeout=timedelta(seconds=5),
                 )

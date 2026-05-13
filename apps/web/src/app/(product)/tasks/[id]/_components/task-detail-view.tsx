@@ -188,12 +188,6 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     return kind && ns && name ? { kind, namespace: ns, name, clusterId: task.cluster_id } : null;
   }, [task]);
 
-  if (!task) return null;
-
-  // Derived state — no useState, no useEffect, no state machine
-  const activeExec = executions?.items?.find(
-    (e) => (e.status === "running" || e.status === "pending") && e.execution_type === "investigation",
-  );
   const pendingExec = executions?.items?.find(
     (e) => e.status === "waiting_for_approval",
   );
@@ -204,6 +198,12 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     ),
     enabled: !!pendingExec,
   });
+
+  if (!task) return null;
+
+  const activeExec = executions?.items?.find(
+    (e) => (e.status === "running" || e.status === "pending") && e.execution_type === "investigation",
+  );
   const remediationExec = executions?.items?.find(
     (e) => e.execution_type === "remediation" && ["running", "completed", "failed", "cancelled"].includes(e.status),
   );
