@@ -73,23 +73,51 @@ def compute_evidence_hash(sections: dict[str, str]) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
-async def _emit_tool_event(pool: Any, execution_id: str, tool_name: str, seq: int) -> None:
+async def _emit_event(
+    pool: Any, execution_id: str, event_type: str, seq: int, payload: dict,
+) -> None:
     if not execution_id:
         return
     try:
         await pool.execute(
             """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)
-               VALUES ($1, $2, 'tool_used', $3, $4, $5)
+               VALUES ($1, $2, $3, $4, $5, $6)
                ON CONFLICT DO NOTHING""",
-            uuid4(), UUID(execution_id), seq,
-            json.dumps({"tool_name": tool_name}),
-            datetime.now(UTC),
+            uuid4(), UUID(execution_id), event_type, seq,
+            json.dumps(payload), datetime.now(UTC),
         )
-        payload = json.dumps({"event_type": "tool_used", "execution_id": execution_id})
-        await pool.execute("SELECT pg_notify($1, $2)", "pinky_watch", payload)
-        await pool.execute("SELECT pg_notify($1, $2)", f"pinky_execution_{execution_id}", payload)
+        notify = json.dumps({"event_type": event_type, "execution_id": execution_id})
+        await pool.execute("SELECT pg_notify($1, $2)", "pinky_watch", notify)
+        await pool.execute("SELECT pg_notify($1, $2)", f"pinky_execution_{execution_id}", notify)
     except Exception:
-        logger.debug("tool event emission skipped")
+        logger.debug("%s event emission skipped", event_type)
+
+
+async def _emit_tool_event(pool: Any, execution_id: str, tool_name: str, seq: int) -> None:
+    await _emit_event(pool, execution_id, "tool_used", seq, {"tool_name": tool_name})
+
+
+def _build_oc_command(action: str, kind: str, name: str, namespace: str, params: dict) -> str:
+    if action == "scale":
+        return f"oc scale {kind} {name} -n {namespace} --replicas={params.get('replicas', 1)}"
+    if action == "patch":
+        patch = json.dumps(params.get("patch", {}))
+        return f"oc patch {kind} {name} -n {namespace} -p '{patch}'"
+    if action == "delete_pod":
+        return f"oc delete pod {name} -n {namespace}"
+    if action == "rollback":
+        return f"oc rollout undo {kind}/{name} -n {namespace}"
+    return f"oc {action} {kind}/{name} -n {namespace}"
+
+
+async def _emit_command_event(
+    pool: Any, execution_id: str, seq: int, command: str, output: str, exit_code: int,
+    action: str, resource: str,
+) -> None:
+    await _emit_event(pool, execution_id, "command", seq, {
+        "command": command, "output": output, "exit_code": exit_code,
+        "action": action, "resource": resource,
+    })
 
 
 @activity.defn
@@ -620,16 +648,19 @@ async def validate_approval(approval_id: str, changeset_digest: str) -> dict:
 
 
 @activity.defn
-async def apply_change(cluster_id: str, binding_id: str, step: dict) -> dict:
+async def apply_change(execution_id: str, cluster_id: str, binding_id: str, step: dict) -> dict:
     """Apply a remediation step using the user's cluster identity."""
     action = step.get("action", "")
     namespace = step.get("namespace", "default")
     resource = step.get("resource", "")
     params = step.get("params", {})
     description = step.get("description", f"{action} {resource}")
+    step_index = step.get("_step_index", 0)
+    cmd_seq = 500 + step_index * 10
 
     activity.heartbeat(f"applying: {description}")
 
+    from pinky_worker.db import get_pool
     from pinky_worker.observation.k8s_client import (
         create_client,
         delete_pod,
@@ -638,23 +669,44 @@ async def apply_change(cluster_id: str, binding_id: str, step: dict) -> dict:
         scale_deployment,
     )
 
+    parts = resource.split("/")
+    kind = parts[0] if len(parts) > 1 else "deployment"
+    name = parts[-1] if parts else resource
+
+    oc_cmd = _build_oc_command(action, kind, name, namespace, params)
+
     try:
-        k8s = await create_client()
+        api_endpoint = None
+        user_token = None
+        if binding_id:
+            binding_pool = await get_pool()
+            binding_row = await binding_pool.fetchrow(
+                "SELECT encrypted_token, cluster_id FROM cluster_identity_bindings WHERE id = $1",
+                UUID(binding_id),
+            )
+            if binding_row and binding_row["encrypted_token"]:
+                from pinky_worker.security import decrypt
+                user_token = decrypt(
+                    binding_row["encrypted_token"],
+                    aad=f"cluster_identity_bindings:{binding_id}",
+                ).decode()
+                cluster_row = await binding_pool.fetchrow(
+                    "SELECT api_endpoint FROM cluster_registry WHERE id = $1",
+                    binding_row["cluster_id"],
+                )
+                if cluster_row:
+                    api_endpoint = cluster_row["api_endpoint"]
+
+        k8s = await create_client(api_endpoint=api_endpoint, token=user_token)
 
         if action == "scale":
-            name = resource.split("/")[-1] if "/" in resource else resource
             replicas = params.get("replicas", 1)
             result = await scale_deployment(k8s, namespace, name, replicas)
         elif action == "delete_pod":
-            name = resource.split("/")[-1] if "/" in resource else resource
             result = await delete_pod(k8s, namespace, name)
         elif action == "patch":
-            parts = resource.split("/")
-            kind = parts[0] if len(parts) > 1 else "deployment"
-            name = parts[-1]
             result = await patch_resource(k8s, namespace, kind, name, params.get("patch", {}))
         elif action == "rollback":
-            name = resource.split("/")[-1] if "/" in resource else resource
             result = await rollback_deployment(k8s, namespace, name)
         else:
             result = {"status": "unsupported", "action": action}
@@ -662,10 +714,20 @@ async def apply_change(cluster_id: str, binding_id: str, step: dict) -> dict:
 
         await k8s.close()
         result["applied_at"] = datetime.now(UTC).isoformat()
+
+        output = f"{kind}/{name} {result.get('status', 'applied')}"
+        pool = await get_pool()
+        await _emit_command_event(pool, execution_id, cmd_seq, oc_cmd, output, 0, action, resource)
+
         return result
 
     except Exception as e:
         logger.exception("apply_change failed for cluster %s", cluster_id)
+        try:
+            pool = await get_pool()
+            await _emit_command_event(pool, execution_id, cmd_seq, oc_cmd, str(e), 1, action, resource)
+        except Exception:
+            logger.debug("failed to emit error command event")
         return {"status": "failed", "action": action, "resource": resource, "error": str(e)}
 
 
@@ -722,6 +784,30 @@ async def project_to_postgres(execution_id: str, event_type: str, payload: dict)
                 """UPDATE work_items SET confidence = $2, updated_at = now()
                    WHERE id = (SELECT work_item_id FROM executions WHERE id = $1)""",
                 UUID(execution_id), float(confidence),
+            )
+
+        if payload.get("verification_passed"):
+            exec_info = await pool.fetchrow(
+                "SELECT execution_type, work_item_id FROM executions WHERE id = $1",
+                UUID(execution_id),
+            )
+        else:
+            exec_info = None
+        if (exec_info
+                and exec_info["execution_type"] == "remediation"
+                and exec_info["work_item_id"]):
+            wi_id = exec_info["work_item_id"]
+            await pool.execute(
+                "UPDATE work_items SET status = 'done', updated_at = now() WHERE id = $1", wi_id,
+            )
+            await pool.execute(
+                """UPDATE issues SET status = 'resolved', resolved_by = 'remediation', updated_at = now()
+                   WHERE id = (SELECT issue_id FROM work_items WHERE id = $1)""",
+                wi_id,
+            )
+            await pool.execute(
+                "SELECT pg_notify($1, $2)", "pinky_work_items",
+                json.dumps({"event_type": "work_item.completed", "aggregate_id": str(wi_id)}),
             )
     elif event_type == "failed":
         await pool.execute(

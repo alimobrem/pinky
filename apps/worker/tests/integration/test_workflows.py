@@ -99,7 +99,7 @@ async def mock_validate_invalid(approval_id: str, changeset_digest: str) -> dict
 
 
 @activity.defn(name="apply_change")
-async def mock_apply(cluster_id: str, binding_id: str, step: dict) -> dict:
+async def mock_apply(execution_id: str, cluster_id: str, binding_id: str, step: dict) -> dict:
     return {"status": "applied", "action": step.get("action", "")}
 
 

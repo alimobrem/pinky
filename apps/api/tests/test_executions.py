@@ -80,3 +80,18 @@ def test_cancel_nonexistent(authed_client: TestClient) -> None:
 def test_cancel_invalid_uuid(authed_client: TestClient) -> None:
     r = authed_client.post("/api/v1/executions/not-a-uuid/cancel")
     assert r.status_code == 404
+
+
+def test_cancel_requires_auth(unauthed_client: TestClient) -> None:
+    r = unauthed_client.post(f"/api/v1/executions/{uuid.uuid4()}/cancel")
+    assert r.status_code == 401
+
+
+def test_approval_endpoint_returns_null_for_no_approval(authed_client: TestClient) -> None:
+    r = authed_client.get(f"/api/v1/executions/{uuid.uuid4()}/approval")
+    assert r.status_code == 404
+
+
+def test_approval_endpoint_requires_auth(unauthed_client: TestClient) -> None:
+    r = unauthed_client.get(f"/api/v1/executions/{uuid.uuid4()}/approval")
+    assert r.status_code == 401

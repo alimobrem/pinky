@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 import { executionOptions, executionEventsOptions } from "../queries";
 import { ExecutionMonitor } from "@/components/shared/execution-monitor";
+import { ExecutionTerminal } from "@/components/shared/execution-terminal";
 import { StatusIndicator } from "@/components/shared/status-indicator";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,7 @@ export function ExecutionDetailView({ taskId, execId }: ExecutionDetailViewProps
     qc.invalidateQueries({ queryKey: QUERY_KEYS.taskTimeline(taskId) });
   };
 
-  const { state, lastUpdated } = useEventBus("execution-detail", (envelope) => {
+  useEventBus("execution-detail", (envelope) => {
     if (envelope.payload?.execution_id === execId || envelope.aggregate_id === execId) {
       invalidateAll();
     }
@@ -47,6 +48,11 @@ export function ExecutionDetailView({ taskId, execId }: ExecutionDetailViewProps
   });
 
   if (!execution) return null;
+
+  const isRemediation = execution.execution_type === "remediation";
+  const execEvents = (events?.items ?? []).filter(
+    (e: { execution_id: string }) => e.execution_id === execId,
+  );
 
   return (
     <div className="space-y-4">
@@ -67,15 +73,21 @@ export function ExecutionDetailView({ taskId, execId }: ExecutionDetailViewProps
       </div>
 
       <Card className="overflow-hidden">
-        <ExecutionMonitor
-          events={events?.items ?? []}
-          sseState={state}
-          lastUpdated={lastUpdated}
-          pendingApproval={execution.status === "waiting_for_approval"}
-          executionId={execId}
-          onApprove={(id) => approve.mutate(id)}
-          onReject={(id) => reject.mutate(id)}
-        />
+        {isRemediation ? (
+          <div className="p-4">
+            <ExecutionTerminal events={execEvents} />
+          </div>
+        ) : (
+          <ExecutionMonitor
+            events={execEvents}
+            sseState="connected"
+            lastUpdated={null}
+            pendingApproval={execution.status === "waiting_for_approval"}
+            executionId={execId}
+            onApprove={(id) => approve.mutate(id)}
+            onReject={(id) => reject.mutate(id)}
+          />
+        )}
       </Card>
     </div>
   );

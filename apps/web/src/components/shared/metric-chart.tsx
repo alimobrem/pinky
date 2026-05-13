@@ -33,6 +33,8 @@ export function MetricChart({ chart }: MetricChartProps) {
     return cfg;
   }, [chart.series]);
 
+  if (!chart.data.length || !chart.series.length) return null;
+
   const height = chart.type === "bar"
     ? Math.min(chart.data.length * 28 + 60, 400)
     : 240;

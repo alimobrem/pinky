@@ -35,6 +35,7 @@ const QUEUE_TABS = [
   { id: "active", label: "Active" },
   { id: "blocked", label: "Blocked" },
   { id: "waiting_for_approval", label: "Approval" },
+  { id: "done", label: "Done" },
 ] as const;
 
 export function TasksView() {
@@ -49,10 +50,18 @@ export function TasksView() {
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | undefined>();
+  const [doneCursor, setDoneCursor] = useState<string | undefined>();
+
+  const isDoneTab = activeTab === "done";
 
   const { data: tasks, isLoading, isFetching } = useQuery(
     tasksOptions({ cluster_id: clusterId ?? undefined, cursor }),
   );
+
+  const { data: doneTasks } = useQuery({
+    ...tasksOptions({ status: "done", cluster_id: clusterId ?? undefined, cursor: doneCursor }),
+    enabled: isDoneTab,
+  });
 
   const { allItems, hasMore } = usePaginatedData(tasks, {
     cursor,
@@ -61,7 +70,16 @@ export function TasksView() {
     invalidateKeys: [["tasks"]],
   });
 
+  const { allItems: doneItems, hasMore: doneHasMore } = usePaginatedData(doneTasks, {
+    cursor: doneCursor,
+    onReset: () => setDoneCursor(undefined),
+    eventBusId: isDoneTab ? "tasks-done" : undefined,
+    invalidateKeys: [["tasks"]],
+  });
+
   const filteredItems = useMemo(() => {
+    if (isDoneTab) return doneItems;
+
     let items = allItems;
 
     if (activeTab === "mine") {
@@ -86,7 +104,7 @@ export function TasksView() {
     }
 
     return items;
-  }, [allItems, activeTab, priorityFilter, search, user]);
+  }, [allItems, doneItems, isDoneTab, activeTab, priorityFilter, search, user]);
 
   const tabCounts = useMemo(() => {
     return {
@@ -95,11 +113,12 @@ export function TasksView() {
       ready: allItems.filter((t) => t.status === "ready").length,
       active: allItems.filter((t) => t.status === "in_progress").length,
       blocked: allItems.filter((t) => t.status === "blocked").length,
+      done: isDoneTab ? (doneTasks?.total_count ?? doneItems.length) : (doneTasks?.total_count ?? "—"),
       waiting_for_approval: allItems.filter(
         (t) => t.status === "waiting_for_approval",
       ).length,
     };
-  }, [allItems, user]);
+  }, [allItems, doneItems, doneTasks, user]);
 
   const focusedTask = useMemo(
     () => filteredItems.find((t) => t.id === focusedId) ?? null,
@@ -192,10 +211,16 @@ export function TasksView() {
                   focusedKey={focusedId}
                   onFocusChange={setFocusedId}
                   stickyHeader
-                  hasMore={hasMore}
-                  totalCount={tasks?.total_count}
-                  onLoadMore={() => setCursor(tasks?.next_cursor ?? undefined)}
-                  isLoadingMore={isFetching && !!cursor}
+                  hasMore={isDoneTab ? doneHasMore : hasMore}
+                  totalCount={isDoneTab ? doneTasks?.total_count : tasks?.total_count}
+                  onLoadMore={() => {
+                    if (isDoneTab) {
+                      setDoneCursor(doneTasks?.next_cursor ?? undefined);
+                    } else {
+                      setCursor(tasks?.next_cursor ?? undefined);
+                    }
+                  }}
+                  isLoadingMore={isFetching && !!(isDoneTab ? doneCursor : cursor)}
                   emptyState={
                     <EmptyState
                       icon={ListTodo}

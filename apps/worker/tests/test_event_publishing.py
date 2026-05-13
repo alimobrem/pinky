@@ -65,6 +65,138 @@ class TestEmitToolEvent:
         assert pool.pg_notify_calls() == []
 
 
+class TestEmitCommandEvent:
+    @pytest.mark.asyncio
+    async def test_publishes_to_both_channels(self) -> None:
+        from pinky_worker.execution.activities import _emit_command_event
+
+        pool = FakePool()
+        exec_id = str(uuid.uuid4())
+
+        await _emit_command_event(pool, exec_id, 500, "oc scale deploy web --replicas=3", "scaled", 0, "scale", "deploy/web")
+
+        notify_calls = pool.pg_notify_calls()
+        channels = [ch for ch, _ in notify_calls]
+        assert "pinky_watch" in channels
+        assert f"pinky_execution_{exec_id}" in channels
+
+    @pytest.mark.asyncio
+    async def test_payload_contains_command_fields(self) -> None:
+        from pinky_worker.execution.activities import _emit_command_event
+
+        pool = FakePool()
+        exec_id = str(uuid.uuid4())
+
+        await _emit_command_event(pool, exec_id, 1, "oc delete pod web", "deleted", 0, "delete_pod", "pod/web")
+
+        insert_calls = [(q, *a) for q, *a in pool.calls if "INSERT INTO execution_events" in q]
+        assert len(insert_calls) == 1
+        payload = json.loads(insert_calls[0][5])
+        assert payload["command"] == "oc delete pod web"
+        assert payload["output"] == "deleted"
+        assert payload["exit_code"] == 0
+        assert payload["action"] == "delete_pod"
+
+    @pytest.mark.asyncio
+    async def test_skips_when_no_execution_id(self) -> None:
+        from pinky_worker.execution.activities import _emit_command_event
+
+        pool = FakePool()
+        await _emit_command_event(pool, "", 1, "oc test", "ok", 0, "test", "x")
+        assert pool.pg_notify_calls() == []
+
+
+class TestBuildOcCommand:
+    def test_scale(self) -> None:
+        from pinky_worker.execution.activities import _build_oc_command
+        assert _build_oc_command("scale", "deployment", "web", "default", {"replicas": 3}) == "oc scale deployment web -n default --replicas=3"
+
+    def test_patch(self) -> None:
+        from pinky_worker.execution.activities import _build_oc_command
+        cmd = _build_oc_command("patch", "deployment", "web", "ns", {"patch": {"spec": {"replicas": 2}}})
+        assert cmd.startswith("oc patch deployment web -n ns -p '")
+        assert '"replicas": 2' in cmd
+
+    def test_delete_pod(self) -> None:
+        from pinky_worker.execution.activities import _build_oc_command
+        assert _build_oc_command("delete_pod", "pod", "web-abc", "default", {}) == "oc delete pod web-abc -n default"
+
+    def test_rollback(self) -> None:
+        from pinky_worker.execution.activities import _build_oc_command
+        assert _build_oc_command("rollback", "deployment", "web", "default", {}) == "oc rollout undo deployment/web -n default"
+
+
+class TestAutoCompleteOnRemediation:
+    @pytest.mark.asyncio
+    async def test_remediation_verified_completes_task(self) -> None:
+        from pinky_worker.execution.activities import project_to_postgres
+
+        exec_id = str(uuid.uuid4())
+        wi_id = uuid.uuid4()
+
+        class FakePoolWithFetch(FakePool):
+            async def fetchrow(self, query, *args):
+                if "execution_type" in query:
+                    return {"execution_type": "remediation", "work_item_id": wi_id}
+                if "cluster_id" in query:
+                    return {"cluster_id": uuid.uuid4()}
+                return None
+
+        pool = FakePoolWithFetch()
+
+        with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
+            await project_to_postgres(exec_id, "completed", {"verification_passed": True})
+
+        queries = [q for q, *_ in pool.calls]
+        assert any("work_items SET status = 'done'" in q for q in queries)
+        assert any("issues SET status = 'resolved'" in q for q in queries)
+        assert any("pg_notify" in q and "work_item.completed" in str(pool.calls) for q in queries)
+
+    @pytest.mark.asyncio
+    async def test_investigation_does_not_complete_task(self) -> None:
+        from pinky_worker.execution.activities import project_to_postgres
+
+        exec_id = str(uuid.uuid4())
+
+        class FakePoolWithFetch(FakePool):
+            async def fetchrow(self, query, *args):
+                if "execution_type" in query:
+                    return {"execution_type": "investigation", "work_item_id": uuid.uuid4()}
+                if "cluster_id" in query:
+                    return {"cluster_id": uuid.uuid4()}
+                return None
+
+        pool = FakePoolWithFetch()
+
+        with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
+            await project_to_postgres(exec_id, "completed", {"confidence": 0.8})
+
+        queries = [q for q, *_ in pool.calls]
+        assert not any("work_items SET status = 'done'" in q for q in queries)
+
+    @pytest.mark.asyncio
+    async def test_verification_failed_does_not_complete(self) -> None:
+        from pinky_worker.execution.activities import project_to_postgres
+
+        exec_id = str(uuid.uuid4())
+
+        class FakePoolWithFetch(FakePool):
+            async def fetchrow(self, query, *args):
+                if "execution_type" in query:
+                    return {"execution_type": "remediation", "work_item_id": uuid.uuid4()}
+                if "cluster_id" in query:
+                    return {"cluster_id": uuid.uuid4()}
+                return None
+
+        pool = FakePoolWithFetch()
+
+        with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
+            await project_to_postgres(exec_id, "completed", {"verification_passed": False})
+
+        queries = [q for q, *_ in pool.calls]
+        assert not any("work_items SET status = 'done'" in q for q in queries)
+
+
 class TestCorrelatorNotifyPayloads:
     def test_work_item_payload_is_safe_json(self) -> None:
         work_item_id = uuid.uuid4()

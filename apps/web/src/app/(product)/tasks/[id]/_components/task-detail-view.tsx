@@ -30,6 +30,7 @@ import {
 import { useEventBus } from "@/hooks/use-event-bus";
 import { MarkdownContent } from "@/components/shared/markdown-content";
 import { RemediationPlan } from "./remediation-plan";
+import { ExecutionTerminal } from "@/components/shared/execution-terminal";
 import { BrainChat } from "./brain-chat";
 import { StatusIndicator } from "@/components/shared/status-indicator";
 import { PriorityBadge } from "@/components/shared/priority-badge";
@@ -99,6 +100,13 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     if (envelope.aggregate_id === taskId || envelope.aggregate_id === task?.issue_id) {
       invalidateAll();
     }
+    if (remediationExec && envelope.payload?.execution_id === remediationExec.id) {
+      if (envelope.type === "completed") {
+        toast.success("Remediation completed successfully");
+      } else if (envelope.type === "failed" && envelope.payload?.reason === "cancelled") {
+        toast.info("Remediation cancelled");
+      }
+    }
   });
 
   const release = useMutation({
@@ -131,6 +139,11 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const reject = useMutation({
     mutationFn: (execId: string) => api.post(`/api/v1/executions/${execId}/reject`),
     onSuccess: () => { invalidateAll(); toast.success("Execution rejected"); },
+  });
+  const cancelExec = useMutation({
+    mutationFn: (execId: string) => api.post(`/api/v1/executions/${execId}/cancel`),
+    onSuccess: () => { invalidateAll(); toast.success("Execution cancelled"); },
+    onError: () => toast.error("Failed to cancel execution"),
   });
   const investigate = useMutation({
     mutationFn: () =>
@@ -184,6 +197,16 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const pendingExec = executions?.items?.find(
     (e) => e.status === "waiting_for_approval",
   );
+  const { data: approvalData } = useQuery({
+    queryKey: ["approval", pendingExec?.id],
+    queryFn: () => api.get<{ approval: { target_resources: Record<string, unknown>[]; changeset_digest: string } | null }>(
+      `/api/v1/executions/${pendingExec!.id}/approval`,
+    ),
+    enabled: !!pendingExec,
+  });
+  const remediationExec = executions?.items?.find(
+    (e) => e.execution_type === "remediation" && ["running", "completed", "failed", "cancelled"].includes(e.status),
+  );
   const events = timeline?.items ?? [];
   const hasResults = investigation?.has_investigation === true;
   const isInvestigating = !hasResults && (!!activeExec || investigate.isPending);
@@ -212,6 +235,13 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
           className="mb-0 flex-1"
         />
       </div>
+
+      {task.status === "done" && (
+        <div className="flex items-center gap-2 rounded-lg border border-status-done/30 bg-status-done/10 px-4 py-2 text-sm text-status-done">
+          <CheckCircle size={16} />
+          This task was completed automatically after successful remediation and verification.
+        </div>
+      )}
 
       <FadeIn>
         <div className="grid gap-4 lg:grid-cols-3">
@@ -360,10 +390,72 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
             {pendingExec && (
               <ApprovalGate
                 executionId={pendingExec.id}
+                resources={approvalData?.approval?.target_resources}
                 onApprove={(id) => approve.mutate(id)}
                 onReject={(id) => reject.mutate(id)}
                 isPending={approve.isPending || reject.isPending}
               />
+            )}
+
+            {remediationExec && (
+              <Collapsible defaultOpen={remediationExec.status === "running"}>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CollapsibleTrigger className="flex items-center gap-2">
+                        <CardTitle className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">
+                          Execution Log
+                        </CardTitle>
+                        <ChevronRight size={12} className="text-text-tertiary transition-transform [[data-state=open]_&]:rotate-90" />
+                      </CollapsibleTrigger>
+                      {remediationExec.status === "running" && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="text-destructive h-8 text-sm">
+                              <XCircle size={14} className="mr-1" /> Cancel
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Cancel remediation?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will stop the remediation. Steps already applied will not be rolled back.
+                              </AlertDialogDescription>
+                              {(() => {
+                                const completedCmds = events
+                                  .filter((e) => e.execution_id === remediationExec.id && e.event_type === "command")
+                                  .map((e) => String(e.payload?.command ?? ""));
+                                if (!completedCmds.length) return null;
+                                return (
+                                  <div className="mt-2 rounded bg-bg-hover p-2 text-caption">
+                                    <p className="text-text-tertiary mb-1">Steps already applied:</p>
+                                    {completedCmds.map((cmd, i) => (
+                                      <code key={i} className="block font-mono text-text-secondary">$ {cmd}</code>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Keep Running</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => cancelExec.mutate(remediationExec.id)}>
+                                Cancel Execution
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CollapsibleContent>
+                    <CardContent>
+                      <ExecutionTerminal
+                        events={events.filter((e) => e.execution_id === remediationExec.id)}
+                      />
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
             )}
           </div>
 

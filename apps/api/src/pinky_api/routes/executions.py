@@ -213,6 +213,37 @@ async def start_execution(
     return _serialize(ex)
 
 
+@router.get("/{execution_id}/approval")
+async def get_execution_approval(
+    execution_id: str,
+    db: AsyncSession = Depends(get_db),
+    principal: dict = Depends(require_authenticated),
+) -> dict:
+    repo = ExecutionRepository(db)
+    ex = await repo.get(_parse_uuid(execution_id, "Execution"))
+    if ex is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    await require_cluster_read_access(ex.cluster_id, principal, db, require_binding=True)
+
+    from sqlalchemy import select
+    from pinky_api.models.execution import Approval
+    result = await db.execute(
+        select(Approval).where(Approval.execution_id == ex.id).order_by(Approval.created_at.desc()).limit(1)
+    )
+    approval = result.scalar_one_or_none()
+    if approval is None:
+        return {"approval": None}
+    return {
+        "approval": {
+            "id": str(approval.id),
+            "status": approval.status,
+            "target_resources": approval.target_resources,
+            "changeset_digest": approval.changeset_digest,
+            "expires_at": approval.expires_at.isoformat() if approval.expires_at else None,
+        }
+    }
+
+
 @router.post("/{execution_id}/cancel")
 async def cancel_execution(
     execution_id: str,
@@ -225,7 +256,7 @@ async def cancel_execution(
     ex = await repo.get(_parse_uuid(execution_id, "Execution"))
     if ex is None:
         raise HTTPException(status_code=404, detail="Execution not found")
-    await require_cluster_read_access(ex.cluster_id, principal, db, require_binding=True)
+    await require_cluster_write_access(ex.cluster_id, principal, db)
 
     if ex.status not in ("pending", "running"):
         raise HTTPException(status_code=409, detail=f"Cannot cancel execution in '{ex.status}' state")

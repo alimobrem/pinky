@@ -29,7 +29,18 @@ def _extract_metadata(obj: Any) -> dict:
     }
 
 
-async def create_client(kubeconfig: str | None = None) -> ApiClient:
+async def create_client(
+    kubeconfig: str | None = None,
+    api_endpoint: str | None = None,
+    token: str | None = None,
+) -> ApiClient:
+    if api_endpoint and token:
+        cfg = client.Configuration()
+        cfg.host = api_endpoint
+        cfg.api_key = {"BearerToken": token}
+        cfg.api_key_prefix = {"BearerToken": "Bearer"}
+        cfg.verify_ssl = False
+        return ApiClient(configuration=cfg)
     if kubeconfig:
         await config.load_kube_config(config_file=kubeconfig)
     elif _SA_TOKEN.exists():

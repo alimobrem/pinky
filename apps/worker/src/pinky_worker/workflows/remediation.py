@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
+from temporalio.exceptions import CancelledError
 
 with workflow.unsafe.imports_passed_through():
     from pinky_worker.execution.activities import (
@@ -65,45 +66,57 @@ class RemediationWorkflow:
             )
             return RemediationResult(status="approval_invalidated")
 
-        for i, step in enumerate(input.plan_steps):
+        try:
+            for i, step in enumerate(input.plan_steps):
+                await workflow.execute_activity(
+                    emit_execution_event,
+                    ExecutionEventPayload(
+                        execution_id=input.execution_id,
+                        event_type="progress",
+                        sequence=2 + i * 2,
+                        payload={"step": i + 1, "total": len(input.plan_steps), "description": step.get("description", "")},
+                    ),
+                    start_to_close_timeout=timedelta(seconds=5),
+                )
+
+                await workflow.execute_activity(
+                    apply_change,
+                    args=[input.execution_id, input.cluster_id, input.binding_id, {**step, "_step_index": i}],
+                    start_to_close_timeout=timedelta(seconds=60),
+                    retry_policy=RetryPolicy(maximum_attempts=2),
+                )
+            verification = await workflow.execute_child_workflow(
+                VerificationWorkflow.run,
+                VerificationInput(
+                    execution_id=input.execution_id,
+                    cluster_id=input.cluster_id,
+                ),
+            )
+
             await workflow.execute_activity(
                 emit_execution_event,
                 ExecutionEventPayload(
                     execution_id=input.execution_id,
-                    event_type="progress",
-                    sequence=2 + i * 2,
-                    payload={"step": i + 1, "total": len(input.plan_steps), "description": step.get("description", "")},
+                    event_type="completed",
+                    sequence=100,
+                    payload={"verification_passed": verification.passed},
                 ),
                 start_to_close_timeout=timedelta(seconds=5),
             )
 
-            await workflow.execute_activity(
-                apply_change,
-                args=[input.cluster_id, input.binding_id, step],
-                start_to_close_timeout=timedelta(seconds=60),
-                retry_policy=RetryPolicy(maximum_attempts=2),
+            return RemediationResult(
+                status="completed",
+                verification_passed=verification.passed,
             )
-
-        verification = await workflow.execute_child_workflow(
-            VerificationWorkflow.run,
-            VerificationInput(
-                execution_id=input.execution_id,
-                cluster_id=input.cluster_id,
-            ),
-        )
-
-        await workflow.execute_activity(
-            emit_execution_event,
-            ExecutionEventPayload(
-                execution_id=input.execution_id,
-                event_type="completed",
-                sequence=100,
-                payload={"verification_passed": verification.passed},
-            ),
-            start_to_close_timeout=timedelta(seconds=5),
-        )
-
-        return RemediationResult(
-            status="completed",
-            verification_passed=verification.passed,
-        )
+        except CancelledError:
+            await workflow.execute_activity(
+                emit_execution_event,
+                ExecutionEventPayload(
+                    execution_id=input.execution_id,
+                    event_type="failed",
+                    sequence=99,
+                    payload={"reason": "cancelled"},
+                ),
+                start_to_close_timeout=timedelta(seconds=5),
+            )
+            return RemediationResult(status="cancelled")
