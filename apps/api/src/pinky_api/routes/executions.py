@@ -225,10 +225,9 @@ async def get_execution_approval(
         raise HTTPException(status_code=404, detail="Execution not found")
     await require_cluster_read_access(ex.cluster_id, principal, db, require_binding=True)
 
-    from sqlalchemy import select
     from pinky_api.models.execution import Approval
     result = await db.execute(
-        select(Approval).where(Approval.execution_id == ex.id).order_by(Approval.created_at.desc()).limit(1)
+        sa_select(Approval).where(Approval.execution_id == ex.id).order_by(Approval.created_at.desc()).limit(1)
     )
     approval = result.scalar_one_or_none()
     if approval is None:
