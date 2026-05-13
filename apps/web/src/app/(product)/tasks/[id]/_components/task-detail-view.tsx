@@ -37,6 +37,8 @@ import { PriorityBadge } from "@/components/shared/priority-badge";
 import { ConfidenceBadge } from "@/components/shared/confidence-badge";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { ApprovalGate } from "@/components/shared/approval-gate";
+import { EmptyState } from "@/components/shared/empty-state";
+import { SkeletonRow } from "@/components/shared/skeleton-row";
 import { PageHeader } from "@/components/shared/page-header";
 import { FadeIn } from "@/components/motion/fade-in";
 import Link from "next/link";
@@ -83,7 +85,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const { user } = useCurrentUser();
   const [blockReason, setBlockReason] = useState("");
 
-  const { data: task } = useQuery(taskOptions(taskId));
+  const { data: task, isLoading: taskLoading } = useQuery(taskOptions(taskId));
   const { data: executions } = useQuery(executionsOptions(taskId));
   const { data: investigation } = useQuery(investigationOptions(taskId));
   const { data: timeline } = useQuery(timelineOptions(taskId));
@@ -199,7 +201,21 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     enabled: !!pendingExec,
   });
 
-  if (!task) return null;
+  if (taskLoading) return <SkeletonRow rows={3} />;
+  if (!task) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <EmptyState
+          icon={Search}
+          title="Task not found"
+          description="This task may have been resolved or removed."
+        />
+        <Button variant="ghost" className="mt-4" onClick={() => router.push("/tasks")}>
+          Back to Tasks
+        </Button>
+      </div>
+    );
+  }
 
   const activeExec = executions?.items?.find(
     (e) => (e.status === "running" || e.status === "pending") && e.execution_type === "investigation",

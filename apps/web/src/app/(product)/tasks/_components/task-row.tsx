@@ -22,10 +22,18 @@ export function taskColumns(): Column<WorkItem>[] {
     {
       id: "title",
       header: "Task",
-      cell: (task: WorkItem) => (
+      cell: (task: WorkItem) => {
+        const isStale = task.status === "ready" && !task.owner_id &&
+          new Date(task.created_at).getTime() < Date.now() - 48 * 60 * 60 * 1000;
+        return (
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-text-primary">
             {task.title}
+            {isStale && (
+              <span className="ml-2 inline-block rounded bg-status-in-progress/15 px-1.5 py-0.5 text-caption text-status-in-progress">
+                Stale
+              </span>
+            )}
           </p>
           <div className="mt-0.5 flex items-center gap-2 truncate font-mono text-caption text-text-tertiary">
             {task.cluster_display_name && (
@@ -36,7 +44,7 @@ export function taskColumns(): Column<WorkItem>[] {
             )}
           </div>
         </div>
-      ),
+      ); },
       className: "max-w-[400px]",
     },
     {

@@ -324,6 +324,40 @@ async def _sweep_stale_issues(
     return resolved_count
 
 
+async def _sweep_orphaned_tasks(cluster_id: str) -> int:
+    from pinky_worker.db import get_pool
+    pool = await get_pool()
+    result = await pool.execute(
+        """UPDATE work_items SET status = 'done', updated_at = now()
+           WHERE cluster_id = $1::uuid
+             AND status NOT IN ('done')
+             AND issue_id IN (
+                 SELECT id FROM issues WHERE status IN ('resolved', 'suppressed')
+             )""",
+        cluster_id,
+    )
+    count = int(result.split()[-1])
+    if count:
+        logger.info("orphaned task sweep", cluster_id=cluster_id, completed=count)
+    return count
+
+
+async def _sweep_stuck_executions(cluster_id: str) -> int:
+    from pinky_worker.db import get_pool
+    pool = await get_pool()
+    result = await pool.execute(
+        """UPDATE executions SET status = 'failed', completed_at = now()
+           WHERE cluster_id = $1::uuid
+             AND status = 'pending'
+             AND created_at < now() - interval '5 minutes'""",
+        cluster_id,
+    )
+    count = int(result.split()[-1])
+    if count:
+        logger.warning("stuck execution sweep", cluster_id=cluster_id, failed=count)
+    return count
+
+
 async def _handle_create_task(result, decision, obs) -> None:
     if not result.issue_id:
         return
@@ -574,6 +608,8 @@ async def observe_cluster(
                     logger.info("clean scan", cluster_id=cluster_id)
 
                 await _sweep_stale_issues(cluster_id, registry, scan_healthy)
+                await _sweep_orphaned_tasks(cluster_id)
+                await _sweep_stuck_executions(cluster_id)
 
             except Exception:
                 logger.exception("scan cycle failed", cluster_id=cluster_id, cycle=cycle)
