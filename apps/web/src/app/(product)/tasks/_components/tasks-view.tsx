@@ -145,7 +145,7 @@ export function TasksView() {
         actions={<CreateTaskDialog />}
       />
 
-      <div className="flex items-center gap-1 border-b border-border-default">
+      <div className="flex items-center gap-1 overflow-x-auto border-b border-border-default">
         {QUEUE_TABS.map((tab) => {
           const count = tabCounts[tab.id as keyof typeof tabCounts] ?? 0;
           return (
@@ -154,7 +154,7 @@ export function TasksView() {
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "relative flex items-center gap-1.5 border-b-2 px-3 py-2 text-body-sm font-medium transition-colors",
+                "relative flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-body-sm font-medium transition-colors",
                 activeTab === tab.id
                   ? "border-brand-pink text-text-primary"
                   : "border-transparent text-text-tertiary hover:text-text-secondary",
