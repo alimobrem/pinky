@@ -59,7 +59,8 @@ async def emit(
             {"channel": channel, "payload": notify_payload},
         )
     except Exception:
-        logger.debug("NOTIFY skipped — not connected to Postgres or in test mode")
+        logger.warning("pg_notify failed for %s.%s — SSE clients will not receive this event",
+                        aggregate_type, event_type)
 
     logger.info(
         "domain event emitted %s %s %s",

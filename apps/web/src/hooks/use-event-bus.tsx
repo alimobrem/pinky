@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useCallback,
+  useId,
   useRef,
   type ReactNode,
 } from "react";
@@ -58,13 +59,15 @@ export function EventBusProvider({ children }: { children: ReactNode }) {
 
 export function useEventBus(id: string, handler: EventHandler) {
   const ctx = useContext(EventBusCtx);
+  const instanceId = useId();
+  const subscriberKey = `${id}-${instanceId}`;
   const handlerRef = useRef(handler);
   handlerRef.current = handler;
 
   useEffect(() => {
     if (!ctx) return;
-    return ctx.subscribe(id, (data) => handlerRef.current(data));
-  }, [ctx, id]);
+    return ctx.subscribe(subscriberKey, (data) => handlerRef.current(data));
+  }, [ctx, subscriberKey]);
 
   return {
     state: ctx?.state ?? ("disconnected" as SSEConnectionState),

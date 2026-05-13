@@ -139,13 +139,14 @@ async def _dispatch_investigation(
                          issue_id=result.issue_id, status=existing["status"])
             return
 
-        work_item_id = None
         wi_row = await conn.fetchrow(
             "SELECT id FROM work_items WHERE issue_id = $1::uuid ORDER BY created_at DESC LIMIT 1",
             result.issue_id,
         )
-        if wi_row:
-            work_item_id = wi_row["id"]
+        if not wi_row:
+            logger.warning("no work_item for issue, skipping investigation", issue_id=result.issue_id)
+            return
+        work_item_id = wi_row["id"]
 
         await conn.execute(
             """INSERT INTO executions (id, work_item_id, cluster_id, execution_type, status, created_at)
@@ -458,7 +459,10 @@ async def observe_cluster(
             policy_rules.sort(key=lambda r: r.priority)
             logger.info("merged DB policy rules", count=len(db_rules_rows))
     except Exception:
-        logger.exception("failed to load DB policy rules, using filesystem only")
+        logger.warning(
+            "DB policy rules unavailable — user-created rules will not be applied this cycle",
+            exc_info=True,
+        )
 
     prom_client = None
 

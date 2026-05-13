@@ -552,9 +552,11 @@ async def chat_with_brain(
     binding = await get_cluster_binding_for_principal(item.cluster_id, principal, db)
     cluster_token = ""
     if binding and binding.encrypted_token:
-        from datetime import UTC, datetime
         if binding.expires_at and binding.expires_at < datetime.now(UTC):
-            logger.warning("cluster binding expired for chat, tools disabled")
+            raise HTTPException(
+                status_code=401,
+                detail="Cluster binding expired — reconnect to the cluster",
+            )
         else:
             from pinky_api.security.crypto import decrypt
             try:

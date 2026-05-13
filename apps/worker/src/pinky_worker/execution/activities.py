@@ -316,7 +316,7 @@ async def check_artifact_cache(evidence_hash: str, correlation_key: str) -> Inve
            AND occurred_at > $2
            ORDER BY occurred_at DESC LIMIT 1""",
         evidence_hash,
-        datetime.now(UTC) - timedelta(hours=1),
+        datetime.now(UTC) - timedelta(minutes=5),
     )
 
     if row is None:
@@ -518,6 +518,12 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
                 "SELECT work_item_id, cluster_id FROM executions WHERE id = $1",
                 exec_uuid,
             )
+            if not exec_row or not exec_row["work_item_id"]:
+                logger.error(
+                    "execution %s has no work_item, cannot create approval",
+                    str(exec_uuid),
+                )
+                return artifact.artifact_id
             if exec_row and exec_row["work_item_id"]:
                 work_item_id = exec_row["work_item_id"]
                 cluster_id = exec_row["cluster_id"]
@@ -681,9 +687,16 @@ async def apply_change(execution_id: str, cluster_id: str, binding_id: str, step
         if binding_id:
             binding_pool = await get_pool()
             binding_row = await binding_pool.fetchrow(
-                "SELECT encrypted_token, cluster_id FROM cluster_identity_bindings WHERE id = $1",
+                "SELECT encrypted_token, cluster_id, expires_at FROM cluster_identity_bindings WHERE id = $1",
                 UUID(binding_id),
             )
+            if binding_row and binding_row.get("expires_at"):
+                from datetime import UTC as _UTC
+                from datetime import datetime as _dt
+                if binding_row["expires_at"].replace(tzinfo=_UTC) < _dt.now(_UTC):
+                    raise RuntimeError(
+                        f"Cluster binding {binding_id} expired — reconnect to the cluster"
+                    )
             if binding_row and binding_row["encrypted_token"]:
                 from pinky_worker.security import decrypt
                 user_token = decrypt(

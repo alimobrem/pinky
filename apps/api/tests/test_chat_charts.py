@@ -88,6 +88,39 @@ def _chat_mocks():
         yield
 
 
+class TestChatExpiredBinding:
+    def test_expired_binding_returns_401(self, authed_client: TestClient) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        wi_repo = MagicMock()
+        wi_repo.return_value.get = AsyncMock(return_value=_mock_work_item())
+        exec_repo = MagicMock()
+        exec_repo.return_value.get_investigation_for_work_item = AsyncMock(return_value=None)
+        cluster_repo = MagicMock()
+        cluster = MagicMock()
+        cluster.api_endpoint = "https://api.test:6443"
+        cluster_repo.return_value.get = AsyncMock(return_value=cluster)
+
+        binding = MagicMock()
+        binding.encrypted_token = b"encrypted"
+        binding.expires_at = datetime.now(UTC) - timedelta(hours=1)
+        binding.id = uuid.uuid4()
+
+        with (
+            patch(f"{ROUTE}.WorkItemRepository", wi_repo),
+            patch("pinky_api.repositories.executions.ExecutionRepository", exec_repo),
+            patch(f"{ROUTE}.require_cluster_read_access", AsyncMock()),
+            patch(f"{ROUTE}.get_cluster_binding_for_principal", AsyncMock(return_value=binding)),
+            patch("pinky_api.repositories.clusters.ClusterRepository", cluster_repo),
+        ):
+            resp = authed_client.post(
+                f"/api/v1/work-items/{WORK_ITEM_ID}/chat",
+                json={"message": "hello"},
+            )
+
+        assert resp.status_code == 401
+
+
 class TestChatReturnsCharts:
     def test_top_pods_produces_bar_chart(
         self, authed_client: TestClient, _chat_mocks: None,
