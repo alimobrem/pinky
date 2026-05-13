@@ -69,6 +69,22 @@ function formatEvent(event: ExecutionEvent): string[] {
       lines.push(`${RED}${BOLD}✗ Remediation failed: ${reason}${RESET}`);
       break;
     }
+    case "verified": {
+      const p = event.payload;
+      const passed = p.passed;
+      if (passed) {
+        lines.push(`${GREEN}✓ Verification passed${RESET}`);
+      } else {
+        lines.push(`${RED}✗ Verification failed${RESET}`);
+      }
+      const details = p.details as Record<string, unknown> | undefined;
+      if (details) {
+        for (const [k, v] of Object.entries(details)) {
+          lines.push(`${GRAY}  ${k}: ${String(v)}${RESET}`);
+        }
+      }
+      break;
+    }
     default:
       break;
   }
@@ -99,6 +115,8 @@ export function ExecutionTerminal({ events, className }: ExecutionTerminalProps)
         fontSize: 12,
         fontFamily: "Geist Mono, monospace",
         lineHeight: 1.4,
+        scrollback: 200,
+        rows: 16,
         theme: {
           background: "#09090f",
           foreground: "#e8e6f0",
