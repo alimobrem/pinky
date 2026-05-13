@@ -205,7 +205,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     (e) => (e.status === "running" || e.status === "pending") && e.execution_type === "investigation",
   );
   const remediationExec = executions?.items?.find(
-    (e) => e.execution_type === "remediation" && ["running", "completed", "failed", "cancelled"].includes(e.status),
+    (e) => e.execution_type === "remediation",
   );
   const events = timeline?.items ?? [];
   const hasResults = investigation?.has_investigation === true;
@@ -398,7 +398,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
             )}
 
             {remediationExec && (
-              <Collapsible defaultOpen={remediationExec.status === "running"}>
+              <Collapsible defaultOpen={remediationExec.status !== "completed"}>
                 <Card>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
