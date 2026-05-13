@@ -246,6 +246,56 @@ async def test_no_execution_stuck_in_pending(
     assert len(failed) == 1
 
 
+async def test_second_investigation_can_complete(
+    conn: asyncpg.Connection, cluster_id: str,
+) -> None:
+    """A re-investigation must be able to complete even if a prior completed investigation exists."""
+    issue_id, wi_id = await _seed_issue_and_task(conn, cluster_id)
+
+    # First completed investigation
+    exec1 = await _seed_execution(conn, cluster_id, wi_id, "investigation", "completed")
+    await conn.execute(
+        "UPDATE executions SET completed_at = now() - interval '2 hours' WHERE id = $1::uuid", exec1,
+    )
+
+    # Second investigation running
+    exec2 = await _seed_execution(conn, cluster_id, wi_id, "investigation", "running")
+
+    # Completing the second investigation must not crash
+    pool = _FakePool(conn)
+    with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
+        from pinky_worker.execution.activities import project_to_postgres
+        await project_to_postgres(exec2, "completed", {"confidence": 0.85})
+
+    row = await conn.fetchrow("SELECT status FROM executions WHERE id = $1::uuid", exec2)
+    assert row["status"] == "completed"
+
+
+async def test_remediation_can_complete_alongside_investigation(
+    conn: asyncpg.Connection, cluster_id: str,
+) -> None:
+    """A remediation must complete even if a completed investigation exists for the same work_item."""
+    issue_id, wi_id = await _seed_issue_and_task(conn, cluster_id)
+
+    inv_id = await _seed_execution(conn, cluster_id, wi_id, "investigation", "completed")
+    await conn.execute(
+        "UPDATE executions SET completed_at = now() WHERE id = $1::uuid", inv_id,
+    )
+
+    rem_id = await _seed_execution(conn, cluster_id, wi_id, "remediation", "running")
+
+    pool = _FakePool(conn)
+    with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
+        from pinky_worker.execution.activities import project_to_postgres
+        await project_to_postgres(rem_id, "completed", {"verification_passed": True})
+
+    row = await conn.fetchrow("SELECT status FROM executions WHERE id = $1::uuid", rem_id)
+    assert row["status"] == "completed"
+
+    task = await conn.fetchrow("SELECT status FROM work_items WHERE id = $1::uuid", wi_id)
+    assert task["status"] == "done"
+
+
 async def test_suppressed_issue_has_no_open_tasks(
     conn: asyncpg.Connection, cluster_id: str,
 ) -> None:
