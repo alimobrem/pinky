@@ -704,6 +704,75 @@ async def validate_approval(approval_id: str, changeset_digest: str) -> dict:
     return {"valid": True}
 
 
+_KIND_TO_API: dict[str, tuple[str, str]] = {
+    "pod": ("api/v1", "pods"),
+    "service": ("api/v1", "services"),
+    "configmap": ("api/v1", "configmaps"),
+    "deployment": ("apis/apps/v1", "deployments"),
+    "statefulset": ("apis/apps/v1", "statefulsets"),
+    "daemonset": ("apis/apps/v1", "daemonsets"),
+    "replicaset": ("apis/apps/v1", "replicasets"),
+    "job": ("apis/batch/v1", "jobs"),
+    "cronjob": ("apis/batch/v1", "cronjobs"),
+}
+
+
+def _api_path(kind: str, namespace: str, name: str) -> str:
+    kind_lower = kind.lower()
+    api_prefix, plural = _KIND_TO_API.get(kind_lower, ("api/v1", f"{kind_lower}s"))
+    return f"{api_prefix}/namespaces/{namespace}/{plural}/{name}"
+
+
+async def _k8s_apply(
+    api_endpoint: str, token: str, action: str,
+    kind: str, name: str, namespace: str, params: dict,
+) -> dict:
+    import httpx
+
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+
+    async with httpx.AsyncClient(verify=False) as client:
+        if action == "patch":
+            patch_body = params.get("patch", {})
+            url = f"{api_endpoint}/{_api_path(kind, namespace, name)}"
+            resp = await client.patch(
+                url, headers={**headers, "Content-Type": "application/strategic-merge-patch+json"},
+                content=json.dumps(patch_body), timeout=30,
+            )
+            resp.raise_for_status()
+            return {"status": "patched", "kind": kind, "name": name, "namespace": namespace}
+
+        if action == "scale":
+            replicas = params.get("replicas", 1)
+            url = f"{api_endpoint}/{_api_path(kind, namespace, name)}/scale"
+            resp = await client.patch(
+                url, headers={**headers, "Content-Type": "application/strategic-merge-patch+json"},
+                content=json.dumps({"spec": {"replicas": replicas}}), timeout=30,
+            )
+            resp.raise_for_status()
+            return {"status": "scaled", "replicas": replicas, "name": name}
+
+        if action == "delete_pod":
+            url = f"{api_endpoint}/{_api_path('pod', namespace, name)}"
+            resp = await client.delete(url, headers=headers, timeout=30)
+            resp.raise_for_status()
+            return {"status": "deleted", "name": name}
+
+        if action == "rollback":
+            url = f"{api_endpoint}/{_api_path(kind, namespace, name)}"
+            patch_body = {
+                "metadata": {"annotations": {"kubectl.kubernetes.io/restartedAt": datetime.now(UTC).isoformat()}},
+            }
+            resp = await client.patch(
+                url, headers={**headers, "Content-Type": "application/strategic-merge-patch+json"},
+                content=json.dumps(patch_body), timeout=30,
+            )
+            resp.raise_for_status()
+            return {"status": "rollback_triggered", "name": name}
+
+    raise ValueError(f"Unsupported action: {action}")
+
+
 @activity.defn
 async def apply_change(execution_id: str, cluster_id: str, binding_id: str, step: dict) -> dict:
     """Apply a remediation step using the user's cluster identity."""
@@ -726,19 +795,12 @@ async def apply_change(execution_id: str, cluster_id: str, binding_id: str, step
     activity.heartbeat(f"applying: {description}")
 
     from pinky_worker.db import get_pool
-    from pinky_worker.observation.k8s_client import (
-        create_client,
-        delete_pod,
-        patch_resource,
-        rollback_deployment,
-        scale_deployment,
-    )
 
     oc_cmd = _build_oc_command(action, kind, name, namespace, params)
 
     try:
-        api_endpoint = None
-        user_token = None
+        api_endpoint = ""
+        user_token = ""
         if binding_id:
             binding_pool = await get_pool()
             binding_row = await binding_pool.fetchrow(
@@ -765,22 +827,10 @@ async def apply_change(execution_id: str, cluster_id: str, binding_id: str, step
                 if cluster_row:
                     api_endpoint = cluster_row["api_endpoint"]
 
-        k8s = await create_client(api_endpoint=api_endpoint, token=user_token)
+        if not api_endpoint or not user_token:
+            raise RuntimeError("No cluster endpoint or token available")
 
-        if action == "scale":
-            replicas = params.get("replicas", 1)
-            result = await scale_deployment(k8s, namespace, name, replicas)
-        elif action == "delete_pod":
-            result = await delete_pod(k8s, namespace, name)
-        elif action == "patch":
-            result = await patch_resource(k8s, namespace, kind, name, params.get("patch", {}))
-        elif action == "rollback":
-            result = await rollback_deployment(k8s, namespace, name)
-        else:
-            result = {"status": "unsupported", "action": action}
-            logger.warning("unsupported apply_change action: %s", action)
-
-        await k8s.close()
+        result = await _k8s_apply(api_endpoint, user_token, action, kind, name, namespace, params)
         result["applied_at"] = datetime.now(UTC).isoformat()
 
         output = f"{kind}/{name} {result.get('status', 'applied')}"

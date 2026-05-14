@@ -7,15 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 ACTIVITIES = "pinky_worker.execution.activities"
-K8S_CLIENT = "pinky_worker.observation.k8s_client"
-
-
-@pytest.fixture(autouse=True)
-def _mock_activity_context():
-    with patch("temporalio.activity.heartbeat"):
-        yield
 
 
 class FakePool:
@@ -35,9 +27,15 @@ class FakePool:
         self.calls.append((query, *args))
 
 
+@pytest.fixture(autouse=True)
+def _mock_activity_context():
+    with patch("temporalio.activity.heartbeat"):
+        yield
+
+
 @pytest.mark.asyncio
 async def test_apply_change_uses_user_binding_token():
-    """apply_change must decrypt the user's binding token and pass it to create_client."""
+    """apply_change must decrypt the user's binding token and pass it to _k8s_apply."""
     from pinky_worker.execution.activities import apply_change
 
     binding_id = str(uuid.uuid4())
@@ -51,111 +49,89 @@ async def test_apply_change_uses_user_binding_token():
         cluster_row={"api_endpoint": api_endpoint},
     )
 
-    mock_k8s = MagicMock()
-    mock_k8s.close = AsyncMock()
-    captured_create_args: dict = {}
+    captured_args: dict = {}
 
-    async def capture_create_client(**kwargs):
-        captured_create_args.update(kwargs)
-        return mock_k8s
+    async def capture_k8s_apply(ep, token, action, kind, name, ns, params):
+        captured_args.update({"endpoint": ep, "token": token, "action": action, "kind": kind, "name": name})
+        return {"status": "scaled", "replicas": 3}
 
     step = {"action": "scale", "namespace": "default", "resource": "deployment/web", "params": {"replicas": 3}}
 
     with (
         patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)),
-        patch(f"{K8S_CLIENT}.create_client", side_effect=capture_create_client) as mock_create,
         patch("pinky_worker.security.decrypt", return_value=fake_token),
-        patch(f"{K8S_CLIENT}.scale_deployment", AsyncMock(return_value={"status": "scaled", "replicas": 3})),
+        patch(f"{ACTIVITIES}._k8s_apply", side_effect=capture_k8s_apply),
+        patch(f"{ACTIVITIES}._emit_command_event", AsyncMock()),
     ):
         result = await apply_change(exec_id, cluster_id, binding_id, step)
 
     assert result["status"] == "scaled"
-    assert captured_create_args["api_endpoint"] == api_endpoint
-    assert captured_create_args["token"] == "user-oauth-token-12345"
+    assert captured_args["endpoint"] == api_endpoint
+    assert captured_args["token"] == "user-oauth-token-12345"
 
 
 @pytest.mark.asyncio
-async def test_apply_change_falls_back_to_observer_without_binding():
-    """Without binding_id, apply_change falls back to observer SA (create_client with no args)."""
+async def test_apply_change_raises_without_binding():
+    """Without binding_id, apply_change raises (no endpoint/token available)."""
     from pinky_worker.execution.activities import apply_change
-
-    exec_id = str(uuid.uuid4())
-    cluster_id = str(uuid.uuid4())
-
-    mock_k8s = MagicMock()
-    mock_k8s.close = AsyncMock()
-    captured_create_args: dict = {}
-
-    async def capture_create_client(**kwargs):
-        captured_create_args.update(kwargs)
-        return mock_k8s
 
     step = {"action": "scale", "namespace": "default", "resource": "deployment/web", "params": {"replicas": 2}}
 
     with (
-        patch(f"{K8S_CLIENT}.create_client", side_effect=capture_create_client),
-        patch(f"{K8S_CLIENT}.scale_deployment", AsyncMock(return_value={"status": "scaled", "replicas": 2})),
-        patch("pinky_worker.db.get_pool", AsyncMock(return_value=FakePool())),
+        patch(f"{ACTIVITIES}._emit_command_event", AsyncMock()),
+        pytest.raises(RuntimeError, match="No cluster endpoint"),
     ):
-        result = await apply_change(exec_id, cluster_id, "", step)
-
-    assert result["status"] == "scaled"
-    assert captured_create_args.get("api_endpoint") is None
-    assert captured_create_args.get("token") is None
+        await apply_change(str(uuid.uuid4()), str(uuid.uuid4()), "", step)
 
 
 @pytest.mark.asyncio
 async def test_apply_change_never_uses_observer_when_binding_exists():
-    """Even if token decryption works, verify create_client receives the user token, not None."""
+    """Verify _k8s_apply receives the user token, not observer SA."""
     from pinky_worker.execution.activities import apply_change
 
     binding_id = str(uuid.uuid4())
     exec_id = str(uuid.uuid4())
-    cluster_id = str(uuid.uuid4())
 
     pool = FakePool(
         binding_row={"encrypted_token": b"enc", "cluster_id": uuid.uuid4()},
         cluster_row={"api_endpoint": "https://api.test:6443"},
     )
 
-    create_client_calls = []
+    k8s_calls = []
 
-    async def track_create(**kwargs):
-        create_client_calls.append(kwargs)
-        mock = MagicMock()
-        mock.close = AsyncMock()
-        return mock
+    async def track_k8s(ep, token, *args):
+        k8s_calls.append({"endpoint": ep, "token": token})
+        return {"status": "deleted"}
 
     step = {"action": "delete_pod", "namespace": "ns", "resource": "pod/crash-pod"}
 
     with (
         patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)),
-        patch(f"{K8S_CLIENT}.create_client", side_effect=track_create),
         patch("pinky_worker.security.decrypt", return_value=b"real-user-token"),
-        patch(f"{K8S_CLIENT}.delete_pod", AsyncMock(return_value={"status": "deleted"})),
+        patch(f"{ACTIVITIES}._k8s_apply", side_effect=track_k8s),
+        patch(f"{ACTIVITIES}._emit_command_event", AsyncMock()),
     ):
-        await apply_change(exec_id, cluster_id, binding_id, step)
+        await apply_change(exec_id, "cluster", binding_id, step)
 
-    assert len(create_client_calls) == 1
-    assert create_client_calls[0]["token"] == "real-user-token"
-    assert create_client_calls[0]["api_endpoint"] == "https://api.test:6443"
+    assert len(k8s_calls) == 1
+    assert k8s_calls[0]["token"] == "real-user-token"
+    assert k8s_calls[0]["endpoint"] == "https://api.test:6443"
 
 
 @pytest.mark.asyncio
 async def test_command_sequence_uses_step_index():
-    """Command events must use step-specific sequence numbers, not hardcoded 500."""
+    """Command events must use step-specific sequence numbers."""
     from pinky_worker.execution.activities import apply_change
 
-    exec_id = str(uuid.uuid4())
     emit_calls = []
 
-    original_emit = None
-
     async def capture_emit(pool, eid, seq, cmd, output, exit_code, action, resource):
-        emit_calls.append({"seq": seq, "cmd": cmd})
+        emit_calls.append({"seq": seq})
 
-    mock_k8s = MagicMock()
-    mock_k8s.close = AsyncMock()
+    pool = FakePool(
+        binding_row={"encrypted_token": b"enc", "cluster_id": uuid.uuid4()},
+        cluster_row={"api_endpoint": "https://api.test:6443"},
+    )
 
     for step_idx in [0, 1, 2]:
         emit_calls.clear()
@@ -165,30 +141,44 @@ async def test_command_sequence_uses_step_index():
         }
 
         with (
-            patch(f"{K8S_CLIENT}.create_client", AsyncMock(return_value=mock_k8s)),
-            patch(f"{K8S_CLIENT}.scale_deployment", AsyncMock(return_value={"status": "scaled"})),
-            patch("pinky_worker.db.get_pool", AsyncMock(return_value=FakePool())),
+            patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)),
+            patch("pinky_worker.security.decrypt", return_value=b"token"),
+            patch(f"{ACTIVITIES}._k8s_apply", AsyncMock(return_value={"status": "scaled"})),
             patch(f"{ACTIVITIES}._emit_command_event", side_effect=capture_emit),
         ):
-            await apply_change(exec_id, "cluster", "", step)
+            await apply_change(str(uuid.uuid4()), "cluster", str(uuid.uuid4()), step)
 
         assert emit_calls[0]["seq"] == 500 + step_idx * 10
 
 
-def test_create_client_with_token_sets_bearer_auth():
-    """create_client with api_endpoint+token must configure bearer auth, not SA token."""
-    import asyncio
-    from pinky_worker.observation.k8s_client import create_client
+@pytest.mark.asyncio
+async def test_k8s_apply_patch_uses_strategic_merge():
+    """_k8s_apply must use strategic-merge-patch content type."""
+    from pinky_worker.execution.activities import _k8s_apply
 
-    async def run():
-        client = await create_client(
-            api_endpoint="https://api.test:6443",
-            token="user-token-xyz",
+    captured_request: dict = {}
+
+    async def mock_patch(url, **kwargs):
+        captured_request["url"] = str(url)
+        captured_request["headers"] = kwargs.get("headers", {})
+        captured_request["body"] = kwargs.get("content", "")
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.raise_for_status = MagicMock()
+        resp.json.return_value = {"kind": "Deployment"}
+        return resp
+
+    mock_client = AsyncMock()
+    mock_client.patch = mock_patch
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        result = await _k8s_apply(
+            "https://api.test:6443", "token", "patch",
+            "deployment", "web", "default", {"patch": {"spec": {"replicas": 3}}},
         )
-        cfg = client.configuration
-        assert cfg.host == "https://api.test:6443"
-        assert cfg.api_key.get("BearerToken") == "user-token-xyz"
-        assert cfg.verify_ssl is False
-        await client.close()
 
-    asyncio.get_event_loop().run_until_complete(run())
+    assert result["status"] == "patched"
+    assert captured_request["headers"]["Content-Type"] == "application/strategic-merge-patch+json"
+    assert '"replicas": 3' in captured_request["body"]

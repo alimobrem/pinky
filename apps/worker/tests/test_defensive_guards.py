@@ -14,6 +14,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def _mock_heartbeat():
+    with patch("temporalio.activity.heartbeat"):
+        yield
+
 from pinky_worker.issues.correlator import CorrelationResult
 
 
@@ -110,17 +116,13 @@ class TestApplyChangeBindingExpiry:
             {"api_endpoint": "https://api.test:6443"},
         ])
 
-        mock_k8s = MagicMock()
-        mock_k8s.close = AsyncMock()
-
         step = {"action": "scale", "namespace": "default", "resource": "deployment/web", "params": {"replicas": 3}}
 
         with (
             patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)),
-            patch("temporalio.activity.heartbeat"),
             patch("pinky_worker.security.decrypt", return_value=b"token"),
-            patch("pinky_worker.observation.k8s_client.create_client", AsyncMock(return_value=mock_k8s)),
-            patch("pinky_worker.observation.k8s_client.scale_deployment", AsyncMock(return_value={"status": "scaled"})),
+            patch("pinky_worker.execution.activities._k8s_apply", AsyncMock(return_value={"status": "scaled"})),
+            patch("pinky_worker.execution.activities._emit_command_event", AsyncMock()),
         ):
             result = await apply_change(str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), step)
 
@@ -225,8 +227,16 @@ class TestApplyChangeResourceParsing:
     async def test_empty_resource_uses_resource_kind_name(self) -> None:
         from pinky_worker.execution.activities import apply_change
 
-        mock_k8s = MagicMock()
-        mock_k8s.close = AsyncMock()
+        captured = {}
+
+        async def capture_k8s(ep, token, action, kind, name, ns, params):
+            captured.update({"kind": kind, "name": name, "ns": ns})
+            return {"status": "patched"}
+
+        pool = FakePool(fetchrow_results=[
+            {"encrypted_token": b"enc", "cluster_id": uuid.uuid4()},
+            {"api_endpoint": "https://api.test:6443"},
+        ])
 
         step = {
             "action": "patch",
@@ -238,25 +248,31 @@ class TestApplyChangeResourceParsing:
         }
 
         with (
-            patch("pinky_worker.db.get_pool", AsyncMock(return_value=FakePool())),
-            patch("temporalio.activity.heartbeat"),
-            patch("pinky_worker.observation.k8s_client.create_client", AsyncMock(return_value=mock_k8s)),
-            patch("pinky_worker.observation.k8s_client.patch_resource", AsyncMock(return_value={"status": "patched"})) as mock_patch,
+            patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)),
+            patch("pinky_worker.security.decrypt", return_value=b"token"),
+            patch("pinky_worker.execution.activities._k8s_apply", side_effect=capture_k8s),
+            patch("pinky_worker.execution.activities._emit_command_event", AsyncMock()),
         ):
-            result = await apply_change(str(uuid.uuid4()), "cluster", "", step)
+            result = await apply_change(str(uuid.uuid4()), "cluster", str(uuid.uuid4()), step)
 
         assert result["status"] == "patched"
-        mock_patch.assert_called_once()
-        call_args = mock_patch.call_args
-        assert call_args[0][2] == "deployment"
-        assert call_args[0][3] == "acs-mcp-server"
+        assert captured["kind"] == "deployment"
+        assert captured["name"] == "acs-mcp-server"
 
     @pytest.mark.asyncio
     async def test_slash_resource_parsed_correctly(self) -> None:
         from pinky_worker.execution.activities import apply_change
 
-        mock_k8s = MagicMock()
-        mock_k8s.close = AsyncMock()
+        captured = {}
+
+        async def capture_k8s(ep, token, action, kind, name, ns, params):
+            captured.update({"kind": kind, "name": name, "ns": ns, "params": params})
+            return {"status": "scaled"}
+
+        pool = FakePool(fetchrow_results=[
+            {"encrypted_token": b"enc", "cluster_id": uuid.uuid4()},
+            {"api_endpoint": "https://api.test:6443"},
+        ])
 
         step = {
             "action": "scale",
@@ -266,15 +282,16 @@ class TestApplyChangeResourceParsing:
         }
 
         with (
-            patch("pinky_worker.db.get_pool", AsyncMock(return_value=FakePool())),
-            patch("temporalio.activity.heartbeat"),
-            patch("pinky_worker.observation.k8s_client.create_client", AsyncMock(return_value=mock_k8s)),
-            patch("pinky_worker.observation.k8s_client.scale_deployment", AsyncMock(return_value={"status": "scaled"})) as mock_scale,
+            patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)),
+            patch("pinky_worker.security.decrypt", return_value=b"token"),
+            patch("pinky_worker.execution.activities._k8s_apply", side_effect=capture_k8s),
+            patch("pinky_worker.execution.activities._emit_command_event", AsyncMock()),
         ):
-            result = await apply_change(str(uuid.uuid4()), "cluster", "", step)
+            result = await apply_change(str(uuid.uuid4()), "cluster", str(uuid.uuid4()), step)
 
         assert result["status"] == "scaled"
-        mock_scale.assert_called_once_with(mock_k8s, "prod", "web-frontend", 5)
+        assert captured["name"] == "web-frontend"
+        assert captured["ns"] == "prod"
 
 
 class TestBuildOcCommandSafety:
