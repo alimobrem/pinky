@@ -116,7 +116,7 @@ export function ExecutionTerminal({ events, className }: ExecutionTerminalProps)
         fontFamily: "Geist Mono, monospace",
         lineHeight: 1.4,
         scrollback: 200,
-        rows: 16,
+        rows: 20,
         theme: {
           background: "#09090f",
           foreground: "#e8e6f0",

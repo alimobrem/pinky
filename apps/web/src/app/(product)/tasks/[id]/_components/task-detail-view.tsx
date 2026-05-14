@@ -798,10 +798,11 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
 
       {remediationExec && (
         <Sheet open={terminalOpen} onOpenChange={setTerminalOpen}>
-          <SheetContent side="right" className="w-[420px] bg-bg-base sm:max-w-[420px]">
-            <SheetHeader>
+          <SheetContent side="right" className="flex w-[480px] flex-col gap-0 bg-bg-base p-0 sm:max-w-[480px]">
+            <SheetHeader className="border-b border-border-default px-4 py-3">
               <div className="flex items-center justify-between">
-                <SheetTitle className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">
+                <SheetTitle className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                  {remediationRunning && <Loader2 size={14} className="animate-spin text-status-done" />}
                   Execution Log
                 </SheetTitle>
                 {remediationRunning && (
@@ -829,7 +830,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                 )}
               </div>
             </SheetHeader>
-            <div className="mt-4 flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden p-4">
               <ExecutionTerminal events={remediationEvents} />
             </div>
           </SheetContent>

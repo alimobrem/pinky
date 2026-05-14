@@ -791,9 +791,19 @@ async def apply_change(execution_id: str, cluster_id: str, binding_id: str, step
 
     except Exception as e:
         logger.exception("apply_change failed for cluster %s", cluster_id)
+        error_msg = str(e)
+        if "HTTP response body:" in error_msg:
+            body_start = error_msg.index("HTTP response body:") + 20
+            try:
+                body = json.loads(error_msg[body_start:].strip())
+                error_msg = f"({body.get('code', '?')}) {body.get('message', error_msg[:200])}"
+            except (json.JSONDecodeError, ValueError):
+                error_msg = error_msg[:200]
+        elif len(error_msg) > 200:
+            error_msg = error_msg[:200]
         try:
             pool = await get_pool()
-            await _emit_command_event(pool, execution_id, cmd_seq, oc_cmd, str(e), 1, action, resource)
+            await _emit_command_event(pool, execution_id, cmd_seq, oc_cmd, error_msg, 1, action, resource)
         except Exception:
             logger.debug("failed to emit error command event")
         raise
