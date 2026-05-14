@@ -10,12 +10,31 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 
+class _FakeConn:
+    def __init__(self, pool: "FakePool"):
+        self._pool = pool
+
+    async def execute(self, query: str, *args: object) -> None:
+        self._pool.calls.append((query, *args))
+
+    @asynccontextmanager
+    async def transaction(self):
+        yield
+
+
 class FakePool:
     def __init__(self):
         self.calls: list[tuple[str, ...]] = []
 
     async def execute(self, query: str, *args: object) -> None:
         self.calls.append((query, *args))
+
+    async def fetchrow(self, query: str, *args):
+        return None
+
+    @asynccontextmanager
+    async def acquire(self):
+        yield _FakeConn(self)
 
     def pg_notify_calls(self) -> list[tuple[str, str]]:
         return [

@@ -96,11 +96,9 @@ class TestApplyChangeBindingExpiry:
         with (
             patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)),
             patch("temporalio.activity.heartbeat"),
+            pytest.raises(RuntimeError, match="expired"),
         ):
-            result = await apply_change(str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), step)
-
-        assert result["status"] == "failed"
-        assert "expired" in result["error"].lower()
+            await apply_change(str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4()), step)
 
     @pytest.mark.asyncio
     async def test_valid_binding_proceeds(self) -> None:
