@@ -467,6 +467,53 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str, execution
     )
 
 
+_VALID_ACTIONS = {"scale", "patch", "delete_pod", "rollback"}
+
+
+def _normalize_step(step: dict) -> dict | None:
+    kind = step.get("resource_kind", "").lower() or "deployment"
+    name = step.get("resource_name", "")
+    ns = step.get("resource_namespace", step.get("namespace", "default"))
+
+    resource = step.get("resource", "")
+    if resource and "/" in resource:
+        parts = resource.split("/")
+        kind = parts[0].lower()
+        name = parts[-1]
+    elif resource and not name:
+        name = resource
+
+    if not name:
+        logger.warning("remediation step rejected: no resource name in %s", step)
+        return None
+
+    action = step.get("action", "patch")
+    if action not in _VALID_ACTIONS:
+        logger.warning("unknown action %s, defaulting to patch", action)
+        action = "patch"
+
+    return {
+        "action": action,
+        "resource": f"{kind}/{name}",
+        "namespace": ns,
+        "resource_kind": kind,
+        "resource_name": name,
+        "resource_namespace": ns,
+        "params": step.get("params", {}),
+        "description": step.get("description", f"{action} {kind}/{name}"),
+        "risk": step.get("risk", "medium"),
+    }
+
+
+def _normalize_steps(steps: list[dict]) -> list[dict]:
+    normalized = []
+    for s in steps:
+        n = _normalize_step(s)
+        if n:
+            normalized.append(n)
+    return normalized
+
+
 @activity.defn
 async def store_artifact(artifact: InvestigationArtifact) -> str:
     """Store investigation artifact as an execution event for caching."""
@@ -513,6 +560,10 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
 
     # Create approval and populate artifact_refs when remediation steps exist
     if artifact.remediation_steps:
+        artifact.remediation_steps = _normalize_steps(artifact.remediation_steps)
+        if not artifact.remediation_steps:
+            logger.warning("all remediation steps rejected during normalization")
+            return artifact.artifact_id
         try:
             exec_row = await pool.fetchrow(
                 "SELECT work_item_id, cluster_id FROM executions WHERE id = $1",

@@ -155,6 +155,57 @@ class TestEventBusSubscriberUniqueness:
         pass
 
 
+class TestNormalizeStep:
+    """Verify _normalize_step handles all LLM output variants."""
+
+    def test_slash_format(self) -> None:
+        from pinky_worker.execution.activities import _normalize_step
+        result = _normalize_step({"action": "scale", "resource": "deployment/web", "namespace": "prod", "params": {"replicas": 3}})
+        assert result is not None
+        assert result["resource"] == "deployment/web"
+        assert result["resource_kind"] == "deployment"
+        assert result["resource_name"] == "web"
+        assert result["namespace"] == "prod"
+
+    def test_kind_name_fields(self) -> None:
+        from pinky_worker.execution.activities import _normalize_step
+        result = _normalize_step({"action": "patch", "resource_kind": "Deployment", "resource_name": "acs-mcp", "resource_namespace": "stackrox", "params": {}})
+        assert result is not None
+        assert result["resource"] == "deployment/acs-mcp"
+        assert result["resource_kind"] == "deployment"
+        assert result["namespace"] == "stackrox"
+
+    def test_empty_name_rejected(self) -> None:
+        from pinky_worker.execution.activities import _normalize_step
+        result = _normalize_step({"action": "patch", "resource": "", "params": {}})
+        assert result is None
+
+    def test_unknown_action_defaults_to_patch(self) -> None:
+        from pinky_worker.execution.activities import _normalize_step
+        result = _normalize_step({"action": "restart", "resource": "deployment/web", "params": {}})
+        assert result is not None
+        assert result["action"] == "patch"
+
+    def test_preserves_params(self) -> None:
+        from pinky_worker.execution.activities import _normalize_step
+        params = {"patch": {"spec": {"replicas": 5}}}
+        result = _normalize_step({"action": "patch", "resource": "deployment/web", "params": params})
+        assert result is not None
+        assert result["params"] == params
+
+    def test_normalize_steps_filters_invalid(self) -> None:
+        from pinky_worker.execution.activities import _normalize_steps
+        steps = [
+            {"action": "scale", "resource": "deployment/web", "params": {"replicas": 3}},
+            {"action": "patch", "resource": "", "params": {}},
+            {"action": "delete_pod", "resource": "pod/crash", "namespace": "ns", "params": {}},
+        ]
+        result = _normalize_steps(steps)
+        assert len(result) == 2
+        assert result[0]["resource_name"] == "web"
+        assert result[1]["resource_name"] == "crash"
+
+
 class TestApplyChangeResourceParsing:
     """Verify apply_change handles all LLM output formats for resource identification."""
 

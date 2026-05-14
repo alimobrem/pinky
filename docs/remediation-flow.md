@@ -23,6 +23,16 @@ Complete lifecycle from issue detection to auto-completion.
 │                              ▼                                              │
 │                    InvestigationWorkflow                                     │
 │                    (gather evidence → LLM → artifact)                       │
+│                              │                                              │
+│                    ┌─────────┴──────────┐                                   │
+│                    │ _normalize_steps() │                                    │
+│                    │ Validate + canon-  │                                    │
+│                    │ icalize fields     │                                    │
+│                    │ (reject empty      │                                    │
+│                    │  names, default    │                                    │
+│                    │  unknown actions)  │                                    │
+│                    └─────────┬──────────┘                                   │
+│                              │ store_artifact → artifact_refs               │
 └─────────────────────────────────────────────────────────────────────────────┘
 
                               │ investigation complete
@@ -35,6 +45,14 @@ Complete lifecycle from issue detection to auto-completion.
 │  │ User     │────▶│ POST /executions  │────▶│ Execution created    │       │
 │  │ clicks   │     │ ?type=remediation │     │ status = pending     │       │
 │  │ "Apply"  │     └───────────────────┘     └──────────┬───────────┘       │
+│  └──────────┘                                          │                    │
+│                                                        ▼                    │
+│  ┌──────────┐     ┌───────────────────┐     ┌──────────────────────┐       │
+│  │ User     │────▶│ POST /executions  │────▶│ Dry-run each step    │       │
+│  │ clicks   │     │ /{id}/preview     │     │ via K8s ?dryRun=All  │       │
+│  │ Preview  │     └───────────────────┘     │ Show pass/fail per   │       │
+│  └──────────┘                               │ step before approval │       │
+│                                             └──────────────────────┘       │
 │  └──────────┘                                          │                    │
 │                                                        ▼                    │
 │                               ┌────────────────────────────────────┐       │

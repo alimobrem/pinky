@@ -230,8 +230,11 @@ async def query_prometheus_range(
 async def apply_resource(
     api_endpoint: str, token: str, namespace: str, kind: str, name: str,
     manifest: dict[str, Any],
+    dry_run: bool = False,
 ) -> dict[str, Any]:
     url = f"{api_endpoint}/{_api_path(kind, namespace, name)}"
+    if dry_run:
+        url += "?dryRun=All"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/strategic-merge-patch+json",

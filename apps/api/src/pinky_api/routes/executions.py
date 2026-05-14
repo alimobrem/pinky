@@ -244,6 +244,90 @@ async def get_execution_approval(
 
 
 @router.post("/{execution_id}/cancel")
+@router.post("/{execution_id}/preview")
+async def preview_execution(
+    execution_id: str,
+    db: AsyncSession = Depends(get_db),
+    principal: dict = Depends(require_authenticated),
+) -> dict:
+    from pinky_api.k8s import apply_resource
+
+    repo = ExecutionRepository(db)
+    ex = await repo.get(_parse_uuid(execution_id, "Execution"))
+    if ex is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    await require_cluster_write_access(ex.cluster_id, principal, db)
+
+    from pinky_api.repositories.work_items import WorkItemRepository
+    wi_repo = WorkItemRepository(db)
+    wi = await wi_repo.get(ex.work_item_id) if ex.work_item_id else None
+    if not wi or not isinstance(wi.artifact_refs, dict):
+        raise HTTPException(status_code=409, detail="No remediation plan available")
+
+    plan_steps = wi.artifact_refs.get("plan_steps", [])
+    if not plan_steps:
+        raise HTTPException(status_code=409, detail="No remediation steps")
+
+    from pinky_api.auth.deps import get_cluster_binding_for_principal as _get_binding
+    from pinky_api.repositories.clusters import ClusterRepository
+    from pinky_api.security.crypto import decrypt
+
+    binding = await _get_binding(ex.cluster_id, principal, db)
+    if not binding or not binding.encrypted_token:
+        raise HTTPException(status_code=409, detail="No cluster binding")
+    cluster_repo = ClusterRepository(db)
+    cluster = await cluster_repo.get(ex.cluster_id)
+    api_endpoint = cluster.api_endpoint if cluster else ""
+    try:
+        token = decrypt(
+            binding.encrypted_token,
+            aad=f"cluster_identity_bindings:{binding.id}",
+        ).decode()
+    except Exception:
+        raise HTTPException(status_code=500, detail="Token decryption failed") from None
+
+    from pinky_worker.execution.activities import _build_oc_command
+
+    results = []
+    for i, step in enumerate(plan_steps):
+        kind = step.get("resource_kind", "deployment")
+        name = step.get("resource_name", "")
+        ns = step.get("namespace", step.get("resource_namespace", "default"))
+        action = step.get("action", "patch")
+        params = step.get("params", {})
+
+        cmd = _build_oc_command(action, kind, name, ns, params)
+        entry: dict[str, object] = {
+            "index": i,
+            "command": cmd,
+            "action": action,
+            "resource": f"{kind}/{name}",
+            "namespace": ns,
+        }
+
+        if action == "patch" and params.get("patch"):
+            try:
+                result = await apply_resource(
+                    api_endpoint, token, ns, kind, name,
+                    params["patch"], dry_run=True,
+                )
+                if "error" in result:
+                    entry["status"] = "error"
+                    entry["error"] = result.get("message", result.get("error", ""))
+                else:
+                    entry["status"] = "ok"
+            except Exception as e:
+                entry["status"] = "error"
+                entry["error"] = str(e)
+        else:
+            entry["status"] = "ok"
+
+        results.append(entry)
+
+    return {"steps": results}
+
+
+@router.post("/{execution_id}/cancel")
 async def cancel_execution(
     execution_id: str,
     db: AsyncSession = Depends(get_db),
