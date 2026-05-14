@@ -23,6 +23,7 @@ bearer_scheme = APIKeyHeader(name="Authorization", auto_error=False)
 UNPROTECTED_PATHS = {
     "/api/v1/healthz",
     "/api/v1/readyz",
+    "/api/v1/health/workflows",
     "/api/v1/auth/login",
     "/api/v1/auth/callback",
     "/api/v1/auth/test-login",
