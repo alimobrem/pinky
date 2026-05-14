@@ -243,7 +243,6 @@ async def get_execution_approval(
     }
 
 
-@router.post("/{execution_id}/cancel")
 @router.post("/{execution_id}/preview")
 async def preview_execution(
     execution_id: str,
