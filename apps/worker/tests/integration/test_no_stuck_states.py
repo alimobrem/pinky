@@ -329,10 +329,10 @@ async def test_task_not_orphaned_when_issue_open(
     assert task["status"] == "ready"
 
 
-async def test_stuck_pending_execution_cleaned(
+async def test_stuck_pending_investigation_cleaned(
     conn: asyncpg.Connection, cluster_id: str,
 ) -> None:
-    """Pending execution older than 5 min must be marked failed."""
+    """Pending investigation older than 5 min must be marked failed."""
     issue_id, wi_id = await _seed_issue_and_task(conn, cluster_id)
     exec_id = await _seed_execution(conn, cluster_id, wi_id, "investigation", "pending")
     await conn.execute(
@@ -347,6 +347,26 @@ async def test_stuck_pending_execution_cleaned(
     assert count == 1
     row = await conn.fetchrow("SELECT status FROM executions WHERE id = $1::uuid", exec_id)
     assert row["status"] == "failed"
+
+
+async def test_pending_remediation_not_cleaned(
+    conn: asyncpg.Connection, cluster_id: str,
+) -> None:
+    """Pending remediation must NOT be swept — it legitimately waits for approval."""
+    issue_id, wi_id = await _seed_issue_and_task(conn, cluster_id)
+    exec_id = await _seed_execution(conn, cluster_id, wi_id, "remediation", "pending")
+    await conn.execute(
+        "UPDATE executions SET created_at = now() - interval '1 hour' WHERE id = $1::uuid", exec_id,
+    )
+
+    from pinky_worker.observation.observer import _sweep_stuck_executions
+    pool = _FakePool(conn)
+    with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
+        count = await _sweep_stuck_executions(cluster_id)
+
+    assert count == 0
+    row = await conn.fetchrow("SELECT status FROM executions WHERE id = $1::uuid", exec_id)
+    assert row["status"] == "pending"
 
 
 async def test_recent_pending_execution_not_cleaned(

@@ -349,6 +349,7 @@ async def _sweep_stuck_executions(cluster_id: str) -> int:
         """UPDATE executions SET status = 'failed', completed_at = now()
            WHERE cluster_id = $1::uuid
              AND status = 'pending'
+             AND execution_type = 'investigation'
              AND created_at < now() - interval '5 minutes'""",
         cluster_id,
     )
