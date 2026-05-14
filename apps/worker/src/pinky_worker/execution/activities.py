@@ -741,7 +741,7 @@ async def apply_change(execution_id: str, cluster_id: str, binding_id: str, step
             await _emit_command_event(pool, execution_id, cmd_seq, oc_cmd, str(e), 1, action, resource)
         except Exception:
             logger.debug("failed to emit error command event")
-        return {"status": "failed", "action": action, "resource": resource, "error": str(e)}
+        raise
 
 
 @activity.defn
@@ -810,18 +810,19 @@ async def project_to_postgres(execution_id: str, event_type: str, payload: dict)
                 and exec_info["execution_type"] == "remediation"
                 and exec_info["work_item_id"]):
             wi_id = exec_info["work_item_id"]
-            await pool.execute(
-                "UPDATE work_items SET status = 'done', updated_at = now() WHERE id = $1", wi_id,
-            )
-            await pool.execute(
-                """UPDATE issues SET status = 'resolved', resolved_by = 'remediation', updated_at = now()
-                   WHERE id = (SELECT issue_id FROM work_items WHERE id = $1)""",
-                wi_id,
-            )
-            await pool.execute(
-                "SELECT pg_notify($1, $2)", "pinky_work_items",
-                json.dumps({"event_type": "work_item.completed", "aggregate_id": str(wi_id)}),
-            )
+            async with pool.acquire() as conn, conn.transaction():
+                await conn.execute(
+                    "UPDATE work_items SET status = 'done', updated_at = now() WHERE id = $1", wi_id,
+                )
+                await conn.execute(
+                    """UPDATE issues SET status = 'resolved', resolved_by = 'remediation', updated_at = now()
+                       WHERE id = (SELECT issue_id FROM work_items WHERE id = $1)""",
+                    wi_id,
+                )
+                await conn.execute(
+                    "SELECT pg_notify($1, $2)", "pinky_work_items",
+                    json.dumps({"event_type": "work_item.completed", "aggregate_id": str(wi_id)}),
+                )
     elif event_type == "failed":
         await pool.execute(
             """UPDATE executions SET status = 'failed', completed_at = $2 WHERE id = $1""",

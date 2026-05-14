@@ -7,12 +7,14 @@ import structlog
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
 from pinky_api.auth.middleware import get_current_principal
 from pinky_api.auth.routes import router as auth_router
 from pinky_api.config import get_settings
+from pinky_api.db.deps import get_db
 from pinky_api.fleet.routes import router as fleet_router
 from pinky_api.logging_config import configure_logging
 from pinky_api.routes.alerts import router as alerts_router
@@ -180,3 +182,38 @@ async def readyz() -> JSONResponse:
     status_code = 200 if all_ok else 503
     body: dict[str, object] = {"status": "ready"} if all_ok else {"status": "not_ready", "checks": checks}
     return JSONResponse(content=body, status_code=status_code)
+
+
+@app.get("/api/v1/health/workflows")
+async def workflow_health(db: AsyncSession = Depends(get_db)) -> dict:
+    from sqlalchemy import text
+    queries = {
+        "stuck_pending": (
+            "SELECT count(*) FROM executions "
+            "WHERE status = 'pending' AND execution_type = 'investigation' "
+            "AND created_at < now() - interval '5 minutes'"
+        ),
+        "stuck_running": (
+            "SELECT count(*) FROM executions "
+            "WHERE status = 'running' AND created_at < now() - interval '30 minutes'"
+        ),
+        "stale_ready_tasks": (
+            "SELECT count(*) FROM work_items "
+            "WHERE status = 'ready' AND created_at < now() - interval '7 days'"
+        ),
+        "orphaned_tasks": (
+            "SELECT count(*) FROM work_items "
+            "WHERE status NOT IN ('done') "
+            "AND issue_id IN (SELECT id FROM issues WHERE status IN ('resolved', 'suppressed'))"
+        ),
+        "mismatched_task_issue": (
+            "SELECT count(*) FROM work_items "
+            "WHERE status = 'done' "
+            "AND issue_id IN (SELECT id FROM issues WHERE status = 'open')"
+        ),
+    }
+    results = {}
+    for name, query in queries.items():
+        row = await db.execute(text(query))
+        results[name] = row.scalar() or 0
+    return results

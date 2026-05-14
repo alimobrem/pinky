@@ -13,7 +13,11 @@ async def get_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
         db_url = os.environ.get("PINKY_DATABASE_URL", "postgresql://pinky:pinky@localhost:5432/pinky")
-        _pool = await asyncpg.create_pool(db_url, min_size=2, max_size=10)
+        _pool = await asyncpg.create_pool(
+            db_url,
+            min_size=int(os.environ.get("PINKY_DB_POOL_MIN", "5")),
+            max_size=int(os.environ.get("PINKY_DB_POOL_MAX", "20")),
+        )
     return _pool
 
 

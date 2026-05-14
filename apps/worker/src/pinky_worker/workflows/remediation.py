@@ -124,3 +124,15 @@ class RemediationWorkflow:
                 start_to_close_timeout=timedelta(seconds=5),
             )
             return RemediationResult(status="cancelled")
+        except Exception as exc:
+            await workflow.execute_activity(
+                emit_execution_event,
+                ExecutionEventPayload(
+                    execution_id=input.execution_id,
+                    event_type="failed",
+                    sequence=99,
+                    payload={"reason": "step_failed", "error": str(exc)},
+                ),
+                start_to_close_timeout=timedelta(seconds=5),
+            )
+            return RemediationResult(status="failed")

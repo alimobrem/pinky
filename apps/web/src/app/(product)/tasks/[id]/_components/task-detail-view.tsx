@@ -102,12 +102,21 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     if (envelope.aggregate_id === taskId || envelope.aggregate_id === task?.issue_id) {
       invalidateAll();
     }
-    if (remediationExec && envelope.payload?.execution_id === remediationExec.id) {
+    const execId = envelope.payload?.execution_id as string | undefined;
+    if (remediationExec && execId === remediationExec.id) {
       if (envelope.type === "completed") {
         toast.success("Remediation completed successfully");
-      } else if (envelope.type === "failed" && envelope.payload?.reason === "cancelled") {
-        toast.info("Remediation cancelled");
+      } else if (envelope.type === "failed") {
+        const reason = envelope.payload?.reason as string | undefined;
+        if (reason === "cancelled") {
+          toast.info("Remediation cancelled");
+        } else {
+          toast.error(`Remediation failed: ${reason ?? "unknown error"}`);
+        }
       }
+    }
+    if (envelope.type === "work_item.completed" && envelope.aggregate_id === taskId) {
+      toast.success("Task auto-completed — remediation verified");
     }
   });
 
