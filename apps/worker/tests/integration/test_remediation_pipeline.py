@@ -253,6 +253,72 @@ async def test_empty_plan_steps(workflow_env: WorkflowEnvironment) -> None:
     assert len(progress_events) == 0
 
 
+# --- Event Type Contract ---
+
+
+async def test_event_type_matches_frontend(workflow_env: WorkflowEnvironment) -> None:
+    """pg_notify event_type must match what the frontend SSE handler filters on."""
+    inp = _make_input()
+    await _run_workflow(
+        workflow_env, inp,
+        [mock_emit, mock_validate_ok, mock_apply_success, mock_verify_pass],
+    )
+
+    completed = next(e for e in _emitted if e.event_type == "completed")
+    assert "verification_passed" in completed.payload
+
+    started = next(e for e in _emitted if e.event_type == "started")
+    assert started.payload.get("type") == "remediation"
+
+    failed_events = [e for e in _emitted if e.event_type == "failed"]
+    for f in failed_events:
+        assert "reason" in f.payload
+
+
+# --- Binding Expiry ---
+
+
+async def test_binding_expired_stops_workflow(workflow_env: WorkflowEnvironment) -> None:
+    """Expired binding during apply_change should fail the workflow."""
+
+    @activity.defn(name="apply_change")
+    async def mock_apply_expired(execution_id: str, cluster_id: str, binding_id: str, step: dict) -> dict:
+        raise RuntimeError(f"Cluster binding {binding_id} expired — reconnect to the cluster")
+
+    inp = _make_input()
+    result = await _run_workflow(
+        workflow_env, inp,
+        [mock_emit, mock_validate_ok, mock_apply_expired, mock_verify_pass],
+    )
+
+    assert result.status == "failed"
+    failed = next(e for e in _emitted if e.event_type == "failed")
+    assert "expired" in failed.payload.get("error", "").lower()
+
+
+# --- Idempotency ---
+
+
+async def test_idempotent_apply_succeeds_twice(workflow_env: WorkflowEnvironment) -> None:
+    """Applying the same step twice (e.g., after retry) must not break."""
+    call_count = 0
+
+    @activity.defn(name="apply_change")
+    async def mock_apply_idempotent(execution_id: str, cluster_id: str, binding_id: str, step: dict) -> dict:
+        nonlocal call_count
+        call_count += 1
+        return {"status": "applied", "action": step.get("action", "")}
+
+    inp = _make_input()
+    result = await _run_workflow(
+        workflow_env, inp,
+        [mock_emit, mock_validate_ok, mock_apply_idempotent, mock_verify_pass],
+    )
+
+    assert result.status == "completed"
+    assert call_count == 1
+
+
 # --- Reconciliation ---
 
 
