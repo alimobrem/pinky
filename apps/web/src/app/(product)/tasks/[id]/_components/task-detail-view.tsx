@@ -69,7 +69,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { useState, useMemo } from "react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import type { Execution } from "@pinky/contracts";
 import { ResourceEditor } from "@/components/shared/resource-editor";
@@ -84,6 +90,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const qc = useQueryClient();
   const { user } = useCurrentUser();
   const [blockReason, setBlockReason] = useState("");
+  const [terminalOpen, setTerminalOpen] = useState(false);
 
   const { data: task, isLoading: taskLoading } = useQuery(taskOptions(taskId));
   const { data: executions } = useQuery(executionsOptions(taskId));
@@ -216,6 +223,13 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     enabled: !!pendingExec,
   });
 
+  const hasRunningRemediation = executions?.items?.some(
+    (e) => e.execution_type === "remediation" && e.status === "running",
+  );
+  useEffect(() => {
+    if (hasRunningRemediation) setTerminalOpen(true);
+  }, [hasRunningRemediation]);
+
   if (taskLoading) return <SkeletonRow rows={3} />;
   if (!task) {
     return (
@@ -241,6 +255,10 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const events = timeline?.items ?? [];
   const hasResults = investigation?.has_investigation === true;
   const isInvestigating = !hasResults && (!!activeExec || investigate.isPending);
+  const remediationEvents = remediationExec ? events.filter((e) => e.execution_id === remediationExec.id) : [];
+  const latestProgress = remediationEvents.filter((e: { event_type: string }) => e.event_type === "progress").at(-1);
+  const remediationRunning = remediationExec?.status === "running";
+
 
   return (
     <div className="space-y-6">
@@ -428,65 +446,19 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
               />
             )}
 
-            {remediationExec && (
-              <Collapsible defaultOpen={remediationExec.status !== "completed"}>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CollapsibleTrigger className="flex items-center gap-2">
-                        <CardTitle className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">
-                          Execution Log
-                        </CardTitle>
-                        <ChevronRight size={12} className="text-text-tertiary transition-transform [[data-state=open]_&]:rotate-90" />
-                      </CollapsibleTrigger>
-                      {remediationExec.status === "running" && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm" className="text-destructive h-8 text-sm">
-                              <XCircle size={14} className="mr-1" /> Cancel
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Cancel remediation?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This will stop the remediation. Steps already applied will not be rolled back.
-                              </AlertDialogDescription>
-                              {(() => {
-                                const completedCmds = events
-                                  .filter((e) => e.execution_id === remediationExec.id && e.event_type === "command")
-                                  .map((e) => String(e.payload?.command ?? ""));
-                                if (!completedCmds.length) return null;
-                                return (
-                                  <div className="mt-2 rounded bg-bg-hover p-2 text-caption">
-                                    <p className="text-text-tertiary mb-1">Steps already applied:</p>
-                                    {completedCmds.map((cmd, i) => (
-                                      <code key={i} className="block font-mono text-text-secondary">$ {cmd}</code>
-                                    ))}
-                                  </div>
-                                );
-                              })()}
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Keep Running</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => cancelExec.mutate(remediationExec.id)}>
-                                Cancel Execution
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CollapsibleContent>
-                    <CardContent>
-                      <ExecutionTerminal
-                        events={events.filter((e) => e.execution_id === remediationExec.id)}
-                      />
-                    </CardContent>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
+            {remediationExec && remediationRunning && !terminalOpen && (
+              <button
+                type="button"
+                onClick={() => setTerminalOpen(true)}
+                className="sticky top-0 z-10 flex w-full items-center justify-between rounded-lg border border-status-done/30 bg-status-done/10 px-4 py-2 text-sm text-status-done transition-colors hover:bg-status-done/20"
+              >
+                <span className="flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin" />
+                  Remediation running
+                  {latestProgress && ` — Step ${latestProgress.payload?.step}/${latestProgress.payload?.total}`}
+                </span>
+                <span className="text-caption">Open Terminal →</span>
+              </button>
             )}
           </div>
 
@@ -823,6 +795,46 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
           </div>
         </div>
       </FadeIn>
+
+      {remediationExec && (
+        <Sheet open={terminalOpen} onOpenChange={setTerminalOpen}>
+          <SheetContent side="right" className="w-[420px] bg-bg-base sm:max-w-[420px]">
+            <SheetHeader>
+              <div className="flex items-center justify-between">
+                <SheetTitle className="text-caption font-semibold uppercase tracking-widest text-text-tertiary">
+                  Execution Log
+                </SheetTitle>
+                {remediationRunning && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="text-destructive h-8 text-sm">
+                        <XCircle size={14} className="mr-1" /> Cancel
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Cancel remediation?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Steps already applied will not be rolled back.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Keep Running</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => cancelExec.mutate(remediationExec.id)}>
+                          Cancel Execution
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
+            </SheetHeader>
+            <div className="mt-4 flex-1 overflow-hidden">
+              <ExecutionTerminal events={remediationEvents} />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }
