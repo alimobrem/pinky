@@ -99,10 +99,12 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   };
 
   useEventBus("task-detail", (envelope) => {
-    if (envelope.aggregate_id === taskId || envelope.aggregate_id === task?.issue_id) {
+    const execId = envelope.payload?.execution_id as string | undefined;
+    const matchesTask = envelope.aggregate_id === taskId || envelope.aggregate_id === task?.issue_id;
+    const matchesExec = !!execId && (execId === remediationExec?.id || executions?.items?.some((e) => e.id === execId));
+    if (matchesTask || matchesExec) {
       invalidateAll();
     }
-    const execId = envelope.payload?.execution_id as string | undefined;
     if (remediationExec && execId === remediationExec.id) {
       if (envelope.type === "completed") {
         toast.success("Remediation completed successfully");
