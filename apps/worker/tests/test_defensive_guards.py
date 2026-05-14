@@ -155,6 +155,77 @@ class TestEventBusSubscriberUniqueness:
         pass
 
 
+class TestApplyChangeResourceParsing:
+    """Verify apply_change handles all LLM output formats for resource identification."""
+
+    def test_resource_slash_format(self) -> None:
+        from pinky_worker.execution.activities import _build_oc_command
+        cmd = _build_oc_command("patch", "deployment", "web", "default", {"patch": {}})
+        assert "deployment" in cmd
+        assert "web" in cmd
+
+    def test_resource_kind_name_fields(self) -> None:
+        from pinky_worker.execution.activities import _build_oc_command
+        cmd = _build_oc_command("scale", "deployment", "acs-mcp-server", "ns", {"replicas": 3})
+        assert "acs-mcp-server" in cmd
+        assert cmd != "oc scale deployment  -n ns --replicas=3"
+
+    @pytest.mark.asyncio
+    async def test_empty_resource_uses_resource_kind_name(self) -> None:
+        from pinky_worker.execution.activities import apply_change
+
+        mock_k8s = MagicMock()
+        mock_k8s.close = AsyncMock()
+
+        step = {
+            "action": "patch",
+            "resource": "",
+            "resource_kind": "Deployment",
+            "resource_name": "acs-mcp-server",
+            "resource_namespace": "stackrox",
+            "params": {"patch": {"spec": {}}},
+        }
+
+        with (
+            patch("pinky_worker.db.get_pool", AsyncMock(return_value=FakePool())),
+            patch("temporalio.activity.heartbeat"),
+            patch("pinky_worker.observation.k8s_client.create_client", AsyncMock(return_value=mock_k8s)),
+            patch("pinky_worker.observation.k8s_client.patch_resource", AsyncMock(return_value={"status": "patched"})) as mock_patch,
+        ):
+            result = await apply_change(str(uuid.uuid4()), "cluster", "", step)
+
+        assert result["status"] == "patched"
+        mock_patch.assert_called_once()
+        call_args = mock_patch.call_args
+        assert call_args[0][2] == "deployment"
+        assert call_args[0][3] == "acs-mcp-server"
+
+    @pytest.mark.asyncio
+    async def test_slash_resource_parsed_correctly(self) -> None:
+        from pinky_worker.execution.activities import apply_change
+
+        mock_k8s = MagicMock()
+        mock_k8s.close = AsyncMock()
+
+        step = {
+            "action": "scale",
+            "resource": "deployment/web-frontend",
+            "namespace": "prod",
+            "params": {"replicas": 5},
+        }
+
+        with (
+            patch("pinky_worker.db.get_pool", AsyncMock(return_value=FakePool())),
+            patch("temporalio.activity.heartbeat"),
+            patch("pinky_worker.observation.k8s_client.create_client", AsyncMock(return_value=mock_k8s)),
+            patch("pinky_worker.observation.k8s_client.scale_deployment", AsyncMock(return_value={"status": "scaled"})) as mock_scale,
+        ):
+            result = await apply_change(str(uuid.uuid4()), "cluster", "", step)
+
+        assert result["status"] == "scaled"
+        mock_scale.assert_called_once_with(mock_k8s, "prod", "web-frontend", 5)
+
+
 class TestBuildOcCommandSafety:
     """Verify _build_oc_command handles edge cases without injection."""
 

@@ -145,7 +145,11 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   });
   const approve = useMutation({
     mutationFn: (execId: string) => api.post(`/api/v1/executions/${execId}/approve`),
-    onSuccess: () => { invalidateAll(); toast.success("Execution approved"); },
+    onSuccess: () => {
+      invalidateAll();
+      toast.success("Execution approved — applying remediation...");
+      setTimeout(() => invalidateAll(), 3000);
+    },
   });
   const reject = useMutation({
     mutationFn: (execId: string) => api.post(`/api/v1/executions/${execId}/reject`),

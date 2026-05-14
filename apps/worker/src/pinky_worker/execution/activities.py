@@ -657,13 +657,21 @@ async def validate_approval(approval_id: str, changeset_digest: str) -> dict:
 async def apply_change(execution_id: str, cluster_id: str, binding_id: str, step: dict) -> dict:
     """Apply a remediation step using the user's cluster identity."""
     action = step.get("action", "")
-    namespace = step.get("namespace", "default")
+    namespace = step.get("namespace", step.get("resource_namespace", "default"))
     resource = step.get("resource", "")
     params = step.get("params", {})
-    description = step.get("description", f"{action} {resource}")
     step_index = step.get("_step_index", 0)
     cmd_seq = 500 + step_index * 10
 
+    if resource and "/" in resource:
+        parts = resource.split("/")
+        kind = parts[0]
+        name = parts[-1]
+    else:
+        kind = step.get("resource_kind", resource or "deployment").lower()
+        name = step.get("resource_name", resource)
+
+    description = step.get("description", f"{action} {kind}/{name}")
     activity.heartbeat(f"applying: {description}")
 
     from pinky_worker.db import get_pool
@@ -674,10 +682,6 @@ async def apply_change(execution_id: str, cluster_id: str, binding_id: str, step
         rollback_deployment,
         scale_deployment,
     )
-
-    parts = resource.split("/")
-    kind = parts[0] if len(parts) > 1 else "deployment"
-    name = parts[-1] if parts else resource
 
     oc_cmd = _build_oc_command(action, kind, name, namespace, params)
 
