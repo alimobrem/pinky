@@ -1,8 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Copy, Check } from "lucide-react";
+import { useState } from "react";
+import {
+  ChevronRight,
+  Copy,
+  Check,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Circle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface ExecutionEvent {
@@ -14,211 +30,210 @@ interface ExecutionEvent {
   occurred_at: string;
 }
 
-interface ExecutionTerminalProps {
-  events: ExecutionEvent[];
-  className?: string;
+interface Step {
+  index: number;
+  total: number;
+  description: string;
+  commands: { command: string; output: string; exitCode: number }[];
+  status: "pending" | "running" | "done" | "failed";
 }
 
-const GREEN = "\x1b[32m";
-const RED = "\x1b[31m";
-const GRAY = "\x1b[90m";
-const YELLOW = "\x1b[33m";
-const CYAN = "\x1b[36m";
-const BOLD = "\x1b[1m";
-const RESET = "\x1b[0m";
+function deriveSteps(events: ExecutionEvent[]): {
+  steps: Step[];
+  status: "running" | "completed" | "failed";
+  verificationPassed?: boolean;
+} {
+  const steps: Step[] = [];
+  let current: Step | null = null;
+  let status: "running" | "completed" | "failed" = "running";
+  let verificationPassed: boolean | undefined;
 
-function formatEvent(event: ExecutionEvent): string[] {
-  const lines: string[] = [];
-
-  switch (event.event_type) {
-    case "started": {
-      const p = event.payload;
-      const steps = p.steps ?? 0;
-      lines.push(`${CYAN}${BOLD}▶ Remediation started${RESET} ${GRAY}(${steps} step${Number(steps) !== 1 ? "s" : ""})${RESET}`);
-      break;
-    }
-    case "progress": {
-      const p = event.payload;
-      lines.push(`${YELLOW}━━ Step ${p.step}/${p.total}: ${p.description ?? ""}${RESET}`);
-      break;
-    }
-    case "command": {
-      const p = event.payload;
-      const cmd = String(p.command ?? "");
-      const output = String(p.output ?? "");
-      const exitCode = Number(p.exit_code ?? 0);
-      lines.push(`${GREEN}$${RESET} ${cmd}`);
-      if (exitCode === 0) {
-        lines.push(`${GRAY}${output}${RESET}`);
-      } else {
-        lines.push(`${RED}✗ ${output}${RESET}`);
-      }
-      break;
-    }
-    case "completed": {
-      const passed = event.payload.verification_passed;
-      if (passed) {
-        lines.push(`${GREEN}${BOLD}✓ Remediation completed — verification passed${RESET}`);
-      } else {
-        lines.push(`${YELLOW}${BOLD}⚠ Remediation completed — verification failed${RESET}`);
-      }
-      break;
-    }
-    case "failed": {
-      const reason = String(event.payload.reason ?? "unknown");
-      lines.push(`${RED}${BOLD}✗ Remediation failed: ${reason}${RESET}`);
-      break;
-    }
-    case "verified": {
-      const p = event.payload;
-      const passed = p.passed;
-      if (passed) {
-        lines.push(`${GREEN}✓ Verification passed${RESET}`);
-      } else {
-        lines.push(`${RED}✗ Verification failed${RESET}`);
-      }
-      const details = p.details as Record<string, unknown> | undefined;
-      if (details) {
-        for (const [k, v] of Object.entries(details)) {
-          lines.push(`${GRAY}  ${k}: ${String(v)}${RESET}`);
+  for (const event of events) {
+    const p = event.payload;
+    switch (event.event_type) {
+      case "progress": {
+        if (current) {
+          current.status = "done";
         }
+        current = {
+          index: Number(p.step ?? steps.length + 1),
+          total: Number(p.total ?? 0),
+          description: String(p.description ?? ""),
+          commands: [],
+          status: "running",
+        };
+        steps.push(current);
+        break;
       }
-      break;
+      case "command": {
+        if (current) {
+          const exitCode = Number(p.exit_code ?? 0);
+          current.commands.push({
+            command: String(p.command ?? ""),
+            output: String(p.output ?? ""),
+            exitCode,
+          });
+          if (exitCode !== 0) current.status = "failed";
+        }
+        break;
+      }
+      case "completed": {
+        if (current) current.status = "done";
+        status = "completed";
+        verificationPassed = p.verification_passed as boolean | undefined;
+        break;
+      }
+      case "failed": {
+        if (current) current.status = "failed";
+        status = "failed";
+        break;
+      }
+      case "verified": {
+        verificationPassed = p.passed as boolean | undefined;
+        break;
+      }
     }
-    default:
-      break;
   }
 
-  return lines;
+  return { steps, status, verificationPassed };
 }
 
-export function ExecutionTerminal({ events, className }: ExecutionTerminalProps) {
-  const termRef = useRef<HTMLDivElement>(null);
-  const xtermRef = useRef<import("@xterm/xterm").Terminal | null>(null);
-  const renderedCount = useRef(0);
-  const [commands, setCommands] = useState<string[]>([]);
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+const statusConfig = {
+  running: { label: "Running", className: "border-status-done/30 bg-status-done/10 text-status-done" },
+  completed: { label: "Completed", className: "border-status-done/30 bg-status-done/10 text-status-done" },
+  failed: { label: "Failed", className: "border-destructive/30 bg-destructive/10 text-destructive" },
+} as const;
 
-  useEffect(() => {
-    let term: import("@xterm/xterm").Terminal | null = null;
-    let disposed = false;
+export interface ExecutionTerminalProps {
+  events: ExecutionEvent[];
+  className?: string;
+  onCancel?: () => void;
+}
 
-    (async () => {
-      const { Terminal } = await import("@xterm/xterm");
-      const { FitAddon } = await import("@xterm/addon-fit");
+export function ExecutionTerminal({ events, className, onCancel }: ExecutionTerminalProps) {
+  const { steps, status, verificationPassed } = deriveSteps(events);
+  const completedCount = steps.filter((s) => s.status === "done").length;
+  const totalSteps = steps[0]?.total || steps.length;
+  const cfg = statusConfig[status];
 
-      if (disposed || !termRef.current) return;
+  return (
+    <div className={cn("flex flex-col gap-0", className)}>
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border-default px-4 py-3">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text-primary">Execution Log</span>
+          <Badge variant="outline" className={cn("text-caption", cfg.className)}>
+            {status === "running" && <Loader2 size={10} className="animate-spin" />}
+            {cfg.label}
+          </Badge>
+          {totalSteps > 0 && (
+            <span className="text-caption text-text-tertiary tabular-nums">
+              {completedCount}/{totalSteps} steps
+            </span>
+          )}
+        </div>
+        {status === "running" && onCancel && (
+          <Button variant="ghost" size="sm" className="h-7 text-destructive text-caption" onClick={onCancel}>
+            <XCircle size={12} className="mr-1" />
+            Cancel
+          </Button>
+        )}
+      </div>
 
-      term = new Terminal({
-        disableStdin: true,
-        cursorBlink: false,
-        fontSize: 12,
-        fontFamily: "Geist Mono, monospace",
-        lineHeight: 1.4,
-        scrollback: 200,
-        rows: 20,
-        theme: {
-          background: "#09090f",
-          foreground: "#e8e6f0",
-          cursor: "#09090f",
-          selectionBackground: "#a78bfa33",
-          black: "#09090f",
-          green: "#45c99a",
-          red: "#ef6b6b",
-          yellow: "#e8be3c",
-          blue: "#6ba3f7",
-          cyan: "#8b8ef0",
-          white: "#e8e6f0",
-          brightBlack: "#8585a0",
-        },
-      });
+      {/* Steps */}
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-1">
+          {steps.length === 0 && status === "running" && (
+            <div className="flex items-center gap-2 py-6 justify-center text-sm text-text-tertiary">
+              <Loader2 size={14} className="animate-spin" />
+              Waiting for first step...
+            </div>
+          )}
+          {steps.map((step) => (
+            <StepRow key={step.index} step={step} />
+          ))}
+          {status === "completed" && verificationPassed !== undefined && (
+            <div className={cn(
+              "mt-2 flex items-center gap-2 rounded-md px-3 py-2 text-sm",
+              verificationPassed
+                ? "bg-status-done/10 text-status-done"
+                : "bg-amber-500/10 text-amber-400",
+            )}>
+              {verificationPassed ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
+              Verification {verificationPassed ? "passed" : "failed"}
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
 
-      const fit = new FitAddon();
-      term.loadAddon(fit);
-      term.open(termRef.current);
-      fit.fit();
-      xtermRef.current = term;
+function StepRow({ step }: { step: Step }) {
+  const isActive = step.status === "running" || step.status === "failed";
+  const [open, setOpen] = useState(isActive);
 
-      const observer = new ResizeObserver(() => fit.fit());
-      observer.observe(termRef.current);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors hover:bg-bg-hover">
+        <StepIcon status={step.status} />
+        <span className="flex-1 text-left text-text-secondary">
+          <span className="text-text-tertiary tabular-nums">Step {step.index}</span>
+          {step.description && <span className="ml-1.5">{step.description}</span>}
+        </span>
+        <ChevronRight size={14} className={cn("text-text-tertiary transition-transform", open && "rotate-90")} />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="ml-7 space-y-2 pb-2">
+          {step.commands.map((cmd, i) => (
+            <CommandBlock key={i} command={cmd.command} output={cmd.output} exitCode={cmd.exitCode} />
+          ))}
+          {step.commands.length === 0 && step.status === "running" && (
+            <div className="flex items-center gap-2 px-3 py-2 text-caption text-text-tertiary">
+              <Loader2 size={12} className="animate-spin" /> Executing...
+            </div>
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
 
-      return () => observer.disconnect();
-    })();
+function StepIcon({ status }: { status: Step["status"] }) {
+  switch (status) {
+    case "done": return <CheckCircle2 size={14} className="shrink-0 text-status-done" />;
+    case "failed": return <XCircle size={14} className="shrink-0 text-destructive" />;
+    case "running": return <Loader2 size={14} className="shrink-0 animate-spin text-brand-purple" />;
+    default: return <Circle size={14} className="shrink-0 text-text-tertiary" />;
+  }
+}
 
-    return () => {
-      disposed = true;
-      term?.dispose();
-      xtermRef.current = null;
-      renderedCount.current = 0;
-    };
-  }, []);
+function CommandBlock({ command, output, exitCode }: { command: string; output: string; exitCode: number }) {
+  const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    const term = xtermRef.current;
-    if (!term) return;
-
-    if (events.length < renderedCount.current) {
-      term.reset();
-      renderedCount.current = 0;
-      setCommands([]);
-    }
-    const newEvents = events.slice(renderedCount.current);
-    const newCommands: string[] = [];
-
-    for (const event of newEvents) {
-      const lines = formatEvent(event);
-      for (const line of lines) {
-        term.writeln(line);
-      }
-      if (event.event_type === "command" && event.payload.command) {
-        newCommands.push(String(event.payload.command));
-      }
-    }
-
-    renderedCount.current = events.length;
-    if (newCommands.length > 0) {
-      setCommands((prev) => [...prev, ...newCommands]);
-    }
-  }, [events]);
-
-  const copyCommand = (cmd: string, idx: number) => {
-    navigator.clipboard.writeText(cmd);
-    setCopiedIdx(idx);
+  const copy = () => {
+    navigator.clipboard.writeText(command);
+    setCopied(true);
     toast.success("Copied");
-    setTimeout(() => setCopiedIdx(null), 2000);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className={className}>
-      <div
-        ref={termRef}
-        role="log"
-        aria-label="Execution command output"
-        aria-live="polite"
-        className="rounded-lg border border-border-default overflow-hidden"
-      />
-      {commands.length > 0 && (
-        <div className="mt-2 space-y-1">
-          {commands.map((cmd, i) => (
-            <div
-              key={i}
-              className="group flex items-center gap-2 rounded bg-bg-surface px-2 py-1"
-            >
-              <span className="text-text-tertiary">$</span>
-              <code className="flex-1 font-mono text-xs text-brand-purple truncate">
-                {cmd}
-              </code>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 opacity-0 group-hover:opacity-100"
-                onClick={() => copyCommand(cmd, i)}
-              >
-                {copiedIdx === i ? <Check size={10} /> : <Copy size={10} />}
-              </Button>
-            </div>
-          ))}
-        </div>
+    <div className="rounded-md border border-border-default bg-bg-base overflow-hidden">
+      <div className="group flex items-start gap-2 px-3 py-2">
+        <span className="text-status-done text-caption mt-0.5 select-none">$</span>
+        <code className="flex-1 font-mono text-caption text-brand-purple break-all whitespace-pre-wrap">{command}</code>
+        <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={copy}>
+          {copied ? <Check size={10} /> : <Copy size={10} />}
+        </Button>
+      </div>
+      {output && (
+        <pre className={cn(
+          "border-t border-border-default px-3 py-2 font-mono text-caption whitespace-pre-wrap break-all",
+          exitCode === 0 ? "text-text-tertiary" : "text-destructive",
+        )}>
+          {output}
+        </pre>
       )}
     </div>
   );

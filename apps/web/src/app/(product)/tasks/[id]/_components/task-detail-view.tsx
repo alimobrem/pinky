@@ -830,40 +830,14 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
       {remediationExec && (
         <Sheet open={terminalOpen} onOpenChange={setTerminalOpen}>
           <SheetContent side="right" className="flex w-[480px] flex-col gap-0 bg-bg-base p-0 sm:max-w-[480px]">
-            <SheetHeader className="border-b border-border-default px-4 py-3">
-              <div className="flex items-center justify-between">
-                <SheetTitle className="flex items-center gap-2 text-sm font-medium text-text-primary">
-                  {remediationRunning && <Loader2 size={14} className="animate-spin text-status-done" />}
-                  Execution Log
-                </SheetTitle>
-                {remediationRunning && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="sm" className="text-destructive h-8 text-sm">
-                        <XCircle size={14} className="mr-1" /> Cancel
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Cancel remediation?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Steps already applied will not be rolled back.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Keep Running</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => cancelExec.mutate(remediationExec.id)}>
-                          Cancel Execution
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </div>
+            <SheetHeader className="sr-only">
+              <SheetTitle>Execution Log</SheetTitle>
             </SheetHeader>
-            <div className="flex-1 overflow-hidden p-4">
-              <ExecutionTerminal events={remediationEvents} />
-            </div>
+            <ExecutionTerminal
+              events={remediationEvents}
+              className="flex-1 overflow-hidden"
+              onCancel={remediationRunning ? () => cancelExec.mutate(remediationExec.id) : undefined}
+            />
           </SheetContent>
         </Sheet>
       )}
