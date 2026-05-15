@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID
 
 import anthropic
+import sqlalchemy
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -276,6 +277,52 @@ async def release_work_item(
     await emit(db, "work_item.released", "work_item", UUID(work_item_id), {"status": "ready"},
                cluster_id=current.cluster_id, principal_id=principal_uuid(principal))
     await db.commit()
+    return _serialize(item)
+
+
+@router.post("/{work_item_id}/reset")
+async def reset_work_item(
+    work_item_id: str,
+    db: AsyncSession = Depends(get_db),
+    principal: dict = Depends(require_authenticated),
+) -> dict:
+    repo = WorkItemRepository(db)
+    current = await repo.get(UUID(work_item_id))
+    if current is None:
+        raise HTTPException(status_code=404, detail="Work item not found")
+    await require_cluster_write_access(current.cluster_id, principal, db)
+
+    await db.execute(
+        sqlalchemy.text(
+            "UPDATE work_items SET status = 'ready', owner_id = NULL, "
+            "confidence = NULL, artifact_refs = '{}'::jsonb, updated_at = now() "
+            "WHERE id = :id"
+        ),
+        {"id": work_item_id},
+    )
+
+    await db.execute(
+        sqlalchemy.text(
+            "UPDATE executions SET status = 'cancelled', completed_at = now() "
+            "WHERE work_item_id = :wi_id AND status IN ('pending', 'running', 'waiting_for_approval')"
+        ),
+        {"wi_id": work_item_id},
+    )
+
+    if current.issue_id:
+        await db.execute(
+            sqlalchemy.text(
+                "UPDATE issues SET status = 'open', resolved_by = NULL, updated_at = now() "
+                "WHERE id = :issue_id AND status IN ('resolved', 'suppressed')"
+            ),
+            {"issue_id": str(current.issue_id)},
+        )
+
+    await emit(db, "work_item.reset", "work_item", UUID(work_item_id), {"status": "ready"},
+               cluster_id=current.cluster_id, principal_id=principal_uuid(principal))
+    await db.commit()
+
+    item = await repo.get(UUID(work_item_id))
     return _serialize(item)
 
 

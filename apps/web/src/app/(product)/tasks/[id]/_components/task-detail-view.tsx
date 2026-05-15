@@ -169,6 +169,11 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     onSuccess: () => { invalidateAll(); toast.success("Execution cancelled"); },
     onError: () => toast.error("Failed to cancel execution"),
   });
+  const resetTask = useMutation({
+    mutationFn: () => api.post(`/api/v1/work-items/${taskId}/reset`),
+    onSuccess: () => { invalidateAll(); setTerminalOpen(false); toast.success("Task reset — ready for re-investigation"); },
+    onError: () => toast.error("Failed to reset task"),
+  });
   const investigate = useMutation({
     mutationFn: () =>
       api.post<Execution>(
@@ -664,6 +669,37 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                     <XCircle size={14} />
                     Cancel Investigation
                   </Button>
+                )}
+                {task.status !== "ready" && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full justify-start gap-2 border-border-default text-text-tertiary hover:text-text-secondary"
+                        disabled={resetTask.isPending}
+                      >
+                        <Undo2 size={14} />
+                        {resetTask.isPending ? "Resetting..." : "Reset Task"}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Reset this task?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will clear all investigation results and execution history.
+                          The task will return to &quot;Ready&quot; and the observer will
+                          re-investigate on the next scan.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => resetTask.mutate()}>
+                          Reset
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 )}
               </CardContent>
             </Card>
