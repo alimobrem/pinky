@@ -208,6 +208,45 @@ class TestNormalizeStep:
         assert result[1]["resource_name"] == "crash"
 
 
+class TestNormalizeStepWithFrozenDataclass:
+    """Verify normalization works with frozen InvestigationArtifact."""
+
+    @pytest.mark.asyncio
+    async def test_store_artifact_does_not_mutate_frozen_artifact(self) -> None:
+        from pinky_worker.execution.activities import InvestigationArtifact, _normalize_steps
+
+        artifact = InvestigationArtifact(
+            artifact_id="test-id",
+            issue_id="issue-1",
+            summary="test",
+            root_cause="test",
+            recommended_action="test",
+            confidence=0.9,
+            tool_calls=[],
+            evidence_hash="hash",
+            execution_id="exec-1",
+            remediation_steps=[
+                {"action": "patch", "resource_kind": "Deployment", "resource_name": "web", "params": {}},
+            ],
+        )
+
+        # This must NOT raise FrozenInstanceError
+        normalized = _normalize_steps(artifact.remediation_steps)
+        assert len(normalized) == 1
+        assert normalized[0]["resource"] == "deployment/web"
+
+        # Original artifact unchanged
+        assert artifact.remediation_steps[0].get("resource") is None
+
+    def test_normalize_returns_new_list(self) -> None:
+        from pinky_worker.execution.activities import _normalize_steps
+
+        original = [{"action": "scale", "resource": "deployment/web", "params": {"replicas": 3}}]
+        result = _normalize_steps(original)
+        assert result is not original
+        assert len(result) == 1
+
+
 class TestApplyChangeResourceParsing:
     """Verify apply_change handles all LLM output formats for resource identification."""
 

@@ -559,11 +559,11 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
     logger.info("artifact stored: %s", artifact.artifact_id)
 
     # Create approval and populate artifact_refs when remediation steps exist
-    if artifact.remediation_steps:
-        artifact.remediation_steps = _normalize_steps(artifact.remediation_steps)
-        if not artifact.remediation_steps:
-            logger.warning("all remediation steps rejected during normalization")
-            return artifact.artifact_id
+    normalized_steps = _normalize_steps(artifact.remediation_steps) if artifact.remediation_steps else []
+    if artifact.remediation_steps and not normalized_steps:
+        logger.warning("all remediation steps rejected during normalization")
+        return artifact.artifact_id
+    if normalized_steps:
         try:
             exec_row = await pool.fetchrow(
                 "SELECT work_item_id, cluster_id FROM executions WHERE id = $1",
@@ -579,7 +579,7 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
                 work_item_id = exec_row["work_item_id"]
                 cluster_id = exec_row["cluster_id"]
 
-                plan_steps = artifact.remediation_steps
+                plan_steps = normalized_steps
                 changeset_digest = hashlib.sha256(
                     json.dumps(plan_steps, sort_keys=True).encode(),
                 ).hexdigest()[:16]
