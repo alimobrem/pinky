@@ -312,8 +312,16 @@ async def reset_work_item(
 
     await db.execute(
         sqlalchemy.text(
+            "DELETE FROM execution_events WHERE execution_id IN "
+            "(SELECT id FROM executions WHERE work_item_id = :wi_id)"
+        ),
+        {"wi_id": work_item_id},
+    )
+
+    await db.execute(
+        sqlalchemy.text(
             "UPDATE executions SET status = 'cancelled', completed_at = now() "
-            "WHERE work_item_id = :wi_id AND status IN ('pending', 'running', 'waiting_for_approval')"
+            "WHERE work_item_id = :wi_id AND status NOT IN ('cancelled')"
         ),
         {"wi_id": work_item_id},
     )
