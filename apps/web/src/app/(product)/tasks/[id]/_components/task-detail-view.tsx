@@ -116,12 +116,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
       if (envelope.type === "completed") {
         toast.success("Remediation completed successfully");
       } else if (envelope.type === "failed") {
-        const reason = envelope.payload?.reason as string | undefined;
-        if (reason === "cancelled") {
-          toast.info("Remediation cancelled");
-        } else {
-          toast.error(`Remediation failed: ${reason ?? "unknown error"}`);
-        }
+        toast.error("Remediation failed — check the execution log for details");
       }
     }
     if (envelope.type === "work_item.completed" && envelope.aggregate_id === taskId) {
