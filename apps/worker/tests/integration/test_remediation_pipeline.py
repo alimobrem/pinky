@@ -293,7 +293,7 @@ async def test_binding_expired_stops_workflow(workflow_env: WorkflowEnvironment)
 
     assert result.status == "failed"
     failed = next(e for e in _emitted if e.event_type == "failed")
-    assert "expired" in failed.payload.get("error", "").lower()
+    assert failed.payload["reason"] == "step_failed"
 
 
 # --- Idempotency ---
