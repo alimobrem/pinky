@@ -152,6 +152,37 @@ async def test_command_sequence_uses_step_index():
 
 
 @pytest.mark.asyncio
+async def test_k8s_apply_patch_handles_string_body():
+    """_k8s_apply must handle patch body that's already a JSON string."""
+    from pinky_worker.execution.activities import _k8s_apply
+
+    captured: dict = {}
+
+    async def mock_patch(url, **kwargs):
+        captured["body"] = kwargs.get("content", "")
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.raise_for_status = MagicMock()
+        return resp
+
+    mock_client = AsyncMock()
+    mock_client.patch = mock_patch
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("httpx.AsyncClient", return_value=mock_client):
+        await _k8s_apply(
+            "https://api.test:6443", "token", "patch",
+            "deployment", "web", "default",
+            {"patch": '{"spec":{"replicas":3}}'},
+        )
+
+    # Should NOT double-encode — body should be the raw string, not '"{\\"spec\\"...}"'
+    assert captured["body"] == '{"spec":{"replicas":3}}'
+    assert '\\"' not in captured["body"]
+
+
+@pytest.mark.asyncio
 async def test_k8s_apply_patch_uses_strategic_merge():
     """_k8s_apply must use strategic-merge-patch content type."""
     from pinky_worker.execution.activities import _k8s_apply

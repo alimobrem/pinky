@@ -734,10 +734,14 @@ async def _k8s_apply(
     async with httpx.AsyncClient(verify=False) as client:
         if action == "patch":
             patch_body = params.get("patch", {})
+            if isinstance(patch_body, str):
+                patch_content = patch_body
+            else:
+                patch_content = json.dumps(patch_body)
             url = f"{api_endpoint}/{_api_path(kind, namespace, name)}"
             resp = await client.patch(
                 url, headers={**headers, "Content-Type": "application/strategic-merge-patch+json"},
-                content=json.dumps(patch_body), timeout=30,
+                content=patch_content, timeout=30,
             )
             resp.raise_for_status()
             return {"status": "patched", "kind": kind, "name": name, "namespace": namespace}
