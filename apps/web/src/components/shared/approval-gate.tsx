@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { ShieldAlert, Check, X, Eye, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { ShieldAlert, Check, X, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -45,14 +44,13 @@ export function ApprovalGate({
   isPending,
   className,
 }: ApprovalGateProps) {
-  const [previewResults, setPreviewResults] = useState<PreviewStep[] | null>(null);
-
-  const preview = useMutation({
-    mutationFn: () =>
-      api.post<{ steps: PreviewStep[] }>(`/api/v1/executions/${executionId}/preview`),
-    onSuccess: (data) => setPreviewResults(data.steps),
+  const { data: previewData, isLoading: previewLoading } = useQuery({
+    queryKey: ["preview", executionId],
+    queryFn: () => api.post<{ steps: PreviewStep[] }>(`/api/v1/executions/${executionId}/preview`),
+    staleTime: 60_000,
   });
 
+  const previewResults = previewData?.steps ?? null;
   const hasErrors = previewResults?.some((s) => s.status === "error");
 
   return (
@@ -75,16 +73,6 @@ export function ApprovalGate({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 gap-1 text-text-secondary"
-            onClick={() => preview.mutate()}
-            disabled={preview.isPending}
-          >
-            {preview.isPending ? <Loader2 size={14} className="animate-spin" /> : <Eye size={14} />}
-            Preview
-          </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
@@ -147,10 +135,16 @@ export function ApprovalGate({
         </div>
       </div>
 
+      {previewLoading && (
+        <div className="mt-3 flex items-center gap-2 border-t border-border-subtle pt-3 text-caption text-text-tertiary">
+          <Loader2 size={12} className="animate-spin" />
+          Validating steps against cluster...
+        </div>
+      )}
       {previewResults && (
         <div className="mt-3 space-y-2 border-t border-border-subtle pt-3">
           <p className="text-caption font-medium text-text-secondary">
-            Dry-run results
+            Dry-run validation
           </p>
           {previewResults.map((step) => (
             <div key={step.index} className="flex items-start gap-2 rounded bg-bg-surface px-2 py-1.5">

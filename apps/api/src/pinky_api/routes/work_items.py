@@ -301,6 +301,15 @@ async def reset_work_item(
         {"id": work_item_id},
     )
 
+    running_execs = await db.execute(
+        sqlalchemy.text(
+            "SELECT id, execution_type FROM executions "
+            "WHERE work_item_id = :wi_id AND status IN ('pending', 'running', 'waiting_for_approval')"
+        ),
+        {"wi_id": work_item_id},
+    )
+    exec_rows = running_execs.fetchall()
+
     await db.execute(
         sqlalchemy.text(
             "UPDATE executions SET status = 'cancelled', completed_at = now() "
@@ -308,6 +317,16 @@ async def reset_work_item(
         ),
         {"wi_id": work_item_id},
     )
+
+    for ex_row in exec_rows:
+        workflow_id = f"{ex_row.execution_type}-{ex_row.id}"
+        try:
+            from pinky_api.temporal_state import get_client
+            temporal_client = await get_client()
+            handle = temporal_client.get_workflow_handle(workflow_id)
+            await handle.cancel()
+        except Exception:
+            logger.debug("could not cancel workflow %s", workflow_id)
 
     if current.issue_id:
         await db.execute(
