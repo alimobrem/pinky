@@ -227,32 +227,25 @@ async def reset_stale(
     if not principal.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin only")
 
-    from sqlalchemy import text
+    from sqlalchemy import CursorResult, text
     results = {}
 
-    r = await db.execute(text(
-        "UPDATE work_items SET status = 'done', updated_at = now() "
-        "WHERE status = 'ready' AND created_at < now() - interval '7 days'"
-    ))
-    results["stale_ready_expired"] = r.rowcount
-
-    r = await db.execute(text(
-        "UPDATE work_items SET status = 'ready', owner_id = NULL, updated_at = now() "
-        "WHERE status = 'in_progress' AND updated_at < now() - interval '24 hours'"
-    ))
-    results["stuck_in_progress_reset"] = r.rowcount
-
-    r = await db.execute(text(
-        "UPDATE executions SET status = 'failed', completed_at = now() "
-        "WHERE status = 'pending' AND created_at < now() - interval '10 minutes'"
-    ))
-    results["stuck_pending_failed"] = r.rowcount
-
-    r = await db.execute(text(
-        "UPDATE executions SET status = 'failed', completed_at = now() "
-        "WHERE status = 'running' AND created_at < now() - interval '1 hour'"
-    ))
-    results["stuck_running_failed"] = r.rowcount
+    for key, sql in [
+        ("stale_ready_expired",
+         "UPDATE work_items SET status = 'done', updated_at = now() "
+         "WHERE status = 'ready' AND created_at < now() - interval '7 days'"),
+        ("stuck_in_progress_reset",
+         "UPDATE work_items SET status = 'ready', owner_id = NULL, updated_at = now() "
+         "WHERE status = 'in_progress' AND updated_at < now() - interval '24 hours'"),
+        ("stuck_pending_failed",
+         "UPDATE executions SET status = 'failed', completed_at = now() "
+         "WHERE status = 'pending' AND created_at < now() - interval '10 minutes'"),
+        ("stuck_running_failed",
+         "UPDATE executions SET status = 'failed', completed_at = now() "
+         "WHERE status = 'running' AND created_at < now() - interval '1 hour'"),
+    ]:
+        r: CursorResult = await db.execute(text(sql))  # type: ignore[assignment]
+        results[key] = r.rowcount
 
     await db.commit()
     return results
