@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -13,6 +14,7 @@ from kubernetes_asyncio.client import ApiClient
 logger = logging.getLogger(__name__)
 
 _SA_TOKEN = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
+_K8S_CA = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
 
 def _extract_metadata(obj: Any) -> dict:
@@ -39,7 +41,12 @@ async def create_client(
         cfg.host = api_endpoint
         cfg.api_key = {"BearerToken": token}
         cfg.api_key_prefix = {"BearerToken": "Bearer"}
-        cfg.verify_ssl = False
+        if os.environ.get("PINKY_DEBUG", "").lower() == "true":
+            cfg.verify_ssl = False
+        else:
+            cfg.verify_ssl = True
+            if Path(_K8S_CA).exists():
+                cfg.ssl_ca_cert = _K8S_CA
         return ApiClient(configuration=cfg)
     if kubeconfig:
         await config.load_kube_config(config_file=kubeconfig)

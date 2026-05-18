@@ -838,6 +838,26 @@ _KIND_TO_API: dict[str, tuple[str, str]] = {
 }
 
 
+def _get_ssl_context():
+    import ssl
+    from pathlib import Path
+
+    if os.environ.get("PINKY_DEBUG", "").lower() == "true":
+        return False
+    ca_files = [
+        p for p in [
+            "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+            "/etc/pki/tls/ingress/ingress-ca.crt",
+        ] if Path(p).exists()
+    ]
+    if not ca_files:
+        return True
+    ctx = ssl.create_default_context()
+    for ca in ca_files:
+        ctx.load_verify_locations(ca)
+    return ctx
+
+
 def _api_path(kind: str, namespace: str, name: str) -> str:
     kind_lower = kind.lower()
     api_prefix, plural = _KIND_TO_API.get(kind_lower, ("api/v1", f"{kind_lower}s"))
@@ -852,7 +872,7 @@ async def _k8s_apply(
 
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
-    async with httpx.AsyncClient(verify=False) as client:
+    async with httpx.AsyncClient(verify=_get_ssl_context()) as client:
         if action == "patch":
             patch_body = params.get("patch", {})
             patch_content = patch_body if isinstance(patch_body, str) else json.dumps(patch_body)

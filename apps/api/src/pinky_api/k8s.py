@@ -4,10 +4,28 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+import ssl
+from pathlib import Path
 from typing import Any
 
 import httpx
+
+_INGRESS_CA = "/etc/pki/tls/ingress/ingress-ca.crt"
+_K8S_CA = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+
+
+def _get_ssl_context() -> ssl.SSLContext | bool:
+    if os.environ.get("PINKY_DEBUG", "").lower() == "true":
+        return False
+    ca_files = [p for p in [_INGRESS_CA, _K8S_CA] if Path(p).exists()]
+    if not ca_files:
+        return True
+    ctx = ssl.create_default_context()
+    for ca in ca_files:
+        ctx.load_verify_locations(ca)
+    return ctx
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +65,7 @@ async def get_resource(
     url = f"{api_endpoint}/{_api_path(kind, namespace, name)}"
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
-    async with httpx.AsyncClient(verify=False) as client:
+    async with httpx.AsyncClient(verify=_get_ssl_context()) as client:
         resp = await client.get(url, headers=headers, timeout=30)
         if resp.status_code == 404:
             return {"error": "not_found", "status": 404}
@@ -68,7 +86,7 @@ async def list_resources(
         url = f"{api_endpoint}/{api_prefix}/{plural}"
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
-    async with httpx.AsyncClient(verify=False) as client:
+    async with httpx.AsyncClient(verify=_get_ssl_context()) as client:
         resp = await client.get(url, headers=headers, timeout=30)
         if resp.status_code == 403:
             return {"error": "forbidden", "status": 403}
@@ -82,7 +100,7 @@ async def get_nodes(
     url = f"{api_endpoint}/api/v1/nodes"
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
-    async with httpx.AsyncClient(verify=False) as client:
+    async with httpx.AsyncClient(verify=_get_ssl_context()) as client:
         resp = await client.get(url, headers=headers, timeout=30)
         if resp.status_code == 403:
             return {"error": "forbidden", "status": 403}
@@ -96,7 +114,7 @@ async def get_events(
     url = f"{api_endpoint}/api/v1/namespaces/{namespace}/events" if namespace else f"{api_endpoint}/api/v1/events"
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
-    async with httpx.AsyncClient(verify=False) as client:
+    async with httpx.AsyncClient(verify=_get_ssl_context()) as client:
         resp = await client.get(url, headers=headers, timeout=30)
         resp.raise_for_status()
         data = resp.json()
@@ -113,7 +131,7 @@ async def get_top_pods(
         url = f"{api_endpoint}/apis/metrics.k8s.io/v1beta1/pods"
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
-    async with httpx.AsyncClient(verify=False) as client:
+    async with httpx.AsyncClient(verify=_get_ssl_context()) as client:
         resp = await client.get(url, headers=headers, timeout=30)
         if resp.status_code == 403:
             return {"error": "forbidden", "status": 403}
@@ -154,7 +172,7 @@ async def get_top_nodes(
     url = f"{api_endpoint}/apis/metrics.k8s.io/v1beta1/nodes"
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
-    async with httpx.AsyncClient(verify=False) as client:
+    async with httpx.AsyncClient(verify=_get_ssl_context()) as client:
         resp = await client.get(url, headers=headers, timeout=30)
         if resp.status_code == 403:
             return {"error": "forbidden", "status": 403}
@@ -185,7 +203,7 @@ async def _query_prometheus_raw(
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
     for base in [_THANOS_BASE, api_endpoint]:
         try:
-            async with httpx.AsyncClient(verify=False) as client:
+            async with httpx.AsyncClient(verify=_get_ssl_context()) as client:
                 resp = await client.get(f"{base}{path}", headers=headers, params=params, timeout=30)
                 if resp.status_code == 403:
                     continue
@@ -241,7 +259,7 @@ async def apply_resource(
         "Accept": "application/json",
     }
 
-    async with httpx.AsyncClient(verify=False) as client:
+    async with httpx.AsyncClient(verify=_get_ssl_context()) as client:
         resp = await client.patch(url, headers=headers, content=json.dumps(manifest), timeout=30)
         if resp.status_code == 403:
             return {"error": "forbidden", "status": 403}
