@@ -211,7 +211,6 @@ async def test_observer_dispatch_skips_if_pending_exists(
     mock_client.start_workflow.assert_not_called()
 
 
-@pytest.mark.skip(reason="ON CONFLICT requires non-transactional connection — tested in test_db_correlator.py")
 async def test_observation_insert_generates_uuid(
     conn: asyncpg.Connection, cluster_id: str, pool_patch,
 ) -> None:
@@ -242,7 +241,6 @@ async def test_observation_insert_generates_uuid(
     assert row["id"] is not None
 
 
-@pytest.mark.skip(reason="ON CONFLICT requires non-transactional connection — tested in test_db_correlator.py")
 async def test_duplicate_observation_no_duplicate_issue(
     conn: asyncpg.Connection, cluster_id: str, pool_patch,
 ) -> None:
@@ -278,7 +276,6 @@ async def test_duplicate_observation_no_duplicate_issue(
     assert len(issues) == 1
 
 
-@pytest.mark.skip(reason="ON CONFLICT requires non-transactional connection — tested in test_full_pipeline.py")
 async def test_full_pipeline_observation_to_completed_execution(
     conn: asyncpg.Connection, cluster_id: str, pool_patch,
     workflow_env: WorkflowEnvironment,
