@@ -252,9 +252,9 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const activeExec = executions?.items?.find(
     (e) => (e.status === "running" || e.status === "pending") && e.execution_type === "investigation",
   );
-  const remediationExec = executions?.items?.find(
-    (e) => e.execution_type === "remediation",
-  );
+  const remediationExec = [...(executions?.items ?? [])]
+    .filter((e) => e.execution_type === "remediation")
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
   const events = timeline?.items ?? [];
   const hasResults = investigation?.has_investigation === true;
   const isInvestigating = !hasResults && (!!activeExec || investigate.isPending);

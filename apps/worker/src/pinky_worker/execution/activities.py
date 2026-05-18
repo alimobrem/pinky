@@ -1022,10 +1022,13 @@ async def verify_state(
 
             await k8s.close()
             all_healthy = all(r["healthy"] for r in results) if results else True
+            if target_resources and not results:
+                logger.warning("verify_state: all target_resources filtered (empty kind/name)")
             return {
                 "passed": all_healthy,
                 "details": {
                     "resources_checked": len(results),
+                    "resources_provided": len(target_resources) if target_resources else 0,
                     "results": results,
                     "verified_at": datetime.now(UTC).isoformat(),
                 },

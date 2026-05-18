@@ -6,7 +6,7 @@ from typing import Any, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select as sa_select
 from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,11 +30,11 @@ router = APIRouter(prefix="/api/v1/executions", tags=["executions"])
 
 
 class ApproveRequest(BaseModel):
-    changeset_digest: str
+    changeset_digest: str = Field(min_length=1)
 
 
 class RejectRequest(BaseModel):
-    reason: str
+    reason: str = Field(min_length=1)
 
 
 async def _update_approval_status(
@@ -286,7 +286,7 @@ async def get_execution_approval(
     }
 
 
-@router.post("/{execution_id}/preview")
+@router.get("/{execution_id}/preview")
 async def preview_execution(
     execution_id: str,
     db: AsyncSession = Depends(get_db),
@@ -430,6 +430,11 @@ async def approve_execution(
     try:
         handle = temporal_client.get_workflow_handle(f"remediation-{execution_id}")
         await handle.signal("approve", {"changeset_digest": req.changeset_digest})
+    except Exception:
+        logger.exception("failed to signal approval for %s", execution_id)
+        raise HTTPException(status_code=500, detail="Failed to signal workflow") from None
+
+    try:
         await _update_approval_status(db, ex.id, "approved", principal_uuid(principal))
         await emit(
             db, "approval.granted", "execution", ex.id,
@@ -437,10 +442,10 @@ async def approve_execution(
             cluster_id=ex.cluster_id, principal_id=principal_uuid(principal),
         )
         await db.commit()
-        return {"status": "approved", "execution_id": execution_id}
     except Exception:
-        logger.exception("failed to signal approval")
-        raise HTTPException(status_code=500, detail="Failed to signal workflow") from None
+        logger.exception("DB update failed after approval signal for %s", execution_id)
+
+    return {"status": "approved", "execution_id": execution_id}
 
 
 @router.post("/{execution_id}/reject")
@@ -467,6 +472,11 @@ async def reject_execution(
     try:
         handle = temporal_client.get_workflow_handle(f"remediation-{execution_id}")
         await handle.signal("reject", {"reason": req.reason})
+    except Exception:
+        logger.exception("failed to signal rejection for %s", execution_id)
+        raise HTTPException(status_code=500, detail="Failed to signal workflow") from None
+
+    try:
         await _update_approval_status(db, ex.id, "rejected", principal_uuid(principal))
         await emit(
             db, "approval.rejected", "execution", ex.id,
@@ -474,7 +484,7 @@ async def reject_execution(
             cluster_id=ex.cluster_id, principal_id=principal_uuid(principal),
         )
         await db.commit()
-        return {"status": "rejected", "execution_id": execution_id}
     except Exception:
-        logger.exception("failed to signal rejection")
-        raise HTTPException(status_code=500, detail="Failed to signal workflow") from None
+        logger.exception("DB update failed after reject signal for %s", execution_id)
+
+    return {"status": "rejected", "execution_id": execution_id}

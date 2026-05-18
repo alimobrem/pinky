@@ -153,6 +153,20 @@ async def _dispatch_investigation(
                          issue_id=result.issue_id)
             return
 
+        failed_remediation = await conn.fetchrow(
+            "SELECT id FROM executions WHERE work_item_id IN "
+            "(SELECT id FROM work_items WHERE issue_id = $1::uuid) "
+            "AND execution_type = 'remediation' "
+            "AND status = 'failed' "
+            "AND completed_at > now() - make_interval(secs => $2) "
+            "ORDER BY created_at DESC LIMIT 1",
+            result.issue_id, float(cooldown_seconds),
+        )
+        if failed_remediation:
+            logger.debug("recently failed remediation blocks re-investigation",
+                         issue_id=result.issue_id)
+            return
+
         wi_row = await conn.fetchrow(
             "SELECT id FROM work_items WHERE issue_id = $1::uuid ORDER BY created_at DESC LIMIT 1",
             result.issue_id,

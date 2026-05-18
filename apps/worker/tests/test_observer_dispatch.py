@@ -50,11 +50,11 @@ class _FakeConn:
         yield
 
 
-def _make_pool(cooldown_result=None, wi_result=None, remediation_result=None):
+def _make_pool(cooldown_result=None, wi_result=None, remediation_result=None, failed_remediation_result=None):
     """Create a fake pool with sequential fetchrow results.
     First call = investigation cooldown, second = active remediation check,
-    third = work_item lookup."""
-    conn = _FakeConn([cooldown_result, remediation_result, wi_result])
+    third = failed remediation cooldown, fourth = work_item lookup."""
+    conn = _FakeConn([cooldown_result, remediation_result, failed_remediation_result, wi_result])
 
     class FakePool:
         def __init__(self):
@@ -233,3 +233,48 @@ async def test_observer_retries_temporal_connection():
         await run_observer(registry, correlator, shutdown_event=shutdown)
 
     assert call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_dispatch_skips_on_recently_failed_remediation():
+    from pinky_worker.observation.observer import _dispatch_investigation
+
+    mock_client = AsyncMock()
+    fake_pool = _make_pool(
+        cooldown_result=None,
+        remediation_result=None,
+        failed_remediation_result={"id": uuid.uuid4()},
+    )
+
+    result = CorrelationResult(action="created", issue_id=str(uuid.uuid4()), observation_count=1)
+
+    with patch("pinky_worker.db.get_pool", AsyncMock(return_value=fake_pool)):
+        await _dispatch_investigation(
+            mock_client, str(uuid.uuid4()), _make_obs(), result, _make_decision(), MagicMock(),
+        )
+
+    mock_client.start_workflow.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_proceeds_when_no_failed_remediation():
+    from pinky_worker.observation.observer import _dispatch_investigation
+
+    mock_client = AsyncMock()
+    mock_client.start_workflow = AsyncMock()
+
+    fake_pool = _make_pool(
+        cooldown_result=None,
+        remediation_result=None,
+        failed_remediation_result=None,
+        wi_result={"id": uuid.uuid4()},
+    )
+
+    result = CorrelationResult(action="created", issue_id=str(uuid.uuid4()), observation_count=1)
+
+    with patch("pinky_worker.db.get_pool", AsyncMock(return_value=fake_pool)):
+        await _dispatch_investigation(
+            mock_client, str(uuid.uuid4()), _make_obs(), result, _make_decision(), MagicMock(),
+        )
+
+    mock_client.start_workflow.assert_called_once()

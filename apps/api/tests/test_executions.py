@@ -95,3 +95,35 @@ def test_approval_endpoint_returns_null_for_no_approval(authed_client: TestClien
 def test_approval_endpoint_requires_auth(unauthed_client: TestClient) -> None:
     r = unauthed_client.get(f"/api/v1/executions/{uuid.uuid4()}/approval")
     assert r.status_code == 401
+
+
+def test_approve_empty_digest_rejected(authed_client: TestClient) -> None:
+    r = authed_client.post(
+        f"/api/v1/executions/{uuid.uuid4()}/approve",
+        json={"changeset_digest": ""},
+    )
+    assert r.status_code == 422
+
+
+def test_approve_missing_digest_rejected(authed_client: TestClient) -> None:
+    r = authed_client.post(
+        f"/api/v1/executions/{uuid.uuid4()}/approve",
+        json={},
+    )
+    assert r.status_code == 422
+
+
+def test_reject_empty_reason_rejected(authed_client: TestClient) -> None:
+    r = authed_client.post(
+        f"/api/v1/executions/{uuid.uuid4()}/reject",
+        json={"reason": ""},
+    )
+    assert r.status_code == 422
+
+
+def test_reject_missing_reason_rejected(authed_client: TestClient) -> None:
+    r = authed_client.post(
+        f"/api/v1/executions/{uuid.uuid4()}/reject",
+        json={},
+    )
+    assert r.status_code == 422

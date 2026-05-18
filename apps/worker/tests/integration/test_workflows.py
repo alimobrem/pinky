@@ -356,3 +356,60 @@ async def test_verification_fails(workflow_env: WorkflowEnvironment) -> None:
 
     event_types = [e.event_type for e in _emitted_events]
     assert "failed" in event_types
+
+
+async def test_verification_retries_on_failure(workflow_env: WorkflowEnvironment) -> None:
+    """Verification retries up to max_attempts, passing on second try."""
+    call_count = 0
+
+    @activity.defn(name="verify_state")
+    async def mock_verify_pass_on_second(
+        cluster_id: str, expected_state: dict, target_resources: list | None = None,
+    ) -> dict:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return {"passed": False, "details": {"total_pods": 3, "unhealthy_pods": 2}}
+        return {"passed": True, "details": {"total_pods": 3, "unhealthy_pods": 0}}
+
+    activities = [mock_emit, mock_verify_pass_on_second]
+    async with Worker(
+        workflow_env.client, task_queue=TASK_QUEUE, workflows=[VerificationWorkflow], activities=activities,
+    ):
+        result = await workflow_env.client.execute_workflow(
+            VerificationWorkflow.run,
+            VerificationInput(
+                execution_id="exec-1", cluster_id="cluster-1",
+                delay_seconds=1, max_attempts=3,
+            ),
+            id=f"test-ver-retry-{uuid.uuid4()}",
+            task_queue=TASK_QUEUE,
+        )
+
+    assert result.passed is True
+    assert call_count == 2
+
+    event_types = [e.event_type for e in _emitted_events]
+    assert "verified" in event_types
+
+
+async def test_verification_exhausts_retries(workflow_env: WorkflowEnvironment) -> None:
+    """Verification fails after exhausting all attempts."""
+    activities = [mock_emit, mock_verify_fail]
+    async with Worker(
+        workflow_env.client, task_queue=TASK_QUEUE, workflows=[VerificationWorkflow], activities=activities,
+    ):
+        result = await workflow_env.client.execute_workflow(
+            VerificationWorkflow.run,
+            VerificationInput(
+                execution_id="exec-1", cluster_id="cluster-1",
+                delay_seconds=1, max_attempts=2,
+            ),
+            id=f"test-ver-exhaust-{uuid.uuid4()}",
+            task_queue=TASK_QUEUE,
+        )
+
+    assert result.passed is False
+
+    event_types = [e.event_type for e in _emitted_events]
+    assert "failed" in event_types

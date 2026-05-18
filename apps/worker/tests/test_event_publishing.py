@@ -240,6 +240,64 @@ class TestAutoCompleteOnRemediation:
         assert not any("work_items SET status = 'done'" in q for q in queries)
 
 
+class TestStateMachineGuard:
+    @pytest.mark.asyncio
+    async def test_completed_to_completed_blocked(self) -> None:
+        from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event
+
+        exec_id = str(uuid.uuid4())
+
+        class FakePoolWithFetch(FakePool):
+            async def fetchrow(self, query, *args):
+                if "SELECT status" in query and "executions" in query:
+                    return {
+                        "status": "completed",
+                        "execution_type": "remediation",
+                        "work_item_id": uuid.uuid4(),
+                        "cluster_id": uuid.uuid4(),
+                    }
+                return None
+
+        pool = FakePoolWithFetch()
+
+        with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
+            await emit_execution_event(ExecutionEventPayload(
+                execution_id=exec_id, event_type="completed", sequence=200,
+                payload={"verification_passed": True},
+            ))
+
+        insert_calls = [q for q, *_ in pool.calls if "INSERT INTO execution_events" in q]
+        assert len(insert_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_progress_event_not_blocked_by_state_machine(self) -> None:
+        from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event
+
+        exec_id = str(uuid.uuid4())
+
+        class FakePoolWithFetch(FakePool):
+            async def fetchrow(self, query, *args):
+                if "SELECT status" in query and "executions" in query:
+                    return {
+                        "status": "running",
+                        "execution_type": "remediation",
+                        "work_item_id": uuid.uuid4(),
+                        "cluster_id": uuid.uuid4(),
+                    }
+                return None
+
+        pool = FakePoolWithFetch()
+
+        with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
+            await emit_execution_event(ExecutionEventPayload(
+                execution_id=exec_id, event_type="progress", sequence=50,
+                payload={"step": 1},
+            ))
+
+        insert_calls = [q for q, *_ in pool.calls if "INSERT INTO execution_events" in q]
+        assert len(insert_calls) == 1
+
+
 class TestCorrelatorNotifyPayloads:
     def test_work_item_payload_is_safe_json(self) -> None:
         work_item_id = uuid.uuid4()

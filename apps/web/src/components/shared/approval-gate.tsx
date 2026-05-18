@@ -78,8 +78,9 @@ export function ApprovalGate({
 
   const { data: previewData, isLoading: previewLoading } = useQuery({
     queryKey: ["preview", executionId],
-    queryFn: () => api.post<{ steps: PreviewStep[] }>(`/api/v1/executions/${executionId}/preview`),
+    queryFn: () => api.get<{ steps: PreviewStep[] }>(`/api/v1/executions/${executionId}/preview`),
     staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const previewResults = previewData?.steps ?? null;
@@ -122,7 +123,7 @@ export function ApprovalGate({
                 size="sm"
                 variant="outline"
                 className="h-7 gap-1 border-status-blocked/30 text-status-blocked hover:bg-status-blocked/10"
-                disabled={isPending}
+                disabled={isPending || countdown === "expired"}
               >
                 <X size={14} />
                 Reject
@@ -157,7 +158,7 @@ export function ApprovalGate({
               <Button
                 size="sm"
                 className="h-7 gap-1 bg-status-done text-text-inverse hover:bg-status-done/90"
-                disabled={isPending || hasErrors === true}
+                disabled={isPending || hasErrors === true || countdown === "expired"}
               >
                 <Check size={14} />
                 Approve
@@ -183,6 +184,12 @@ export function ApprovalGate({
           </AlertDialog>
         </div>
       </div>
+
+      {countdown === "expired" && (
+        <p className="mt-2 text-sm text-destructive">
+          Approval window expired
+        </p>
+      )}
 
       {previewLoading && (
         <div className="mt-3 flex items-center gap-2 border-t border-border-subtle pt-3 text-caption text-text-tertiary">
