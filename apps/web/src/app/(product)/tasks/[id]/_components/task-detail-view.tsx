@@ -19,6 +19,7 @@ import {
   User,
 } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 import {
@@ -450,18 +451,41 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
               />
             )}
 
-            {remediationExec && remediationRunning && !terminalOpen && (
+            {remediationExec && !terminalOpen && (
               <button
                 type="button"
                 onClick={() => setTerminalOpen(true)}
-                className="sticky top-0 z-10 flex w-full items-center justify-between rounded-lg border border-status-done/30 bg-status-done/10 px-4 py-2 text-sm text-status-done transition-colors hover:bg-status-done/20"
+                className={cn(
+                  "sticky top-0 z-10 flex w-full items-center justify-between rounded-lg border px-4 py-2 text-sm transition-colors",
+                  remediationRunning
+                    ? "border-status-done/30 bg-status-done/10 text-status-done hover:bg-status-done/20"
+                    : remediationExec.status === "failed"
+                      ? "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20"
+                      : "border-border-default bg-bg-surface text-text-secondary hover:bg-bg-hover",
+                )}
               >
                 <span className="flex items-center gap-2">
-                  <Loader2 size={14} className="animate-spin" />
-                  Remediation running
-                  {latestProgress && ` — Step ${latestProgress.payload?.step}/${latestProgress.payload?.total}`}
+                  {remediationRunning ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Remediation running
+                      {latestProgress && ` — Step ${latestProgress.payload?.step}/${latestProgress.payload?.total}`}
+                    </>
+                  ) : remediationExec.status === "completed" ? (
+                    <>
+                      <CheckCircle2 size={14} />
+                      Remediation completed
+                    </>
+                  ) : remediationExec.status === "failed" ? (
+                    <>
+                      <XCircle size={14} />
+                      Remediation failed
+                    </>
+                  ) : (
+                    <>Execution log</>
+                  )}
                 </span>
-                <span className="text-caption">Open Terminal →</span>
+                <span className="text-caption">View Log →</span>
               </button>
             )}
           </div>
