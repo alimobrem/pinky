@@ -103,12 +103,16 @@ async def mock_apply(execution_id: str, cluster_id: str, binding_id: str, step: 
 
 
 @activity.defn(name="verify_state")
-async def mock_verify_pass(cluster_id: str, expected_state: dict) -> dict:
+async def mock_verify_pass(
+    cluster_id: str, expected_state: dict, target_resources: list | None = None,
+) -> dict:
     return {"passed": True, "details": {"total_pods": 5, "unhealthy_pods": 0}}
 
 
 @activity.defn(name="verify_state")
-async def mock_verify_fail(cluster_id: str, expected_state: dict) -> dict:
+async def mock_verify_fail(
+    cluster_id: str, expected_state: dict, target_resources: list | None = None,
+) -> dict:
     return {"passed": False, "details": {"total_pods": 5, "unhealthy_pods": 2}}
 
 
