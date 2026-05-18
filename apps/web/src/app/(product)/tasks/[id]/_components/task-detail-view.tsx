@@ -148,7 +148,8 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     onError: () => toast.error("Failed to take task"),
   });
   const approve = useMutation({
-    mutationFn: (execId: string) => api.post(`/api/v1/executions/${execId}/approve`),
+    mutationFn: ({ execId, digest }: { execId: string; digest: string }) =>
+      api.post(`/api/v1/executions/${execId}/approve`, { changeset_digest: digest }),
     onSuccess: () => {
       invalidateAll();
       toast.success("Execution approved — applying remediation...");
@@ -156,7 +157,8 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     },
   });
   const reject = useMutation({
-    mutationFn: (execId: string) => api.post(`/api/v1/executions/${execId}/reject`),
+    mutationFn: ({ execId, reason }: { execId: string; reason: string }) =>
+      api.post(`/api/v1/executions/${execId}/reject`, { reason }),
     onSuccess: () => { invalidateAll(); toast.success("Execution rejected"); },
   });
   const cancelExec = useMutation({
@@ -217,7 +219,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   );
   const { data: approvalData } = useQuery({
     queryKey: ["approval", pendingExec?.id],
-    queryFn: () => api.get<{ approval: { target_resources: Record<string, unknown>[]; changeset_digest: string } | null }>(
+    queryFn: () => api.get<{ approval: { target_resources: Record<string, unknown>[]; changeset_digest: string; expires_at: string | null } | null }>(
       `/api/v1/executions/${pendingExec!.id}/approval`,
     ),
     enabled: !!pendingExec,
@@ -384,7 +386,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
               <RemediationPlan
                 steps={investigation.remediation_steps ?? []}
                 manualCommands={investigation.manual_commands ?? []}
-                clusterName={task?.cluster_id}
+                clusterName={task?.cluster_display_name ?? task?.cluster_id}
                 onApply={() => startRemediation.mutate()}
                 applyPending={startRemediation.isPending}
               />
@@ -436,12 +438,14 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
               </Card>
             )}
 
-            {pendingExec && (
+            {pendingExec && approvalData?.approval && (
               <ApprovalGate
                 executionId={pendingExec.id}
-                resources={approvalData?.approval?.target_resources}
-                onApprove={(id) => approve.mutate(id)}
-                onReject={(id) => reject.mutate(id)}
+                resources={approvalData.approval.target_resources}
+                changesetDigest={approvalData.approval.changeset_digest}
+                expiresAt={approvalData.approval.expires_at}
+                onApprove={(id, digest) => approve.mutate({ execId: id, digest })}
+                onReject={(id, reason) => reject.mutate({ execId: id, reason })}
                 isPending={approve.isPending || reject.isPending}
               />
             )}
@@ -930,9 +934,15 @@ function timelineLabel(type: string, payload: Record<string, string | number | u
     case "started": return "Execution started";
     case "progress": return payload.step_description ? String(payload.step_description) : "Processing...";
     case "tool_used": return `Tool: ${payload.tool_name ?? "unknown"}`;
+    case "command": return payload.command ? `$ ${String(payload.command)}` : "Command executed";
     case "investigation_completed": return payload.summary ? String(payload.summary) : "Investigation complete";
+    case "approval_required": return "Waiting for approval";
+    case "approval_granted": return "Approved — applying changes";
+    case "approval_rejected": return "Approval rejected";
+    case "timed_out": return "Approval timed out (4h limit)";
+    case "verified": return payload.passed ? "Verification passed" : "Verification failed";
     case "completed": return "Execution completed successfully";
-    case "failed": return payload.error ? `Failed: ${payload.error}` : "Execution failed";
+    case "failed": return payload.reason ? `Failed: ${String(payload.reason)}` : "Execution failed";
     default: return type.replace(/_/g, " ");
   }
 }

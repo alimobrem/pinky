@@ -10,6 +10,7 @@ export type ExecutionStatus =
 export type ExecutionEventType =
   | "started"
   | "progress"
+  | "command"
   | "tool_used"
   | "approval_required"
   | "approval_granted"

@@ -173,12 +173,15 @@ async def test_no_issue_stuck_after_remediation_complete(
 ) -> None:
     """Remediation + verification passed → issue resolved, not stuck as open."""
     issue_id, wi_id = await _seed_issue_and_task(conn, cluster_id)
-    exec_id = await _seed_execution(conn, cluster_id, wi_id, "remediation", "pending")
+    exec_id = await _seed_execution(conn, cluster_id, wi_id, "remediation", "running")
 
     pool = _FakePool(conn)
     with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
-        from pinky_worker.execution.activities import project_to_postgres
-        await project_to_postgres(exec_id, "completed", {"verification_passed": True})
+        from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event
+        await emit_execution_event(ExecutionEventPayload(
+            execution_id=exec_id, event_type="completed", sequence=100,
+            payload={"verification_passed": True},
+        ))
 
     task = await conn.fetchrow("SELECT status FROM work_items WHERE id = $1::uuid", wi_id)
     assert task["status"] == "done"
@@ -193,12 +196,15 @@ async def test_no_task_stuck_after_failed_verification(
 ) -> None:
     """Remediation with failed verification → task stays open for user decision."""
     issue_id, wi_id = await _seed_issue_and_task(conn, cluster_id)
-    exec_id = await _seed_execution(conn, cluster_id, wi_id, "remediation", "pending")
+    exec_id = await _seed_execution(conn, cluster_id, wi_id, "remediation", "running")
 
     pool = _FakePool(conn)
     with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
-        from pinky_worker.execution.activities import project_to_postgres
-        await project_to_postgres(exec_id, "completed", {"verification_passed": False})
+        from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event
+        await emit_execution_event(ExecutionEventPayload(
+            execution_id=exec_id, event_type="completed", sequence=100,
+            payload={"verification_passed": False},
+        ))
 
     task = await conn.fetchrow("SELECT status FROM work_items WHERE id = $1::uuid", wi_id)
     assert task["status"] == "ready"
@@ -264,8 +270,11 @@ async def test_second_investigation_can_complete(
     # Completing the second investigation must not crash
     pool = _FakePool(conn)
     with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
-        from pinky_worker.execution.activities import project_to_postgres
-        await project_to_postgres(exec2, "completed", {"confidence": 0.85})
+        from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event
+        await emit_execution_event(ExecutionEventPayload(
+            execution_id=exec2, event_type="completed", sequence=100,
+            payload={"confidence": 0.85},
+        ))
 
     row = await conn.fetchrow("SELECT status FROM executions WHERE id = $1::uuid", exec2)
     assert row["status"] == "completed"
@@ -286,8 +295,11 @@ async def test_remediation_can_complete_alongside_investigation(
 
     pool = _FakePool(conn)
     with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
-        from pinky_worker.execution.activities import project_to_postgres
-        await project_to_postgres(rem_id, "completed", {"verification_passed": True})
+        from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event
+        await emit_execution_event(ExecutionEventPayload(
+            execution_id=rem_id, event_type="completed", sequence=100,
+            payload={"verification_passed": True},
+        ))
 
     row = await conn.fetchrow("SELECT status FROM executions WHERE id = $1::uuid", rem_id)
     assert row["status"] == "completed"

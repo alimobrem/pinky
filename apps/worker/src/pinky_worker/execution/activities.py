@@ -594,16 +594,7 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
 
                 approval_id = uuid4()
                 approval_ttl_hours = int(os.environ.get("PINKY_APPROVAL_TTL_HOURS", "24"))
-                await pool.execute(
-                    """INSERT INTO approvals
-                       (id, execution_id, changeset_digest, target_resources, status, expires_at)
-                       VALUES ($1, $2, $3, $4, 'pending', now() + make_interval(hours => $5))""",
-                    approval_id, exec_uuid, changeset_digest,
-                    json.dumps(target_resources), approval_ttl_hours,
-                )
 
-                # Look up the active binding for this cluster so remediation
-                # can proceed without the user having to supply it separately.
                 binding_row = await pool.fetchrow(
                     """SELECT id FROM cluster_identity_bindings
                        WHERE cluster_id = $1 AND status IN ('valid', 'expiring')
@@ -613,21 +604,31 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
                 refs: dict[str, Any] = {
                     "approval_id": str(approval_id),
                     "plan_steps": plan_steps,
+                    "changeset_digest": changeset_digest,
+                    "target_resources": target_resources,
                 }
                 if binding_row:
                     refs["binding_id"] = str(binding_row["id"])
 
-                await pool.execute(
-                    """UPDATE work_items
-                       SET artifact_refs = COALESCE(artifact_refs, '{}'::jsonb) || $2::jsonb,
-                           updated_at = now()
-                       WHERE id = $1""",
-                    work_item_id, json.dumps(refs),
-                )
+                async with pool.acquire() as conn, conn.transaction():
+                    await conn.execute(
+                        """INSERT INTO approvals
+                           (id, execution_id, changeset_digest, target_resources, status, expires_at)
+                           VALUES ($1, $2, $3, $4, 'pending', now() + make_interval(hours => $5))""",
+                        approval_id, exec_uuid, changeset_digest,
+                        json.dumps(target_resources), approval_ttl_hours,
+                    )
+                    await conn.execute(
+                        """UPDATE work_items
+                           SET artifact_refs = COALESCE(artifact_refs, '{}'::jsonb) || $2::jsonb,
+                               updated_at = now()
+                           WHERE id = $1""",
+                        work_item_id, json.dumps(refs),
+                    )
 
                 logger.info(
-                    "approval created: %s for work_item %s",
-                    str(approval_id), str(work_item_id),
+                    "approval created: %s for work_item %s (digest=%s)",
+                    str(approval_id), str(work_item_id), changeset_digest,
                 )
         except Exception:
             logger.exception("failed to create approval after investigation")
@@ -635,10 +636,40 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
     return artifact.artifact_id
 
 
+_EVENT_TO_STATUS: dict[str, str] = {
+    "started": "running",
+    "completed": "completed",
+    "failed": "failed",
+    "approval_required": "waiting_for_approval",
+    "approval_granted": "running",
+    "approval_rejected": "failed",
+    "timed_out": "timed_out",
+}
+
+_STATUS_SQL: dict[str, str] = {
+    "running": "UPDATE executions SET status = 'running', started_at = COALESCE(started_at, $2) WHERE id = $1",
+    "waiting_for_approval": "UPDATE executions SET status = 'waiting_for_approval' WHERE id = $1",
+    "completed": "UPDATE executions SET status = 'completed', completed_at = $2 WHERE id = $1",
+    "failed": "UPDATE executions SET status = 'failed', completed_at = $2 WHERE id = $1",
+    "timed_out": "UPDATE executions SET status = 'timed_out', completed_at = $2 WHERE id = $1",
+}
+
+_LIFECYCLE_EVENTS = frozenset({
+    "started", "completed", "failed", "approval_required",
+    "approval_granted", "approval_rejected", "timed_out",
+})
+
+
 @activity.defn
 async def emit_execution_event(event: ExecutionEventPayload) -> None:
-    """Emit an execution event to Postgres and trigger SSE broadcast."""
+    """Emit an execution event to Postgres and trigger SSE broadcast.
+
+    Single authoritative projection path for execution state: event insertion,
+    status transitions (with state machine guard), auto-complete on verified
+    remediation, domain_events audit trail, and pg_notify.
+    """
     from pinky_worker.db import get_pool
+    from pinky_worker.execution.state_machine import InvalidTransitionError, validate_transition
 
     pool = await get_pool()
     occurred = datetime.now(UTC)
@@ -650,6 +681,25 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
         stripped = exec_id_str.removeprefix("investigation-").removeprefix("remediation-")
         exec_uuid = UUID(stripped)
 
+    target_status = _EVENT_TO_STATUS.get(event.event_type)
+
+    exec_row = None
+    if target_status or event.event_type in _LIFECYCLE_EVENTS:
+        exec_row = await pool.fetchrow(
+            "SELECT status, execution_type, work_item_id, cluster_id FROM executions WHERE id = $1",
+            exec_uuid,
+        )
+
+    if target_status and exec_row:
+        try:
+            validate_transition(exec_row["status"], target_status)
+        except InvalidTransitionError:
+            logger.warning(
+                "blocked transition %s -> %s for execution %s",
+                exec_row["status"], target_status, exec_uuid,
+            )
+            return
+
     await pool.execute(
         """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)
            VALUES ($1, $2, $3, $4, $5, $6)
@@ -659,21 +709,70 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
         json.dumps(event.payload), occurred,
     )
 
-    status_map = {
-        "started": ("running", "UPDATE executions SET status = 'running', started_at = $2 WHERE id = $1"),
-        "completed": ("completed", "UPDATE executions SET status = 'completed', completed_at = $2 WHERE id = $1"),
-        "failed": ("failed", "UPDATE executions SET status = 'failed', completed_at = $2 WHERE id = $1"),
-    }
-    if event.event_type in status_map:
-        _, sql = status_map[event.event_type]
-        await pool.execute(sql, exec_uuid, occurred)
+    if target_status:
+        sql = _STATUS_SQL.get(target_status)
+        if sql:
+            if target_status == "waiting_for_approval":
+                await pool.execute(sql, exec_uuid)
+            else:
+                await pool.execute(sql, exec_uuid, occurred)
+
+    if (event.event_type == "completed"
+            and event.payload.get("verification_passed")
+            and exec_row
+            and exec_row["execution_type"] == "remediation"
+            and exec_row["work_item_id"]):
+        wi_id = exec_row["work_item_id"]
+        try:
+            async with pool.acquire() as conn, conn.transaction():
+                await conn.execute(
+                    "UPDATE work_items SET status = 'done', updated_at = now() WHERE id = $1",
+                    wi_id,
+                )
+                issue_row = await conn.fetchrow(
+                    "SELECT issue_id FROM work_items WHERE id = $1", wi_id,
+                )
+                if issue_row and issue_row["issue_id"]:
+                    await conn.execute(
+                        "UPDATE issues SET status = 'resolved', resolved_by = 'remediation', "
+                        "updated_at = now() WHERE id = $1",
+                        issue_row["issue_id"],
+                    )
+                    await conn.execute(
+                        "SELECT pg_notify($1, $2)", "pinky_issues",
+                        json.dumps({
+                            "event_type": "issue.resolved",
+                            "aggregate_id": str(issue_row["issue_id"]),
+                        }),
+                    )
+                await conn.execute(
+                    "SELECT pg_notify($1, $2)", "pinky_work_items",
+                    json.dumps({
+                        "event_type": "work_item.completed",
+                        "aggregate_id": str(wi_id),
+                    }),
+                )
+        except Exception:
+            logger.exception("auto-complete failed for work_item %s", wi_id)
 
     try:
-        payload = json.dumps({"event_type": event.event_type, "execution_id": str(exec_uuid)})
-        await pool.execute("SELECT pg_notify($1, $2)", "pinky_watch", payload)
-        await pool.execute("SELECT pg_notify($1, $2)", f"pinky_execution_{exec_uuid}", payload)
+        notify_payload = json.dumps({"event_type": event.event_type, "execution_id": str(exec_uuid)})
+        await pool.execute("SELECT pg_notify($1, $2)", "pinky_watch", notify_payload)
+        await pool.execute("SELECT pg_notify($1, $2)", f"pinky_execution_{exec_uuid}", notify_payload)
     except Exception:
-        logger.debug("NOTIFY skipped in execution event emission")
+        logger.warning("pg_notify skipped in execution event emission")
+
+    if event.event_type in _LIFECYCLE_EVENTS and exec_row:
+        try:
+            await pool.execute(
+                """INSERT INTO domain_events
+                   (id, aggregate_type, aggregate_id, event_type, cluster_id, payload, occurred_at)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7)""",
+                uuid4(), "execution", exec_uuid, event.event_type,
+                exec_row["cluster_id"], json.dumps(event.payload), occurred,
+            )
+        except Exception:
+            logger.warning("domain_event insertion failed for %s", event.event_type)
 
     logger.info("execution event emitted: %s %s exec=%s", event.event_type, event.execution_id, str(exec_uuid))
 
@@ -692,15 +791,37 @@ async def validate_approval(approval_id: str, changeset_digest: str) -> dict:
     if row is None:
         return {"valid": False, "reason": "approval not found"}
 
-    if row["status"] != "pending":
+    if row["status"] not in ("pending", "approved"):
         return {"valid": False, "reason": f"approval status is {row['status']}"}
 
     if row["expires_at"] and row["expires_at"] < datetime.now(UTC):
         return {"valid": False, "reason": "approval expired"}
 
-    if changeset_digest and row["changeset_digest"] != changeset_digest:
+    if not changeset_digest:
+        return {"valid": False, "reason": "changeset_digest is required"}
+
+    if row["changeset_digest"] != changeset_digest:
         return {"valid": False, "reason": "changeset changed since approval was granted"}
 
+    return {"valid": True}
+
+
+@activity.defn
+async def revalidate_binding(binding_id: str) -> dict:
+    """Check that the cluster binding is still valid before applying changes."""
+    from pinky_worker.db import get_pool
+
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT status, expires_at FROM cluster_identity_bindings WHERE id = $1",
+        UUID(binding_id),
+    )
+    if row is None:
+        return {"valid": False, "reason": "binding not found"}
+    if row["status"] not in ("valid", "expiring"):
+        return {"valid": False, "reason": f"binding status is {row['status']}"}
+    if row["expires_at"] and row["expires_at"].replace(tzinfo=UTC) < datetime.now(UTC):
+        return {"valid": False, "reason": "binding expired"}
     return {"valid": True}
 
 
@@ -734,10 +855,7 @@ async def _k8s_apply(
     async with httpx.AsyncClient(verify=False) as client:
         if action == "patch":
             patch_body = params.get("patch", {})
-            if isinstance(patch_body, str):
-                patch_content = patch_body
-            else:
-                patch_content = json.dumps(patch_body)
+            patch_content = patch_body if isinstance(patch_body, str) else json.dumps(patch_body)
             url = f"{api_endpoint}/{_api_path(kind, namespace, name)}"
             resp = await client.patch(
                 url, headers={**headers, "Content-Type": "application/strategic-merge-patch+json"},
@@ -864,12 +982,55 @@ async def apply_change(execution_id: str, cluster_id: str, binding_id: str, step
 
 
 @activity.defn
-async def verify_state(cluster_id: str, expected_state: dict) -> dict:
-    """Verify cluster state matches expected state after remediation."""
+async def verify_state(
+    cluster_id: str, expected_state: dict, target_resources: list[dict] | None = None,
+) -> dict:
+    """Verify cluster state after remediation.
+
+    When target_resources is provided, checks those specific resources.
+    Falls back to global pod health check otherwise.
+    """
     from pinky_worker.observation.k8s_client import create_client, list_pods
 
     try:
         k8s = await create_client()
+
+        if target_resources:
+            results = []
+            for res in target_resources:
+                kind = res.get("kind", "").lower()
+                name = res.get("name", "")
+                ns = res.get("namespace", "default")
+                if not kind or not name:
+                    continue
+                try:
+                    api_group, plural = _KIND_TO_API.get(kind, ("api/v1", f"{kind}s"))
+                    url = f"{api_group}/namespaces/{ns}/{plural}/{name}"
+                    resp = await k8s.request("GET", url)
+                    status = resp.get("status", {})
+                    available = any(
+                        c.get("type") == "Available" and c.get("status") == "True"
+                        for c in status.get("conditions", [])
+                    )
+                    ready_replicas = status.get("readyReplicas", status.get("availableReplicas", 0))
+                    desired = status.get("replicas", 1)
+                    healthy = available or (ready_replicas is not None and ready_replicas >= desired)
+                    results.append({"resource": f"{kind}/{name}", "namespace": ns, "healthy": healthy})
+                except Exception as res_err:
+                    results.append({"resource": f"{kind}/{name}", "namespace": ns, "healthy": False,
+                                    "error": str(res_err)})
+
+            await k8s.close()
+            all_healthy = all(r["healthy"] for r in results) if results else True
+            return {
+                "passed": all_healthy,
+                "details": {
+                    "resources_checked": len(results),
+                    "results": results,
+                    "verified_at": datetime.now(UTC).isoformat(),
+                },
+            }
+
         pods = await list_pods(k8s)
         await k8s.close()
 
@@ -893,70 +1054,3 @@ async def verify_state(cluster_id: str, expected_state: dict) -> dict:
         return {"passed": False, "details": {"error": str(e)}}
 
 
-@activity.defn
-async def project_to_postgres(execution_id: str, event_type: str, payload: dict) -> None:
-    """Write idempotent projection to Postgres."""
-    from pinky_worker.db import get_pool
-
-    pool = await get_pool()
-
-    if event_type == "started":
-        await pool.execute(
-            """UPDATE executions SET status = 'running', started_at = $2 WHERE id = $1""",
-            UUID(execution_id), datetime.now(UTC),
-        )
-    elif event_type == "completed":
-        await pool.execute(
-            """UPDATE executions SET status = 'completed', completed_at = $2 WHERE id = $1""",
-            UUID(execution_id), datetime.now(UTC),
-        )
-        confidence = payload.get("confidence")
-        if confidence is not None:
-            await pool.execute(
-                """UPDATE work_items SET confidence = $2, updated_at = now()
-                   WHERE id = (SELECT work_item_id FROM executions WHERE id = $1)""",
-                UUID(execution_id), float(confidence),
-            )
-
-        if payload.get("verification_passed"):
-            exec_info = await pool.fetchrow(
-                "SELECT execution_type, work_item_id FROM executions WHERE id = $1",
-                UUID(execution_id),
-            )
-        else:
-            exec_info = None
-        if (exec_info
-                and exec_info["execution_type"] == "remediation"
-                and exec_info["work_item_id"]):
-            wi_id = exec_info["work_item_id"]
-            async with pool.acquire() as conn, conn.transaction():
-                await conn.execute(
-                    "UPDATE work_items SET status = 'done', updated_at = now() WHERE id = $1", wi_id,
-                )
-                await conn.execute(
-                    """UPDATE issues SET status = 'resolved', resolved_by = 'remediation', updated_at = now()
-                       WHERE id = (SELECT issue_id FROM work_items WHERE id = $1)""",
-                    wi_id,
-                )
-                await conn.execute(
-                    "SELECT pg_notify($1, $2)", "pinky_work_items",
-                    json.dumps({"event_type": "work_item.completed", "aggregate_id": str(wi_id)}),
-                )
-    elif event_type == "failed":
-        await pool.execute(
-            """UPDATE executions SET status = 'failed', completed_at = $2 WHERE id = $1""",
-            UUID(execution_id), datetime.now(UTC),
-        )
-
-    exec_row = await pool.fetchrow(
-        "SELECT cluster_id FROM executions WHERE id = $1", UUID(execution_id),
-    )
-    cluster_id = exec_row["cluster_id"] if exec_row else None
-    await pool.execute(
-        """INSERT INTO domain_events (id, aggregate_type, aggregate_id, event_type, cluster_id, payload, occurred_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)""",
-        uuid4(), "execution", UUID(execution_id), event_type,
-        cluster_id, json.dumps(payload), datetime.now(UTC),
-    )
-
-    logger.info("projected to postgres: %s %s", execution_id, event_type)

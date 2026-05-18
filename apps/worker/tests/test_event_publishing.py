@@ -17,6 +17,9 @@ class _FakeConn:
     async def execute(self, query: str, *args: object) -> None:
         self._pool.calls.append((query, *args))
 
+    async def fetchrow(self, query: str, *args: object):
+        return await self._pool.fetchrow(query, *args)
+
     @asynccontextmanager
     async def transaction(self):
         yield
@@ -148,23 +151,32 @@ class TestBuildOcCommand:
 class TestAutoCompleteOnRemediation:
     @pytest.mark.asyncio
     async def test_remediation_verified_completes_task(self) -> None:
-        from pinky_worker.execution.activities import project_to_postgres
+        from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event
 
         exec_id = str(uuid.uuid4())
         wi_id = uuid.uuid4()
+        issue_id = uuid.uuid4()
 
         class FakePoolWithFetch(FakePool):
             async def fetchrow(self, query, *args):
-                if "execution_type" in query:
-                    return {"execution_type": "remediation", "work_item_id": wi_id}
-                if "cluster_id" in query:
-                    return {"cluster_id": uuid.uuid4()}
+                if "SELECT status" in query and "executions" in query:
+                    return {
+                        "status": "running",
+                        "execution_type": "remediation",
+                        "work_item_id": wi_id,
+                        "cluster_id": uuid.uuid4(),
+                    }
+                if "issue_id" in query:
+                    return {"issue_id": issue_id}
                 return None
 
         pool = FakePoolWithFetch()
 
         with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
-            await project_to_postgres(exec_id, "completed", {"verification_passed": True})
+            await emit_execution_event(ExecutionEventPayload(
+                execution_id=exec_id, event_type="completed", sequence=100,
+                payload={"verification_passed": True},
+            ))
 
         queries = [q for q, *_ in pool.calls]
         assert any("work_items SET status = 'done'" in q for q in queries)
@@ -173,44 +185,56 @@ class TestAutoCompleteOnRemediation:
 
     @pytest.mark.asyncio
     async def test_investigation_does_not_complete_task(self) -> None:
-        from pinky_worker.execution.activities import project_to_postgres
+        from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event
 
         exec_id = str(uuid.uuid4())
 
         class FakePoolWithFetch(FakePool):
             async def fetchrow(self, query, *args):
-                if "execution_type" in query:
-                    return {"execution_type": "investigation", "work_item_id": uuid.uuid4()}
-                if "cluster_id" in query:
-                    return {"cluster_id": uuid.uuid4()}
+                if "SELECT status" in query and "executions" in query:
+                    return {
+                        "status": "running",
+                        "execution_type": "investigation",
+                        "work_item_id": uuid.uuid4(),
+                        "cluster_id": uuid.uuid4(),
+                    }
                 return None
 
         pool = FakePoolWithFetch()
 
         with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
-            await project_to_postgres(exec_id, "completed", {"confidence": 0.8})
+            await emit_execution_event(ExecutionEventPayload(
+                execution_id=exec_id, event_type="completed", sequence=100,
+                payload={"confidence": 0.8},
+            ))
 
         queries = [q for q, *_ in pool.calls]
         assert not any("work_items SET status = 'done'" in q for q in queries)
 
     @pytest.mark.asyncio
     async def test_verification_failed_does_not_complete(self) -> None:
-        from pinky_worker.execution.activities import project_to_postgres
+        from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event
 
         exec_id = str(uuid.uuid4())
 
         class FakePoolWithFetch(FakePool):
             async def fetchrow(self, query, *args):
-                if "execution_type" in query:
-                    return {"execution_type": "remediation", "work_item_id": uuid.uuid4()}
-                if "cluster_id" in query:
-                    return {"cluster_id": uuid.uuid4()}
+                if "SELECT status" in query and "executions" in query:
+                    return {
+                        "status": "running",
+                        "execution_type": "remediation",
+                        "work_item_id": uuid.uuid4(),
+                        "cluster_id": uuid.uuid4(),
+                    }
                 return None
 
         pool = FakePoolWithFetch()
 
         with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
-            await project_to_postgres(exec_id, "completed", {"verification_passed": False})
+            await emit_execution_event(ExecutionEventPayload(
+                execution_id=exec_id, event_type="completed", sequence=100,
+                payload={"verification_passed": False},
+            ))
 
         queries = [q for q, *_ in pool.calls]
         assert not any("work_items SET status = 'done'" in q for q in queries)

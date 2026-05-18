@@ -1,6 +1,6 @@
 """Stage contract tests — verify outputs of one stage match inputs of the next.
 
-If someone changes how store_artifact writes plan_steps or how project_to_postgres
+If someone changes how store_artifact writes plan_steps or how emit_execution_event
 marks tasks done, these tests catch the break before production.
 
 Requires: real Postgres.
@@ -73,10 +73,10 @@ async def test_command_event_payload_matches_terminal_expectations(
     assert isinstance(payload["exit_code"], int)
 
 
-async def test_project_to_postgres_completed_remediation_state(
+async def test_emit_execution_event_completed_remediation_state(
     conn: asyncpg.Connection, cluster_id: str,
 ) -> None:
-    """project_to_postgres(completed, verification_passed=True) must set task done + issue resolved."""
+    """emit_execution_event(completed, verification_passed=True) must set task done + issue resolved."""
     issue_id, wi_id, _ = await _seed_full(conn, cluster_id)
     exec_id = str(uuid.uuid4())
     await conn.execute(
@@ -87,8 +87,11 @@ async def test_project_to_postgres_completed_remediation_state(
 
     pool = FakePool(conn)
     with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
-        from pinky_worker.execution.activities import project_to_postgres
-        await project_to_postgres(exec_id, "completed", {"verification_passed": True})
+        from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event
+        await emit_execution_event(ExecutionEventPayload(
+            execution_id=exec_id, event_type="completed", sequence=100,
+            payload={"verification_passed": True},
+        ))
 
     execution = await conn.fetchrow("SELECT status FROM executions WHERE id = $1::uuid", exec_id)
     assert execution["status"] == "completed"
@@ -101,16 +104,19 @@ async def test_project_to_postgres_completed_remediation_state(
     assert issue["resolved_by"] == "remediation"
 
 
-async def test_project_to_postgres_investigation_does_not_complete_task(
+async def test_emit_execution_event_investigation_does_not_complete_task(
     conn: asyncpg.Connection, cluster_id: str,
 ) -> None:
-    """project_to_postgres(completed) for investigation must NOT mark task done."""
+    """emit_execution_event(completed) for investigation must NOT mark task done."""
     issue_id, wi_id, exec_id = await _seed_full(conn, cluster_id)
 
     pool = FakePool(conn)
     with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
-        from pinky_worker.execution.activities import project_to_postgres
-        await project_to_postgres(exec_id, "completed", {"confidence": 0.85})
+        from pinky_worker.execution.activities import ExecutionEventPayload, emit_execution_event
+        await emit_execution_event(ExecutionEventPayload(
+            execution_id=exec_id, event_type="completed", sequence=100,
+            payload={"confidence": 0.85},
+        ))
 
     task = await conn.fetchrow("SELECT status FROM work_items WHERE id = $1::uuid", wi_id)
     assert task["status"] == "ready"

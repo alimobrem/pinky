@@ -540,14 +540,12 @@ function ExecutionRow({
   execution,
   category,
   onCancel,
-  onApprove,
   onReject,
   disabled,
 }: {
   execution: Execution;
   category: ExecCategory;
   onCancel: () => void;
-  onApprove: () => void;
   onReject: (reason: string) => void;
   disabled?: boolean;
 }) {
@@ -600,38 +598,18 @@ function ExecutionRow({
           </Button>
         )}
 
-        {/* Approve/Reject — approvals with waiting_for_approval status */}
+        {/* Review — approvals with waiting_for_approval status */}
         {category === "approvals" &&
           execution.status === "waiting_for_approval" && (
             <>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs text-green-600"
-                    disabled={disabled}
-                  >
+              {execution.work_item_id && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-green-600" asChild>
+                  <Link href={`/tasks/${execution.work_item_id}`}>
                     <ThumbsUp size={14} className="mr-1" />
-                    Approve
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Approve execution?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will allow the execution to proceed with the
-                      proposed changes.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={onApprove}>
-                      Approve
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                    Review
+                  </Link>
+                </Button>
+              )}
 
               <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
                 <DialogTrigger asChild>
@@ -801,16 +779,6 @@ export function WatchView() {
     onError: () => toast.error("Failed to cancel execution"),
   });
 
-  const approveExec = useMutation({
-    mutationFn: (id: string) =>
-      api.post(`/api/v1/executions/${id}/approve`, {}),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["executions"] });
-      toast.success("Execution approved");
-    },
-    onError: () => toast.error("Failed to approve execution"),
-  });
-
   const rejectExec = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       api.post(`/api/v1/executions/${id}/reject`, { reason }),
@@ -822,7 +790,7 @@ export function WatchView() {
   });
 
   const anyMutating = suppress.isPending || resolve.isPending || escalate.isPending || investigate.isPending;
-  const execMutating = cancelExec.isPending || approveExec.isPending || rejectExec.isPending;
+  const execMutating = cancelExec.isPending || rejectExec.isPending;
 
   const isLoading = issuesLoading || executionsLoading;
 
@@ -1001,7 +969,7 @@ export function WatchView() {
                               execution={exec}
                               category="remediating"
                               onCancel={() => cancelExec.mutate(exec.id)}
-                              onApprove={() => approveExec.mutate(exec.id)}
+
                               onReject={(reason) =>
                                 rejectExec.mutate({ id: exec.id, reason })
                               }
@@ -1015,7 +983,7 @@ export function WatchView() {
                                 execution={exec}
                                 category="approvals"
                                 onCancel={() => cancelExec.mutate(exec.id)}
-                                onApprove={() => approveExec.mutate(exec.id)}
+  
                                 onReject={(reason) =>
                                   rejectExec.mutate({ id: exec.id, reason })
                                 }

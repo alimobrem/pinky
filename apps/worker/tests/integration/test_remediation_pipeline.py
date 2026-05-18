@@ -72,6 +72,11 @@ async def mock_verify_fail(cluster_id: str, expected_state: dict) -> dict:
     return {"passed": False, "details": {"total_pods": 3, "unhealthy_pods": 2}}
 
 
+@activity.defn(name="revalidate_binding")
+async def mock_revalidate_binding(binding_id: str) -> dict:
+    return {"valid": True}
+
+
 @pytest.fixture(autouse=True)
 def _reset():
     global _apply_call_count
@@ -90,6 +95,8 @@ def _make_input(steps: list[dict] | None = None) -> RemediationInput:
         approval_id=str(uuid.uuid4()),
         cluster_id=str(uuid.uuid4()),
         binding_id=str(uuid.uuid4()),
+        changeset_digest="digest-test",
+        target_resources=[{"kind": "Deployment", "name": "web"}],
         plan_steps=_DEFAULT_STEPS if steps is None else steps,
     )
 
@@ -98,16 +105,21 @@ async def _run_workflow(
     env: WorkflowEnvironment,
     input: RemediationInput,
     activities: list,
+    *,
+    send_approve: bool = True,
 ) -> RemediationResult:
     async with Worker(
         env.client, task_queue=TASK_QUEUE,
         workflows=[RemediationWorkflow, VerificationWorkflow],
         activities=activities,
     ):
-        return await env.client.execute_workflow(
+        handle = await env.client.start_workflow(
             RemediationWorkflow.run, input,
             id=f"test-rem-{uuid.uuid4()}", task_queue=TASK_QUEUE,
         )
+        if send_approve:
+            await handle.signal(RemediationWorkflow.approve, {"approver": "test", "changeset_digest": input.changeset_digest})
+        return await handle.result()
 
 
 # --- Happy Path ---
@@ -118,7 +130,7 @@ async def test_remediation_happy_path(workflow_env: WorkflowEnvironment) -> None
     inp = _make_input()
     result = await _run_workflow(
         workflow_env, inp,
-        [mock_emit, mock_validate_ok, mock_apply_success, mock_verify_pass],
+        [mock_emit, mock_validate_ok, mock_apply_success, mock_verify_pass, mock_revalidate_binding],
     )
 
     assert result.status == "completed"
@@ -141,7 +153,7 @@ async def test_apply_failure_stops_workflow(workflow_env: WorkflowEnvironment) -
     inp = _make_input()
     result = await _run_workflow(
         workflow_env, inp,
-        [mock_emit, mock_validate_ok, mock_apply_fail, mock_verify_pass],
+        [mock_emit, mock_validate_ok, mock_apply_fail, mock_verify_pass, mock_revalidate_binding],
     )
 
     assert result.status == "failed"
@@ -163,7 +175,7 @@ async def test_partial_failure_does_not_complete(workflow_env: WorkflowEnvironme
     ])
     result = await _run_workflow(
         workflow_env, inp,
-        [mock_emit, mock_validate_ok, mock_apply_fail_on_second, mock_verify_pass],
+        [mock_emit, mock_validate_ok, mock_apply_fail_on_second, mock_verify_pass, mock_revalidate_binding],
     )
 
     assert result.status == "failed"
@@ -177,7 +189,7 @@ async def test_verification_failure_keeps_open(workflow_env: WorkflowEnvironment
     inp = _make_input()
     result = await _run_workflow(
         workflow_env, inp,
-        [mock_emit, mock_validate_ok, mock_apply_success, mock_verify_fail],
+        [mock_emit, mock_validate_ok, mock_apply_success, mock_verify_fail, mock_revalidate_binding],
     )
 
     assert result.status == "completed"
@@ -188,11 +200,11 @@ async def test_verification_failure_keeps_open(workflow_env: WorkflowEnvironment
 
 
 async def test_approval_invalidated(workflow_env: WorkflowEnvironment) -> None:
-    """Expired/rejected approval → workflow fails immediately."""
+    """Expired/rejected approval → workflow fails immediately after approve signal."""
     inp = _make_input()
     result = await _run_workflow(
         workflow_env, inp,
-        [mock_emit, mock_validate_expired, mock_apply_success, mock_verify_pass],
+        [mock_emit, mock_validate_expired, mock_apply_success, mock_verify_pass, mock_revalidate_binding],
     )
 
     assert result.status == "approval_invalidated"
@@ -220,12 +232,13 @@ async def test_cancel_emits_failed(workflow_env: WorkflowEnvironment) -> None:
     async with Worker(
         workflow_env.client, task_queue=TASK_QUEUE,
         workflows=[RemediationWorkflow, VerificationWorkflow],
-        activities=[mock_emit, mock_validate_ok, slow_apply, mock_verify_pass],
+        activities=[mock_emit, mock_validate_ok, slow_apply, mock_verify_pass, mock_revalidate_binding],
     ):
         handle = await workflow_env.client.start_workflow(
             RemediationWorkflow.run, inp,
             id=f"test-cancel-{uuid.uuid4()}", task_queue=TASK_QUEUE,
         )
+        await handle.signal(RemediationWorkflow.approve, {"approver": "test", "changeset_digest": inp.changeset_digest})
         await asyncio.sleep(1)
         await handle.cancel()
         result = await handle.result()
@@ -245,7 +258,7 @@ async def test_empty_plan_steps(workflow_env: WorkflowEnvironment) -> None:
     _emitted.clear()
     result = await _run_workflow(
         workflow_env, inp,
-        [mock_emit, mock_validate_ok, mock_apply_success, mock_verify_pass],
+        [mock_emit, mock_validate_ok, mock_apply_success, mock_verify_pass, mock_revalidate_binding],
     )
 
     assert result.status == "completed"
@@ -261,7 +274,7 @@ async def test_event_type_matches_frontend(workflow_env: WorkflowEnvironment) ->
     inp = _make_input()
     await _run_workflow(
         workflow_env, inp,
-        [mock_emit, mock_validate_ok, mock_apply_success, mock_verify_pass],
+        [mock_emit, mock_validate_ok, mock_apply_success, mock_verify_pass, mock_revalidate_binding],
     )
 
     completed = next(e for e in _emitted if e.event_type == "completed")
@@ -288,7 +301,7 @@ async def test_binding_expired_stops_workflow(workflow_env: WorkflowEnvironment)
     inp = _make_input()
     result = await _run_workflow(
         workflow_env, inp,
-        [mock_emit, mock_validate_ok, mock_apply_expired, mock_verify_pass],
+        [mock_emit, mock_validate_ok, mock_apply_expired, mock_verify_pass, mock_revalidate_binding],
     )
 
     assert result.status == "failed"
@@ -312,7 +325,7 @@ async def test_idempotent_apply_succeeds_twice(workflow_env: WorkflowEnvironment
     inp = _make_input()
     result = await _run_workflow(
         workflow_env, inp,
-        [mock_emit, mock_validate_ok, mock_apply_idempotent, mock_verify_pass],
+        [mock_emit, mock_validate_ok, mock_apply_idempotent, mock_verify_pass, mock_revalidate_binding],
     )
 
     assert result.status == "completed"

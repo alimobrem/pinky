@@ -1,5 +1,6 @@
 """Execution routes — Brain workflows and approval management."""
 
+import json
 import logging
 from typing import Any, cast
 from uuid import UUID
@@ -7,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select as sa_select
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.auth.deps import (
@@ -33,6 +35,30 @@ class ApproveRequest(BaseModel):
 
 class RejectRequest(BaseModel):
     reason: str
+
+
+async def _update_approval_status(
+    db: AsyncSession, execution_id: UUID, status: str, approver_id: UUID,
+) -> None:
+    from pinky_api.models.execution import Approval
+    await db.execute(
+        sa_update(Approval)
+        .where(Approval.execution_id == execution_id, Approval.status == "pending")
+        .values(status=status, approver_id=approver_id)
+    )
+
+
+def _build_oc_command(action: str, kind: str, name: str, namespace: str, params: dict) -> str:
+    if action == "scale":
+        return f"oc scale {kind} {name} -n {namespace} --replicas={params.get('replicas', 1)}"
+    if action == "patch":
+        patch = json.dumps(params.get("patch", {}))
+        return f"oc patch {kind} {name} -n {namespace} -p '{patch}'"
+    if action == "delete_pod":
+        return f"oc delete pod {name} -n {namespace}"
+    if action == "rollback":
+        return f"oc rollout undo {kind}/{name} -n {namespace}"
+    return f"oc {action} {kind}/{name} -n {namespace}"
 
 
 def _parse_uuid(value: str, field_name: str) -> UUID:
@@ -97,6 +123,15 @@ async def get_execution(
     await require_cluster_read_access(ex.cluster_id, principal, db, require_binding=True)
     serialized = _serialize(ex)
     await resolve_cluster_names([serialized], db)
+    if ex.execution_type == "remediation":
+        from pinky_api.models.execution import Approval
+        approval_result = await db.execute(
+            sa_select(Approval).where(Approval.execution_id == ex.id)
+            .order_by(Approval.created_at.desc()).limit(1)
+        )
+        approval = approval_result.scalar_one_or_none()
+        if approval:
+            serialized["approval_status"] = approval.status
     return serialized
 
 
@@ -119,8 +154,7 @@ async def start_execution(
     wi_repo = WorkItemRepository(db)
 
     if work_item_id:
-        wi_id = _parse_uuid(work_item_id, "Work item")
-        wi = await wi_repo.get(wi_id)
+        wi = await wi_repo.get(_parse_uuid(work_item_id, "Work item"))
     elif issue_id:
         result = await db.execute(
             sa_select(WorkItem).where(WorkItem.issue_id == _parse_uuid(issue_id, "Issue"))
@@ -131,12 +165,17 @@ async def start_execution(
 
     if wi is None:
         raise HTTPException(status_code=404, detail="Work item not found")
+    wi_id = wi.id
+
+    changeset_digest = ""
+    target_resources: list[dict] = []
 
     if execution_type == "remediation":
         await require_cluster_write_access(wi.cluster_id, principal, db)
-        raw_plan_steps = wi.artifact_refs.get("plan_steps") if isinstance(wi.artifact_refs, dict) else None
-        binding_value = wi.artifact_refs.get("binding_id") if isinstance(wi.artifact_refs, dict) else None
-        approval_value = wi.artifact_refs.get("approval_id") if isinstance(wi.artifact_refs, dict) else None
+        refs = wi.artifact_refs if isinstance(wi.artifact_refs, dict) else {}
+        raw_plan_steps = refs.get("plan_steps")
+        binding_value = refs.get("binding_id")
+        approval_value = refs.get("approval_id")
         if not isinstance(raw_plan_steps, list) or not raw_plan_steps:
             raise HTTPException(status_code=409, detail="Remediation plan not available for this task")
         if not isinstance(binding_value, str) or not binding_value:
@@ -146,6 +185,8 @@ async def start_execution(
         plan_steps = cast("list[dict[str, Any]]", raw_plan_steps)
         binding_id = binding_value
         approval_id = approval_value
+        changeset_digest = refs.get("changeset_digest", "")
+        target_resources = refs.get("target_resources", [])
     else:
         await require_cluster_read_access(wi.cluster_id, principal, db, require_binding=True)
 
@@ -183,6 +224,8 @@ async def start_execution(
                     "cluster_id": str(wi.cluster_id),
                     "binding_id": binding_id,
                     "plan_steps": plan_steps,
+                    "changeset_digest": changeset_digest,
+                    "target_resources": target_resources,
                 },
                 id=f"remediation-{ex.id}",
                 task_queue="remediation",
@@ -267,13 +310,19 @@ async def preview_execution(
     if not plan_steps:
         raise HTTPException(status_code=409, detail="No remediation steps")
 
-    from pinky_api.auth.deps import get_cluster_binding_for_principal as _get_binding
     from pinky_api.repositories.clusters import ClusterRepository
     from pinky_api.security.crypto import decrypt
 
-    binding = await _get_binding(ex.cluster_id, principal, db)
+    binding_id = wi.artifact_refs.get("binding_id")
+    if not binding_id:
+        raise HTTPException(status_code=409, detail="No cluster binding in remediation plan")
+    from pinky_api.models.fleet import ClusterIdentityBinding
+    binding_result = await db.execute(
+        sa_select(ClusterIdentityBinding).where(ClusterIdentityBinding.id == _parse_uuid(binding_id, "Binding"))
+    )
+    binding = binding_result.scalar_one_or_none()
     if not binding or not binding.encrypted_token:
-        raise HTTPException(status_code=409, detail="No cluster binding")
+        raise HTTPException(status_code=409, detail="Stored cluster binding no longer valid")
     cluster_repo = ClusterRepository(db)
     cluster = await cluster_repo.get(ex.cluster_id)
     api_endpoint = cluster.api_endpoint if cluster else ""
@@ -284,8 +333,6 @@ async def preview_execution(
         ).decode()
     except Exception:
         raise HTTPException(status_code=500, detail="Token decryption failed") from None
-
-    from pinky_worker.execution.activities import _build_oc_command
 
     results = []
     for i, step in enumerate(plan_steps):
@@ -340,7 +387,7 @@ async def cancel_execution(
         raise HTTPException(status_code=404, detail="Execution not found")
     await require_cluster_write_access(ex.cluster_id, principal, db)
 
-    if ex.status not in ("pending", "running"):
+    if ex.status not in ("pending", "running", "waiting_for_approval"):
         raise HTTPException(status_code=409, detail=f"Cannot cancel execution in '{ex.status}' state")
 
     await repo.update_status(ex.id, "cancelled")
@@ -383,6 +430,7 @@ async def approve_execution(
     try:
         handle = temporal_client.get_workflow_handle(f"remediation-{execution_id}")
         await handle.signal("approve", {"changeset_digest": req.changeset_digest})
+        await _update_approval_status(db, ex.id, "approved", principal_uuid(principal))
         await emit(
             db, "approval.granted", "execution", ex.id,
             {"changeset_digest": req.changeset_digest},
@@ -419,6 +467,7 @@ async def reject_execution(
     try:
         handle = temporal_client.get_workflow_handle(f"remediation-{execution_id}")
         await handle.signal("reject", {"reason": req.reason})
+        await _update_approval_status(db, ex.id, "rejected", principal_uuid(principal))
         await emit(
             db, "approval.rejected", "execution", ex.id,
             {"reason": req.reason},

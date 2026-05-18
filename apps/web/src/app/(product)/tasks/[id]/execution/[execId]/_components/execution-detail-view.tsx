@@ -39,11 +39,13 @@ export function ExecutionDetailView({ taskId, execId }: ExecutionDetailViewProps
   });
 
   const approve = useMutation({
-    mutationFn: (id: string) => api.post(`/api/v1/executions/${id}/approve`),
+    mutationFn: ({ id, digest }: { id: string; digest: string }) =>
+      api.post(`/api/v1/executions/${id}/approve`, { changeset_digest: digest }),
     onSuccess: () => { invalidateAll(); toast.success("Approved"); },
   });
   const reject = useMutation({
-    mutationFn: (id: string) => api.post(`/api/v1/executions/${id}/reject`),
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      api.post(`/api/v1/executions/${id}/reject`, { reason }),
     onSuccess: () => { invalidateAll(); toast.success("Rejected"); },
   });
 
@@ -84,8 +86,8 @@ export function ExecutionDetailView({ taskId, execId }: ExecutionDetailViewProps
             lastUpdated={null}
             pendingApproval={execution.status === "waiting_for_approval"}
             executionId={execId}
-            onApprove={(id) => approve.mutate(id)}
-            onReject={(id) => reject.mutate(id)}
+            onApprove={(id, digest) => approve.mutate({ id, digest })}
+            onReject={(id, reason) => reject.mutate({ id, reason })}
           />
         )}
       </Card>

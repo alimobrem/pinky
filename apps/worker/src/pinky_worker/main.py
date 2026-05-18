@@ -38,13 +38,12 @@ async def run_temporal_workers() -> None:
                 check_artifact_cache,
                 emit_execution_event,
                 gather_evidence,
-                project_to_postgres,
+                revalidate_binding,
                 run_investigation,
                 store_artifact,
                 validate_approval,
                 verify_state,
             )
-            from pinky_worker.workflows.approval import ApprovalWorkflow
             from pinky_worker.workflows.investigation import InvestigationWorkflow
             from pinky_worker.workflows.remediation import RemediationWorkflow
             from pinky_worker.workflows.verification import VerificationWorkflow
@@ -55,7 +54,7 @@ async def run_temporal_workers() -> None:
             activities = [
                 gather_evidence, check_artifact_cache, run_investigation,
                 store_artifact, emit_execution_event, validate_approval,
-                apply_change, verify_state, project_to_postgres,
+                apply_change, verify_state, revalidate_binding,
             ]
 
             workers = [
@@ -65,7 +64,7 @@ async def run_temporal_workers() -> None:
                 ),
                 Worker(
                     client, task_queue="remediation",
-                    workflows=[RemediationWorkflow, ApprovalWorkflow, VerificationWorkflow],
+                    workflows=[RemediationWorkflow, VerificationWorkflow],
                     activities=activities,
                 ),
             ]

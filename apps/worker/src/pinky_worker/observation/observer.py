@@ -129,6 +129,7 @@ async def _dispatch_investigation(
         existing = await conn.fetchrow(
             "SELECT id, status FROM executions WHERE work_item_id IN "
             "(SELECT id FROM work_items WHERE issue_id = $1::uuid) "
+            "AND execution_type = 'investigation' "
             "AND (status IN ('pending', 'running', 'completed') "
             "     OR (status = 'failed' AND completed_at > now() - make_interval(secs => $2))) "
             "ORDER BY created_at DESC LIMIT 1",
@@ -137,6 +138,19 @@ async def _dispatch_investigation(
         if existing:
             logger.debug("investigation cooldown active",
                          issue_id=result.issue_id, status=existing["status"])
+            return
+
+        active_remediation = await conn.fetchrow(
+            "SELECT id FROM executions WHERE work_item_id IN "
+            "(SELECT id FROM work_items WHERE issue_id = $1::uuid) "
+            "AND execution_type = 'remediation' "
+            "AND status IN ('pending', 'running', 'waiting_for_approval') "
+            "ORDER BY created_at DESC LIMIT 1",
+            result.issue_id,
+        )
+        if active_remediation:
+            logger.debug("active remediation blocks re-investigation",
+                         issue_id=result.issue_id)
             return
 
         wi_row = await conn.fetchrow(

@@ -50,10 +50,11 @@ class _FakeConn:
         yield
 
 
-def _make_pool(cooldown_result=None, wi_result=None):
+def _make_pool(cooldown_result=None, wi_result=None, remediation_result=None):
     """Create a fake pool with sequential fetchrow results.
-    First call = cooldown check, second call = work_item lookup."""
-    conn = _FakeConn([cooldown_result, wi_result])
+    First call = investigation cooldown, second = active remediation check,
+    third = work_item lookup."""
+    conn = _FakeConn([cooldown_result, remediation_result, wi_result])
 
     class FakePool:
         def __init__(self):

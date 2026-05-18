@@ -14,7 +14,6 @@ from pinky_worker.execution.activities import (
     InvestigationArtifact,
     check_artifact_cache,
     emit_execution_event,
-    project_to_postgres,
     store_artifact,
     validate_approval,
 )
@@ -179,11 +178,14 @@ async def test_validate_approval_digest_mismatch(
     assert "changeset changed" in result["reason"]
 
 
-async def test_project_started_updates_execution(
+async def test_emit_event_started_updates_execution(
     conn: asyncpg.Connection, execution_id: str, fake_pool: FakePool,
 ) -> None:
     with patch(PATCH_TARGET, return_value=fake_pool):
-        await project_to_postgres(execution_id, "started", {"type": "investigation"})
+        await emit_execution_event(ExecutionEventPayload(
+            execution_id=execution_id, event_type="started", sequence=0,
+            payload={"type": "investigation"},
+        ))
 
     row = await conn.fetchrow("SELECT status, started_at FROM executions WHERE id = $1", uuid.UUID(execution_id))
     assert row["status"] == "running"

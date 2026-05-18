@@ -42,8 +42,8 @@ interface ExecutionMonitorProps {
   lastUpdated: Date | null;
   pendingApproval?: boolean;
   executionId: string;
-  onApprove?: (id: string) => void;
-  onReject?: (id: string) => void;
+  onApprove?: (id: string, digest: string) => void;
+  onReject?: (id: string, reason: string) => void;
   className?: string;
 }
 
@@ -119,6 +119,7 @@ export function ExecutionMonitor({
                 <div className="px-4 pb-3">
                   <ApprovalGate
                     executionId={executionId}
+                    changesetDigest={String(payload.changeset_digest ?? "")}
                     onApprove={onApprove}
                     onReject={onReject}
                   />

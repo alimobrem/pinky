@@ -16,6 +16,7 @@ class VerificationInput:
     cluster_id: str
     delay_seconds: int = 60
     expected_state: dict = field(default_factory=dict)
+    target_resources: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -32,7 +33,7 @@ class VerificationWorkflow:
 
         result = await workflow.execute_activity(
             verify_state,
-            args=[input.cluster_id, input.expected_state],
+            args=[input.cluster_id, input.expected_state, input.target_resources],
             start_to_close_timeout=timedelta(seconds=30),
             retry_policy=RetryPolicy(maximum_attempts=3),
         )

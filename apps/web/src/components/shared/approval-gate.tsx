@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { ShieldAlert, Check, X, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { ShieldAlert, Check, X, Loader2, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,20 +32,50 @@ interface PreviewStep {
 interface ApprovalGateProps {
   executionId: string;
   resources?: Record<string, unknown>[];
-  onApprove: (executionId: string) => void;
-  onReject: (executionId: string) => void;
+  changesetDigest: string;
+  expiresAt?: string | null;
+  onApprove: (executionId: string, digest: string) => void;
+  onReject: (executionId: string, reason: string) => void;
   isPending?: boolean;
   className?: string;
+}
+
+function useCountdown(expiresAt: string | null | undefined): string | null {
+  const [remaining, setRemaining] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const update = () => {
+      const diff = new Date(expiresAt).getTime() - Date.now();
+      if (diff <= 0) {
+        setRemaining("expired");
+        return;
+      }
+      const h = Math.floor(diff / 3_600_000);
+      const m = Math.floor((diff % 3_600_000) / 60_000);
+      setRemaining(h > 0 ? `${h}h ${m}m remaining` : `${m}m remaining`);
+    };
+    update();
+    const id = setInterval(update, 60_000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+
+  return remaining;
 }
 
 export function ApprovalGate({
   executionId,
   resources,
+  changesetDigest,
+  expiresAt,
   onApprove,
   onReject,
   isPending,
   className,
 }: ApprovalGateProps) {
+  const [rejectReason, setRejectReason] = useState("");
+  const countdown = useCountdown(expiresAt);
+
   const { data: previewData, isLoading: previewLoading } = useQuery({
     queryKey: ["preview", executionId],
     queryFn: () => api.post<{ steps: PreviewStep[] }>(`/api/v1/executions/${executionId}/preview`),
@@ -71,6 +103,17 @@ export function ApprovalGate({
               {resources.length} resource{resources.length !== 1 ? "s" : ""} will be modified
             </p>
           )}
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-caption text-text-tertiary">
+            {changesetDigest && (
+              <span className="font-mono">digest: {changesetDigest}</span>
+            )}
+            {countdown && (
+              <span className={cn("flex items-center gap-1", countdown === "expired" && "text-destructive")}>
+                <Clock size={10} />
+                {countdown}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <AlertDialog>
@@ -92,11 +135,17 @@ export function ApprovalGate({
                   This will stop the remediation workflow. The work item will remain in its current state.
                 </AlertDialogDescription>
               </AlertDialogHeader>
+              <Input
+                placeholder="Reason for rejection"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="mt-2"
+              />
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  onClick={() => onReject(executionId)}
+                  onClick={() => onReject(executionId, rejectReason || "Rejected by operator")}
                 >
                   Reject
                 </AlertDialogAction>
@@ -125,7 +174,7 @@ export function ApprovalGate({
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-status-done text-text-inverse hover:bg-status-done/90"
-                  onClick={() => onApprove(executionId)}
+                  onClick={() => onApprove(executionId, changesetDigest)}
                 >
                   Approve
                 </AlertDialogAction>

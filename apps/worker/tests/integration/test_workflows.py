@@ -18,7 +18,6 @@ from pinky_worker.execution.activities import (
     ExecutionEventPayload,
     InvestigationArtifact,
 )
-from pinky_worker.workflows.approval import ApprovalInput, ApprovalResult, ApprovalWorkflow
 from pinky_worker.workflows.investigation import InvestigationInput, InvestigationResult, InvestigationWorkflow
 from pinky_worker.workflows.remediation import RemediationInput, RemediationResult, RemediationWorkflow
 from pinky_worker.workflows.verification import VerificationInput, VerificationResult, VerificationWorkflow
@@ -113,6 +112,11 @@ async def mock_verify_fail(cluster_id: str, expected_state: dict) -> dict:
     return {"passed": False, "details": {"total_pods": 5, "unhealthy_pods": 2}}
 
 
+@activity.defn(name="revalidate_binding")
+async def mock_revalidate_binding(binding_id: str) -> dict:
+    return {"valid": True}
+
+
 @pytest.fixture(autouse=True)
 def _reset_events() -> None:
     _emitted_events.clear()
@@ -174,71 +178,26 @@ async def test_investigation_cache_hit(workflow_env: WorkflowEnvironment) -> Non
     assert "completed" in event_types
 
 
-# --- Approval Workflow ---
-
-
-async def test_approval_approved(workflow_env: WorkflowEnvironment) -> None:
-    async with Worker(workflow_env.client, task_queue=TASK_QUEUE, workflows=[ApprovalWorkflow], activities=[mock_emit]):
-        handle = await workflow_env.client.start_workflow(
-            ApprovalWorkflow.run,
-            ApprovalInput(
-                execution_id="exec-1",
-                changeset={"action": "scale"},
-                changeset_digest="abc123",
-                target_resources=[{"kind": "Deployment", "name": "web"}],
-            ),
-            id=f"test-approval-{uuid.uuid4()}",
-            task_queue=TASK_QUEUE,
-        )
-
-        await handle.signal(ApprovalWorkflow.approve, {"approver": "admin", "comment": "LGTM"})
-        result = await handle.result()
-
-    assert isinstance(result, ApprovalResult)
-    assert result.status == "approved"
-    assert result.decision is not None
-    assert result.decision["approver"] == "admin"
-
-
-async def test_approval_rejected(workflow_env: WorkflowEnvironment) -> None:
-    async with Worker(workflow_env.client, task_queue=TASK_QUEUE, workflows=[ApprovalWorkflow], activities=[mock_emit]):
-        handle = await workflow_env.client.start_workflow(
-            ApprovalWorkflow.run,
-            ApprovalInput(
-                execution_id="exec-1",
-                changeset={"action": "scale"},
-                changeset_digest="abc123",
-                target_resources=[],
-            ),
-            id=f"test-approval-rej-{uuid.uuid4()}",
-            task_queue=TASK_QUEUE,
-        )
-
-        await handle.signal(ApprovalWorkflow.reject, {"reason": "Too risky"})
-        result = await handle.result()
-
-    assert result.status == "rejected"
-    assert result.decision["reason"] == "Too risky"
-
-
 # --- Remediation Workflow ---
 
 
 async def test_remediation_happy_path(workflow_env: WorkflowEnvironment) -> None:
-    activities = [mock_emit, mock_validate_valid, mock_apply, mock_verify_pass]
+    activities = [mock_emit, mock_validate_valid, mock_apply, mock_verify_pass, mock_revalidate_binding]
     async with Worker(
         workflow_env.client,
         task_queue=TASK_QUEUE,
         workflows=[RemediationWorkflow, VerificationWorkflow],
         activities=activities,
     ):
-        result = await workflow_env.client.execute_workflow(
+        handle = await workflow_env.client.start_workflow(
             RemediationWorkflow.run,
             RemediationInput(
                 execution_id="exec-1",
                 approval_id=str(uuid.uuid4()),
                 cluster_id="cluster-1",
                 binding_id="bind-1",
+                changeset_digest="digest-1",
+                target_resources=[{"kind": "Deployment", "name": "web"}],
                 plan_steps=[
                     {
                         "action": "scale",
@@ -252,51 +211,87 @@ async def test_remediation_happy_path(workflow_env: WorkflowEnvironment) -> None
             task_queue=TASK_QUEUE,
         )
 
+        await handle.signal(RemediationWorkflow.approve, {"approver": "admin", "changeset_digest": "digest-1"})
+        result = await handle.result()
+
     assert isinstance(result, RemediationResult)
     assert result.status == "completed"
     assert result.verification_passed is True
 
 
-async def test_remediation_invalid_approval(workflow_env: WorkflowEnvironment) -> None:
-    activities = [mock_emit, mock_validate_invalid, mock_apply, mock_verify_pass]
+async def test_remediation_rejected(workflow_env: WorkflowEnvironment) -> None:
+    activities = [mock_emit, mock_validate_valid, mock_apply, mock_verify_pass, mock_revalidate_binding]
     async with Worker(
         workflow_env.client,
         task_queue=TASK_QUEUE,
         workflows=[RemediationWorkflow, VerificationWorkflow],
         activities=activities,
     ):
-        result = await workflow_env.client.execute_workflow(
+        handle = await workflow_env.client.start_workflow(
             RemediationWorkflow.run,
             RemediationInput(
                 execution_id="exec-1",
                 approval_id=str(uuid.uuid4()),
                 cluster_id="cluster-1",
                 binding_id="bind-1",
+                changeset_digest="digest-1",
+                plan_steps=[{"action": "scale", "resource": "web", "namespace": "default"}],
+            ),
+            id=f"test-rem-rej-{uuid.uuid4()}",
+            task_queue=TASK_QUEUE,
+        )
+
+        await handle.signal(RemediationWorkflow.reject, {"reason": "Too risky"})
+        result = await handle.result()
+
+    assert result.status == "rejected"
+
+
+async def test_remediation_invalid_approval(workflow_env: WorkflowEnvironment) -> None:
+    activities = [mock_emit, mock_validate_invalid, mock_apply, mock_verify_pass, mock_revalidate_binding]
+    async with Worker(
+        workflow_env.client,
+        task_queue=TASK_QUEUE,
+        workflows=[RemediationWorkflow, VerificationWorkflow],
+        activities=activities,
+    ):
+        handle = await workflow_env.client.start_workflow(
+            RemediationWorkflow.run,
+            RemediationInput(
+                execution_id="exec-1",
+                approval_id=str(uuid.uuid4()),
+                cluster_id="cluster-1",
+                binding_id="bind-1",
+                changeset_digest="digest-1",
                 plan_steps=[{"action": "scale", "resource": "web", "namespace": "default"}],
             ),
             id=f"test-rem-invalid-{uuid.uuid4()}",
             task_queue=TASK_QUEUE,
         )
 
+        await handle.signal(RemediationWorkflow.approve, {"approver": "admin", "changeset_digest": "digest-1"})
+        result = await handle.result()
+
     assert result.status == "approval_invalidated"
     assert result.verification_passed is None
 
 
 async def test_remediation_multi_step_emits_progress(workflow_env: WorkflowEnvironment) -> None:
-    activities = [mock_emit, mock_validate_valid, mock_apply, mock_verify_pass]
+    activities = [mock_emit, mock_validate_valid, mock_apply, mock_verify_pass, mock_revalidate_binding]
     async with Worker(
         workflow_env.client,
         task_queue=TASK_QUEUE,
         workflows=[RemediationWorkflow, VerificationWorkflow],
         activities=activities,
     ):
-        result = await workflow_env.client.execute_workflow(
+        handle = await workflow_env.client.start_workflow(
             RemediationWorkflow.run,
             RemediationInput(
                 execution_id="exec-1",
                 approval_id=str(uuid.uuid4()),
                 cluster_id="cluster-1",
                 binding_id="bind-1",
+                changeset_digest="digest-1",
                 plan_steps=[
                     {"action": "scale", "resource": "web", "namespace": "default"},
                     {"action": "delete_pod", "resource": "web-abc123", "namespace": "default"},
@@ -306,6 +301,9 @@ async def test_remediation_multi_step_emits_progress(workflow_env: WorkflowEnvir
             id=f"test-rem-multi-{uuid.uuid4()}",
             task_queue=TASK_QUEUE,
         )
+
+        await handle.signal(RemediationWorkflow.approve, {"approver": "admin", "changeset_digest": "digest-1"})
+        result = await handle.result()
 
     assert result.status == "completed"
     progress_events = [e for e in _emitted_events if e.event_type == "progress"]
