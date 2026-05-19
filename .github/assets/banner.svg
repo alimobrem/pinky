@@ -1,58 +1,52 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 180" width="800" height="180">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 160" width="800" height="160">
   <defs>
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0f0a1e;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#1a1333;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#1e1145;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#0f0a1e" />
+      <stop offset="50%" style="stop-color:#1a1333" />
+      <stop offset="100%" style="stop-color:#1e1145" />
     </linearGradient>
-    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <linearGradient id="pinkGrad" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" style="stop-color:#f472b6" />
+      <stop offset="100%" style="stop-color:#e879a8" />
+    </linearGradient>
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#c4b5fd" />
       <stop offset="100%" style="stop-color:#a78bfa" />
     </linearGradient>
     <linearGradient id="accentLine" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#f472b6;stop-opacity:0.8" />
-      <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:0.8" />
+      <stop offset="0%" style="stop-color:#f472b6;stop-opacity:0.6" />
+      <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:0.6" />
     </linearGradient>
   </defs>
 
   <!-- Background -->
-  <rect width="800" height="180" rx="12" fill="url(#bgGrad)"/>
+  <rect width="800" height="160" rx="10" fill="url(#bgGrad)"/>
 
-  <!-- Subtle glow behind icon -->
-  <circle cx="108" cy="90" r="44" fill="#a78bfa" opacity="0.06"/>
-  <circle cx="108" cy="90" r="28" fill="#a78bfa" opacity="0.08"/>
+  <!-- Center everything -->
+  <g transform="translate(400, 58)">
+    <!-- "Pinky" in pink -->
+    <text x="-235" y="0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="48" font-weight="800" fill="url(#pinkGrad)" text-anchor="start" dominant-baseline="central" letter-spacing="1">Pinky</text>
 
-  <!-- Lucide Brain icon (same as web app) -->
-  <g transform="translate(108,90) scale(1.8)" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M0-7a3 3 0 0 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 0 6Z"/>
-    <path d="M0-7a3 3 0 0 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 0 6Z"/>
-    <path d="M3 1a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/>
-    <path d="M5.599-5.5a3 3 0 0 0 .399-1.375"/>
-    <path d="M-5.997-6.875A3 3 0 0 0-5.599-5.5"/>
-    <path d="M-8.523-1.104a4 4 0 0 1 .585-.396"/>
-    <path d="M7.938-1.5a4 4 0 0 1 .585.396"/>
-    <path d="M-6 6a4 4 0 0 1-1.967-.516"/>
-    <path d="M7.967 5.484A4 4 0 0 1 6 6"/>
-  </g>
+    <!-- "&amp; the" connector -->
+    <text x="-37" y="0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="28" font-weight="300" fill="#6b6185" text-anchor="start" dominant-baseline="central">&amp; the</text>
 
-  <!-- Title text: "Pinky & the Brain" with Brain icon inline -->
-  <text x="170" y="75" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="44" font-weight="800" fill="url(#textGrad)" letter-spacing="2">Pinky</text>
-  <text x="330" y="75" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="36" font-weight="300" fill="#6b6185" letter-spacing="1"> &amp; the </text>
-  <text x="480" y="75" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="44" font-weight="800" fill="url(#textGrad)" letter-spacing="2">Brain</text>
+    <!-- "Brain" in purple -->
+    <text x="76" y="0" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="48" font-weight="800" fill="url(#purpleGrad)" text-anchor="start" dominant-baseline="central" letter-spacing="1">Brain</text>
 
-  <!-- Inline Brain icon next to "Brain" text -->
-  <g transform="translate(648,62) scale(1.1)" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M0-7a3 3 0 0 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 0 6Z"/>
-    <path d="M0-7a3 3 0 0 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 0 6Z"/>
-    <path d="M3 1a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/>
+    <!-- Small brain icon after "Brain" -->
+    <g transform="translate(243, 0) scale(0.85)" fill="none" stroke="#a78bfa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.6">
+      <path d="M0-7a3 3 0 0 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 0 6Z"/>
+      <path d="M0-7a3 3 0 0 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 0 6Z"/>
+      <path d="M3 1a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/>
+    </g>
   </g>
 
   <!-- Tagline -->
-  <text x="172" y="104" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" fill="#a78bfa" opacity="0.7" letter-spacing="0.5">AI-powered Kubernetes operations</text>
+  <text x="400" y="100" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="15" fill="#a78bfa" opacity="0.6" text-anchor="middle" letter-spacing="0.5">AI-powered Kubernetes operations</text>
 
   <!-- Subtitle -->
-  <text x="172" y="128" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" fill="#6b6185" letter-spacing="0.3">Investigate. Remediate. Verify. With human approval.</text>
+  <text x="400" y="122" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" fill="#5a5270" text-anchor="middle" letter-spacing="0.3">Investigate. Remediate. Verify. With human approval.</text>
 
   <!-- Bottom accent line -->
-  <rect x="0" y="174" width="800" height="6" rx="3" fill="url(#accentLine)"/>
+  <rect x="0" y="155" width="800" height="5" rx="2.5" fill="url(#accentLine)"/>
 </svg>
