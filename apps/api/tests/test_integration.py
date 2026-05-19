@@ -85,17 +85,24 @@ async def seeded():
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         yield client, str(cluster_id), str(wi1_id), str(wi2_id)
 
-    # Cleanup seeded data
+    # Cleanup seeded data — clear FK refs before deleting principal
+    pid = UUID("00000000-0000-0000-0000-000000000010")
     async with _factory() as s:
+        from sqlalchemy import text
+        await s.execute(text(
+            "UPDATE work_items SET owner_id = NULL WHERE owner_id = :pid"
+        ), {"pid": str(pid)})
         await s.execute(WorkItem.__table__.delete().where(WorkItem.id.in_([wi1_id, wi2_id])))
         await s.execute(
-            ClusterIdentityBinding.__table__.delete().where(ClusterIdentityBinding.cluster_id == cluster_id)
+            ClusterIdentityBinding.__table__.delete().where(
+                ClusterIdentityBinding.principal_id == pid
+            )
         )
         from pinky_api.models.issue import Issue
         await s.execute(Issue.__table__.delete().where(Issue.cluster_id == cluster_id))
         await s.execute(ClusterRegistry.__table__.delete().where(ClusterRegistry.id == cluster_id))
         await s.execute(
-            Principal.__table__.delete().where(Principal.id == UUID("00000000-0000-0000-0000-000000000010"))
+            Principal.__table__.delete().where(Principal.id == pid)
         )
         await s.commit()
 
