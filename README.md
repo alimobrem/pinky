@@ -1,54 +1,78 @@
-# Pinky
+<p align="center">
+  <img src=".github/assets/banner.svg" alt="Pinky — AI-powered Kubernetes operations" width="800" />
+</p>
 
-**AI-powered Kubernetes operations platform that investigates cluster issues, proposes fixes, and applies them with human approval.**
+<p align="center">
+  <a href="https://github.com/alimobrem/pinky/actions/workflows/ci.yml"><img src="https://github.com/alimobrem/pinky/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
+  <img src="https://img.shields.io/badge/tests-1%2C156%20passing-brightgreen" alt="Tests" />
+  <img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12" />
+  <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node >= 20" />
+  <img src="https://img.shields.io/badge/k8s-1.28%2B-326CE5?logo=kubernetes&logoColor=white" alt="Kubernetes 1.28+" />
+</p>
 
-[![CI](https://github.com/alimobrem/pinky/actions/workflows/ci.yml/badge.svg)](https://github.com/alimobrem/pinky/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+<p align="center">
+  <strong>Pinky replaces alert fatigue with a task-first workflow.</strong><br />
+  It continuously observes your clusters, correlates problems into actionable tasks, investigates root causes with AI, and orchestrates remediations through approval-gated workflows.
+</p>
 
-Pinky replaces alert fatigue with a task-first workflow. It continuously observes your clusters, correlates problems into actionable tasks, uses LLM analysis to investigate root causes, and orchestrates remediations through approval-gated workflows. Operators work from a prioritized task inbox — not a wall of alerts.
+---
+
+## Why Pinky?
+
+Most Kubernetes monitoring tools stop at alerts. Pinky goes further:
+
+1. **Observe** — 13 markdown-defined scanners continuously detect issues across pods, deployments, statefulsets, jobs, PVCs, resource quotas, and more
+2. **Correlate** — Noisy observations become deduplicated, prioritized tasks in a single inbox
+3. **Investigate** — The Brain gathers evidence from your cluster and uses Claude to produce root cause analysis with confidence scores
+4. **Remediate** — Proposed fixes show a dry-run preview and changeset digest. Nothing changes without human approval
+5. **Verify** — Post-remediation health checks confirm the fix worked, with automatic retry
+
+Operators work from a **prioritized task inbox** — not a wall of alerts.
 
 ## Key Features
 
-- **Automated Investigation** — Scanners detect issues, the Brain gathers evidence and produces root cause analysis with confidence scores
-- **Remediation with Approval Gate** — Proposed fixes show a dry-run preview, changeset digest, and countdown timer. Nothing changes without human approval
-- **Markdown-Driven Extensibility** — Add scanners, tools, skills, policies, and pipelines by writing markdown files. No code changes needed. 53 definitions ship out of the box
-- **Multi-Cluster** — Per-cluster OAuth bindings with identity isolation. Observer reads use a service account; remediations use the approver's token
-- **Real-Time** — SSE-powered UI with live execution logs, progress tracking, and auto-updating task states
-- **Audit Trail** — Every action (investigate, approve, reject, remediate, verify) is recorded with who, what, when, and why
-- **Conversational** — Chat with the Brain about any task. It queries your cluster live (kubectl, metrics, Prometheus) and generates charts
+| Feature | Description |
+|---------|-------------|
+| **Automated Investigation** | Scanners detect issues, the Brain gathers evidence and produces root cause analysis |
+| **Approval Gate** | Dry-run preview, changeset digest, countdown timer. Nothing changes without human approval |
+| **Markdown Extensibility** | Add scanners, tools, skills, policies by writing markdown. 53 definitions ship out of the box |
+| **Multi-Cluster** | Per-cluster OAuth bindings with identity isolation. Observer reads vs. user writes |
+| **Real-Time UI** | SSE-powered live execution logs, progress tracking, auto-updating states |
+| **Brain Chat** | Conversational interface with live cluster queries and auto-generated charts |
+| **Audit Trail** | Every action recorded with who, what, when, and why |
+| **Secure by Default** | AES-256-GCM encryption, credential redaction, non-root containers, TLS verification |
 
 ## Architecture
 
 ```mermaid
 graph LR
-    subgraph Cluster
-        O[Observer] -->|scan| K8s[K8s API]
+    subgraph Cluster["Kubernetes Cluster"]
+        O["Observer<br/><i>13 scanners</i>"] -->|scan| K8s["K8s API"]
     end
 
-    O -->|observations| C[Correlator]
-    C -->|issues| P[Policy Engine]
-    P -->|investigate| I[Investigation Workflow]
-    I -->|evidence + LLM| A[Artifact: Root Cause + Plan]
-    A -->|approval required| AG[Approval Gate]
-    AG -->|approved| R[Remediation Workflow]
-    R -->|apply changes| K8s
-    R -->|verify| V[Verification]
-    V -->|pass/fail| Complete[Auto-Complete Task]
+    O -->|observations| C["Correlator<br/><i>dedup + fingerprint</i>"]
+    C -->|issues| P["Policy Engine<br/><i>deterministic, first-match</i>"]
+    P -->|investigate| I["Investigation<br/><i>evidence + Claude</i>"]
+    I -->|root cause + plan| AG["Approval Gate<br/><i>dry-run + digest</i>"]
+    AG -->|approved| R["Remediation<br/><i>patch / scale / rollback</i>"]
+    R -->|apply| K8s
+    R -->|verify| V["Verification<br/><i>retry with backoff</i>"]
+    V -->|pass| Done["Auto-Complete<br/><i>task done + issue resolved</i>"]
 
     style AG fill:#f9a825,stroke:#f57f17,color:#000
     style P fill:#7e57c2,stroke:#512da8,color:#fff
+    style Done fill:#16a34a,stroke:#15803d,color:#fff
 ```
-
-**Observer** scans clusters using markdown-defined scanners (13 shipped). **Policy Engine** applies deterministic rules to decide actions. **Investigation** gathers evidence and uses Claude to analyze root cause. **Remediation** applies fixes with signal-based approval, digest validation, and binding revalidation. **Verification** checks target resources with retry.
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js >= 20, pnpm >= 9
-- Python 3.12+
-- Podman or Docker
-- Temporal CLI (`brew install temporal`)
+- **Node.js** >= 20, **pnpm** >= 9
+- **Python** 3.12+
+- **Podman** or **Docker**
+- **Temporal CLI** (`brew install temporal`)
 
 ### Run Locally
 
@@ -57,19 +81,16 @@ git clone https://github.com/alimobrem/pinky.git
 cd pinky
 cp .env.example .env
 
-# Start Postgres, Redis, Temporal
-make dev-infra
-
-# Run migrations
-make db-upgrade
-
-# Start API + Worker + Web
-make dev
+make dev-infra    # Start Postgres, Redis, Temporal
+make db-upgrade   # Run migrations
+make dev          # Start API + Worker + Web
 ```
 
-- **Web UI:** http://localhost:3000
-- **API:** http://localhost:8000
-- **Temporal UI:** http://localhost:8080
+| Service | URL |
+|---------|-----|
+| Web UI | http://localhost:3000 |
+| API | http://localhost:8000 |
+| Temporal UI | http://localhost:8080 |
 
 ## Configuration
 
@@ -79,9 +100,9 @@ Copy `.env.example` and configure:
 |----------|-------------|---------|
 | `PINKY_DATABASE_URL` | PostgreSQL connection string | `postgresql://pinky:pinky@localhost:5432/pinky` |
 | `PINKY_REDIS_URL` | Redis connection string | `redis://localhost:6379/0` |
-| `PINKY_ENCRYPTION_KEY` | 256-bit hex key for credential encryption | (required) |
-| `PINKY_AUTH__OPENSHIFT_*` | OpenShift OAuth configuration | (see .env.example) |
-| `GOOGLE_CLOUD_PROJECT` | GCP project for Vertex AI (Claude) | (optional) |
+| `PINKY_ENCRYPTION_KEY` | 256-bit hex key for credential encryption | *(required)* |
+| `PINKY_AUTH__OPENSHIFT_*` | OpenShift OAuth configuration | *(see .env.example)* |
+| `GOOGLE_CLOUD_PROJECT` | GCP project for Vertex AI (Claude) | *(optional)* |
 | `PINKY_DEBUG` | Disable TLS verification for dev clusters | `false` |
 
 See [`.env.example`](.env.example) for the full list.
@@ -91,8 +112,10 @@ See [`.env.example`](.env.example) for the full list.
 ### Helm (Kubernetes / OpenShift)
 
 ```bash
-# Create secrets
+# Generate encryption key
 export PINKY_ENCRYPTION_KEY=$(openssl rand -hex 32)
+
+# Create secrets
 kubectl create secret generic pinky-auth \
   --from-literal=encryption-key=$PINKY_ENCRYPTION_KEY
 
@@ -102,7 +125,7 @@ helm install pinky infra/helm/pinky \
   --set auth.callbackBaseUrl=https://pinky.your-domain.com
 ```
 
-See [`infra/helm/`](infra/helm/) for full chart documentation and `values.yaml` reference.
+See [`infra/helm/`](infra/helm/) for the full chart documentation.
 
 ### Container Images
 
@@ -113,11 +136,10 @@ make docker-push    # Push to quay.io/pinky-project
 
 ## Extensibility
 
-Pinky's behavior is defined by markdown files in `definitions/`. No code changes needed.
+Pinky's behavior is defined by markdown files in [`definitions/`](definitions/). No code changes needed.
 
-### Scanners
-
-Define what to detect. 18 operators available (eq, gt, age_gt, cert_expires_within, quantity_gte, promql_gt, etc.):
+<details>
+<summary><strong>Scanners</strong> — Define what to detect (18 operators)</summary>
 
 ```yaml
 # definitions/scanners/pod-health.md (frontmatter)
@@ -133,9 +155,11 @@ checks:
         value: "CrashLoopBackOff"
 ```
 
-### Policies
+Available operators: `eq`, `neq`, `gt`, `lt`, `gte`, `lte`, `in`, `not_in`, `contains`, `regex`, `exists`, `not_exists`, `condition_status`, `age_gt`, `cert_expires_within`, `quantity_gte`, `quantity_lt`, `promql_gt`
+</details>
 
-Define what to do about it. Deterministic, priority-ordered, first-match-wins:
+<details>
+<summary><strong>Policies</strong> — Define what to do about it</summary>
 
 ```yaml
 # definitions/policies/investigate-critical.md (frontmatter)
@@ -149,13 +173,18 @@ action:
   skill: k8s-crash-investigation
 ```
 
-### Tools, Skills, Pipelines
+Actions: `suppress`, `observe`, `investigate`, `auto-resolve`, `create-task`
+</details>
+
+<details>
+<summary><strong>Tools, Skills, Pipelines</strong></summary>
 
 - **Tools** define K8s API operations the Brain can use during investigation
-- **Skills** define investigation strategies (which tools, what to analyze)
+- **Skills** define investigation strategies (which tools to use, what to analyze)
 - **Pipelines** compose scanners into named groups with scheduling
 
-See [`definitions/`](definitions/) for all 53 shipped definitions.
+53 definitions ship out of the box: 13 scanners, 8 tools, 11 skills, 16 policies, 3 pipelines, 2 redaction rules.
+</details>
 
 ## Testing
 
@@ -164,7 +193,7 @@ make verify   # lint + typecheck + 1,156 tests
 ```
 
 | Suite | Tests |
-|-------|-------|
+|-------|------:|
 | API unit/integration | 417 |
 | Worker unit | 611 |
 | Worker integration (Temporal) | 70 |
@@ -175,33 +204,34 @@ make verify   # lint + typecheck + 1,156 tests
 ## Project Structure
 
 ```
-apps/
-  api/              FastAPI backend — 63 REST endpoints, auth, CRUD, SSE
-  web/              Next.js 15 frontend — Dashboard, Tasks, Watch, History
-  worker/           Temporal workflows, cluster observers, LLM integration
-  cli/              CLI tool wrapping the REST API
-packages/
-  contracts/        Shared TypeScript domain types
-  design-system/    React component library (shadcn/ui)
-definitions/        Markdown-driven scanners, tools, skills, policies, pipelines
-infra/
-  docker/           Docker Compose for local development
-  helm/             Helm chart for Kubernetes/OpenShift
+pinky/
+  apps/
+    api/              FastAPI backend — 63 REST endpoints, auth, CRUD, SSE
+    web/              Next.js 15 frontend — Dashboard, Tasks, Watch, History
+    worker/           Temporal workflows, cluster observers, LLM integration
+    cli/              CLI tool wrapping the REST API
+  packages/
+    contracts/        Shared TypeScript domain types
+    design-system/    React component library (shadcn/ui)
+  definitions/        Markdown-driven scanners, tools, skills, policies, pipelines
+  infra/
+    docker/           Docker Compose for local development
+    helm/             Helm chart for Kubernetes/OpenShift
 ```
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS v4, shadcn/ui, TanStack Query |
-| API | FastAPI, Pydantic v2, SQLAlchemy 2 async, asyncpg |
-| Worker | Temporal SDK, kubernetes-asyncio, Anthropic SDK (Vertex AI) |
-| Database | PostgreSQL 16 (24 tables, Alembic migrations) |
-| Cache/Sessions | Redis 7 |
-| Workflows | Temporal |
-| Real-Time | Server-Sent Events (SSE) via pg_notify |
-| Encryption | AES-256-GCM with key versioning |
-| Containers | Non-root (UID 1001), read-only rootfs |
+| **Frontend** | Next.js 15, React 19, TypeScript, Tailwind CSS v4, shadcn/ui, TanStack Query |
+| **API** | FastAPI, Pydantic v2, SQLAlchemy 2 async, asyncpg |
+| **Worker** | Temporal SDK, kubernetes-asyncio, Anthropic SDK (Vertex AI) |
+| **Database** | PostgreSQL 16 (24 tables, Alembic migrations) |
+| **Cache** | Redis 7 |
+| **Workflows** | Temporal |
+| **Real-Time** | Server-Sent Events (SSE) via pg_notify |
+| **Encryption** | AES-256-GCM with key versioning and AAD |
+| **Containers** | Non-root (UID 1001), read-only rootfs |
 
 ## Contributing
 
@@ -215,4 +245,4 @@ See [SECURITY.md](SECURITY.md) for the security architecture and how to report v
 
 ## License
 
-[MIT](LICENSE) - Copyright (c) 2026 Ali Mobrem
+[MIT](LICENSE) &copy; 2026 Ali Mobrem
