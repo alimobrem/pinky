@@ -36,13 +36,15 @@
   </g>
 
   <!-- Title text -->
-  <text x="170" y="78" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="46" font-weight="800" fill="url(#textGrad)" letter-spacing="6">PINKY</text>
+  <text x="170" y="72" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="42" font-weight="800" fill="url(#textGrad)" letter-spacing="6">PINKY</text>
+  <text x="378" y="72" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="42" font-weight="300" fill="#6b6185" letter-spacing="2">&amp;</text>
+  <text x="414" y="72" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="42" font-weight="800" fill="url(#textGrad)" letter-spacing="4">THE BRAIN</text>
 
   <!-- Tagline -->
-  <text x="172" y="108" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" fill="#a78bfa" opacity="0.7" letter-spacing="0.5">AI-powered Kubernetes operations</text>
+  <text x="172" y="104" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" fill="#a78bfa" opacity="0.7" letter-spacing="0.5">AI-powered Kubernetes operations</text>
 
   <!-- Subtitle -->
-  <text x="172" y="132" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" fill="#6b6185" letter-spacing="0.3">Investigate. Remediate. Verify. With human approval.</text>
+  <text x="172" y="128" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" fill="#6b6185" letter-spacing="0.3">Investigate. Remediate. Verify. With human approval.</text>
 
   <!-- Bottom accent line -->
   <rect x="0" y="174" width="800" height="6" rx="3" fill="url(#accentLine)"/>
