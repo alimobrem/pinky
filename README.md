@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/alimobrem/pinky/actions/workflows/ci.yml"><img src="https://github.com/alimobrem/pinky/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
-  <img src="https://img.shields.io/badge/tests-1%2C156%20passing-brightgreen" alt="Tests" />
+  <img src="https://img.shields.io/badge/tests-1%2C217%20passing-brightgreen" alt="Tests" />
   <img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12" />
   <img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen" alt="Node >= 20" />
   <img src="https://img.shields.io/badge/k8s-1.28%2B-326CE5?logo=kubernetes&logoColor=white" alt="Kubernetes 1.28+" />
@@ -22,7 +22,7 @@
 
 Most Kubernetes monitoring tools stop at alerts. Pinky goes further:
 
-1. **Observe** — 13 markdown-defined scanners continuously detect issues across pods, deployments, statefulsets, jobs, PVCs, resource quotas, and more
+1. **Observe** — 15 markdown-defined scanners continuously detect issues across pods, deployments, statefulsets, jobs, PVCs, resource quotas, and more
 2. **Correlate** — Noisy observations become deduplicated, prioritized tasks in a single inbox
 3. **Investigate** — The Brain gathers evidence from your cluster and uses Claude to produce root cause analysis with confidence scores
 4. **Remediate** — Proposed fixes show a dry-run preview and changeset digest. Nothing changes without human approval
@@ -36,7 +36,7 @@ Operators work from a **prioritized task inbox** — not a wall of alerts.
 |---------|-------------|
 | **Automated Investigation** | Scanners detect issues, the Brain gathers evidence and produces root cause analysis |
 | **Approval Gate** | Dry-run preview, changeset digest, countdown timer. Nothing changes without human approval |
-| **Markdown Extensibility** | Add scanners, tools, skills, policies by writing markdown. 53 definitions ship out of the box |
+| **Markdown Extensibility** | Add scanners, tools, skills, policies by writing markdown. 64 definitions ship out of the box |
 | **Multi-Cluster** | Per-cluster OAuth bindings with identity isolation. Observer reads vs. user writes |
 | **Real-Time UI** | SSE-powered live execution logs, progress tracking, auto-updating states |
 | **Brain Chat** | Conversational interface with live cluster queries and auto-generated charts |
@@ -48,7 +48,7 @@ Operators work from a **prioritized task inbox** — not a wall of alerts.
 ```mermaid
 graph LR
     subgraph Cluster["Kubernetes Cluster"]
-        O["Observer<br/><i>13 scanners</i>"] -->|scan| K8s["K8s API"]
+        O["Observer<br/><i>15 scanners</i>"] -->|scan| K8s["K8s API"]
     end
 
     O -->|observations| C["Correlator<br/><i>dedup + fingerprint</i>"]
@@ -90,7 +90,7 @@ make dev          # Start API + Worker + Web
 |---------|-----|
 | Web UI | http://localhost:3000 |
 | API | http://localhost:8000 |
-| Temporal UI | http://localhost:8080 |
+| Temporal UI | http://localhost:8233 |
 
 ## Configuration
 
@@ -183,30 +183,31 @@ Actions: `suppress`, `observe`, `investigate`, `auto-resolve`, `create-task`
 - **Skills** define investigation strategies (which tools to use, what to analyze)
 - **Pipelines** compose scanners into named groups with scheduling
 
-53 definitions ship out of the box: 13 scanners, 8 tools, 11 skills, 16 policies, 3 pipelines, 2 redaction rules.
+64 definitions ship out of the box: 15 scanners, 8 tools, 12 skills, 24 policies, 3 pipelines, 2 redaction rules.
 </details>
 
 ## Testing
 
 ```bash
-make verify   # lint + typecheck + 1,156 tests
+make verify   # lint + typecheck + 1,217 tests
 ```
 
 | Suite | Tests |
 |-------|------:|
-| API unit/integration | 417 |
+| API unit/integration | 430 |
 | Worker unit | 611 |
 | Worker integration (Temporal) | 70 |
 | LLM evaluation graders | 36 |
-| Contracts | 22 |
-| **Total** | **1,156** |
+| Contracts | 52 |
+| CLI | 18 |
+| **Total** | **1,217** |
 
 ## Project Structure
 
 ```
 pinky/
   apps/
-    api/              FastAPI backend — 63 REST endpoints, auth, CRUD, SSE
+    api/              FastAPI backend — 78 REST endpoints, auth, CRUD, SSE
     web/              Next.js 15 frontend — Dashboard, Tasks, Watch, History
     worker/           Temporal workflows, cluster observers, LLM integration
     cli/              CLI tool wrapping the REST API

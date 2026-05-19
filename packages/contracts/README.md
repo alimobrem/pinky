@@ -15,7 +15,7 @@ import type { WorkItem, Execution, ExecutionEventType } from "@pinky/contracts";
 - `Execution` — Workflow run (investigation or remediation)
 - `ExecutionEvent` — Timeline entry (started, progress, completed, failed, etc.)
 - `ExecutionEventType` — Union of all event type strings
-- `ClusterBinding` — Per-user cluster authentication binding
+- `ClusterIdentityBinding` — Per-user cluster authentication binding
 - `Definition` — Scanner/tool/skill/policy markdown definition
 
 ## Adding Types
@@ -27,5 +27,5 @@ import type { WorkItem, Execution, ExecutionEventType } from "@pinky/contracts";
 ## Testing
 
 ```bash
-pnpm --filter @pinky/contracts test   # 22 tests (Vitest)
+pnpm --filter @pinky/contracts test   # 52 tests (Vitest)
 ```

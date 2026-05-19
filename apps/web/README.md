@@ -39,7 +39,7 @@ src/
       approval-gate.tsx     Approval UI with countdown, digest, dry-run
       execution-monitor.tsx Execution event stream
       data-table.tsx        Paginated table with cursor-based loading
-    ui/                     shadcn/ui primitives (28 components)
+    ui/                     shadcn/ui primitives (29 components)
   lib/
     api.ts                  Typed HTTP client
     utils.ts                cn() utility

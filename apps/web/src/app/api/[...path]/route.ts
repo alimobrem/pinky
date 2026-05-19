@@ -28,6 +28,13 @@ function buildTargetUrl(request: Request): URL {
   return target;
 }
 
+function isStreamRequest(request: Request): boolean {
+  const accept = request.headers.get("accept") ?? "";
+  if (accept.includes("text/event-stream")) return true;
+  const url = new URL(request.url);
+  return url.pathname.includes("/streams/");
+}
+
 async function proxyRequest(request: Request): Promise<Response> {
   const targetUrl = buildTargetUrl(request);
   const headers = new Headers(request.headers);
@@ -41,7 +48,7 @@ async function proxyRequest(request: Request): Promise<Response> {
     headers,
     cache: "no-store",
     redirect: "manual",
-    signal: AbortSignal.timeout(30_000),
+    ...(isStreamRequest(request) ? {} : { signal: AbortSignal.timeout(30_000) }),
   };
 
   if (!["GET", "HEAD"].includes(request.method)) {

@@ -85,7 +85,7 @@ The observer runs a continuous scan loop:
 
 ```bash
 cd apps/worker
-.venv/bin/pytest tests/ -v                          # 611 unit tests
+.venv/bin/pytest tests/ -v                          # 681 tests (611 unit + 70 integration)
 .venv/bin/pytest tests/integration/ -v              # 70 integration tests (needs Temporal + Postgres)
 .venv/bin/pytest evals/ -v                          # 36 LLM evaluation graders
 ```

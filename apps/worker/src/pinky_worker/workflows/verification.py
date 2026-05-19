@@ -33,6 +33,7 @@ class VerificationWorkflow:
         await workflow.sleep(timedelta(seconds=input.delay_seconds))
 
         result: dict = {}
+        attempt = 0
         for attempt in range(input.max_attempts):
             result = await workflow.execute_activity(
                 verify_state,

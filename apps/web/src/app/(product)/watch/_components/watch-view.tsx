@@ -214,22 +214,22 @@ function categorize(
   issues: Issue[],
   executions: Execution[],
 ): CategorizedData {
-  const runningInvestigationItemIds = new Set(
+  const runningInvestigationIssueIds = new Set(
     executions
       .filter(
         (e) =>
           e.execution_type === "investigation" &&
           e.status === "running" &&
-          e.work_item_id,
+          e.issue_id,
       )
-      .map((e) => e.work_item_id),
+      .map((e) => e.issue_id!),
   );
 
   const analyzingSet = new Set<string>();
   const analyzing = issues.filter((i) => {
     if (
       (i.status === "open" || i.status === "investigating") &&
-      runningInvestigationItemIds.has(i.id)
+      runningInvestigationIssueIds.has(i.id)
     ) {
       analyzingSet.add(i.id);
       return true;
@@ -241,23 +241,22 @@ function categorize(
     (e) => e.execution_type === "remediation" && e.status === "running",
   );
 
-  // Issues with completed investigations are candidates for task creation
-  const completedInvestigationItemIds = new Set(
+  const completedInvestigationIssueIds = new Set(
     executions
       .filter(
         (e) =>
           e.execution_type === "investigation" &&
           e.status === "completed" &&
-          e.work_item_id,
+          e.issue_id,
       )
-      .map((e) => e.work_item_id),
+      .map((e) => e.issue_id!),
   );
 
   const candidates = issues.filter(
     (i) =>
       i.status === "open" &&
       !analyzingSet.has(i.id) &&
-      completedInvestigationItemIds.has(i.id),
+      completedInvestigationIssueIds.has(i.id),
   );
   const candidateSet = new Set(candidates.map((i) => i.id));
 

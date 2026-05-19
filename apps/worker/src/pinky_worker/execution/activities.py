@@ -120,6 +120,28 @@ async def _emit_command_event(
     })
 
 
+async def _create_observer_client(cluster_id: str, pool: Any) -> Any:
+    """Create a K8s client using the cluster's observer binding credentials."""
+    from pinky_worker.observation.k8s_client import create_client
+
+    row = await pool.fetchrow(
+        """SELECT cr.api_endpoint, cob.encrypted_credential
+           FROM cluster_registry cr
+           LEFT JOIN cluster_observer_bindings cob ON cob.cluster_id = cr.id
+           WHERE cr.id = $1::uuid
+           ORDER BY cob.created_at DESC LIMIT 1""",
+        UUID(cluster_id),
+    )
+    if row and row["encrypted_credential"] and row["api_endpoint"]:
+        from pinky_worker.security import decrypt
+        token = decrypt(
+            row["encrypted_credential"],
+            aad=f"cluster_observer_bindings:{cluster_id}",
+        ).decode()
+        return await create_client(api_endpoint=row["api_endpoint"], token=token)
+    return await create_client()
+
+
 @activity.defn
 async def gather_evidence(
     issue_id: str, cluster_id: str, skill_tools: list[str] | None = None,
@@ -135,7 +157,6 @@ async def gather_evidence(
     from pinky_worker.db import get_pool
     from pinky_worker.llm.redaction import redact_evidence_sections
     from pinky_worker.observation.k8s_client import (
-        create_client,
         describe_resource,
         get_helm_releases,
         get_pod_logs,
@@ -172,7 +193,7 @@ async def gather_evidence(
                 resource_name = m.group(3)
 
     try:
-        k8s = await create_client()
+        k8s = await _create_observer_client(cluster_id, pool)
         pods = await list_pods(k8s, namespace=resource_namespace)
         events = await list_events(k8s, namespace=resource_namespace, limit=50)
 
@@ -724,6 +745,7 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
             and exec_row["work_item_id"]):
         wi_id = exec_row["work_item_id"]
         try:
+            from pinky_worker.events import emit_domain_event
             async with pool.acquire() as conn, conn.transaction():
                 await conn.execute(
                     "UPDATE work_items SET status = 'done', updated_at = now() WHERE id = $1",
@@ -738,19 +760,15 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
                         "updated_at = now() WHERE id = $1",
                         issue_row["issue_id"],
                     )
-                    await conn.execute(
-                        "SELECT pg_notify($1, $2)", "pinky_issues",
-                        json.dumps({
-                            "event_type": "issue.resolved",
-                            "aggregate_id": str(issue_row["issue_id"]),
-                        }),
+                    await emit_domain_event(
+                        conn, "issue.resolved", "issue", str(issue_row["issue_id"]),
+                        payload={"resolved_by": "remediation"},
+                        cluster_id=str(exec_row["cluster_id"]) if exec_row.get("cluster_id") else None,
                     )
-                await conn.execute(
-                    "SELECT pg_notify($1, $2)", "pinky_work_items",
-                    json.dumps({
-                        "event_type": "work_item.completed",
-                        "aggregate_id": str(wi_id),
-                    }),
+                await emit_domain_event(
+                    conn, "work_item.completed", "work_item", str(wi_id),
+                    payload={"completed_by": "auto_complete"},
+                    cluster_id=str(exec_row["cluster_id"]) if exec_row.get("cluster_id") else None,
                 )
         except Exception:
             logger.exception("auto-complete failed for work_item %s", wi_id)

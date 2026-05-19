@@ -81,6 +81,18 @@ def _serialize(ex: Any) -> dict:
     }
 
 
+async def _resolve_issue_ids(items: list[dict], db: AsyncSession) -> None:
+    wi_ids = [UUID(e["work_item_id"]) for e in items if e.get("work_item_id")]
+    if not wi_ids:
+        return
+    result = await db.execute(
+        sa_select(WorkItem.id, WorkItem.issue_id).where(WorkItem.id.in_(wi_ids))
+    )
+    wi_to_issue = {str(row[0]): str(row[1]) if row[1] else None for row in result.all()}
+    for item in items:
+        item["issue_id"] = wi_to_issue.get(item.get("work_item_id") or "") if item.get("work_item_id") else None
+
+
 @router.get("")
 async def list_executions(
     work_item_id: str | None = None,
@@ -103,6 +115,7 @@ async def list_executions(
     if not cluster_id:
         items = [e for e in items if e.cluster_id in allowed_clusters]
     serialized = [_serialize(e) for e in items]
+    await _resolve_issue_ids(serialized, db)
     await resolve_cluster_names(serialized, db)
     return {
         "items": serialized,

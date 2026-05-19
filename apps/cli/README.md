@@ -12,9 +12,10 @@ pip install -e .
 ## Configuration
 
 ```bash
-export PINKY_API_URL=http://localhost:8000   # API server URL
-export PINKY_API_TOKEN=pk_...               # API token (create in Settings)
+export PINKY_API_URL=http://localhost:8000   # API server URL (default)
 ```
+
+> **Note:** Token-based authentication (`PINKY_API_TOKEN`) is not yet implemented. The CLI currently makes unauthenticated requests to the API.
 
 ## Commands
 

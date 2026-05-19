@@ -4,7 +4,7 @@ React component library built on shadcn/ui primitives. Provides the visual build
 
 ## Components
 
-28 shadcn/ui components including Button, Dialog, AlertDialog, Input, Select, Badge, Card, Tabs, Table, Tooltip, and more.
+6 shared components: Badge, Button, Card, EmptyState, Skeleton, StatusChip. The full set of 29 shadcn/ui primitives lives in `apps/web/src/components/ui/`.
 
 ## Usage
 

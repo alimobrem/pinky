@@ -21,6 +21,7 @@ import structlog
 
 from pinky_worker.db import get_pool
 from pinky_worker.definitions.loader import DefinitionRegistry
+from pinky_worker.events import emit_domain_event
 from pinky_worker.issues.db_correlator import DbIssueCorrelator
 from pinky_worker.observation.generic_scanner import run_generic_checks
 from pinky_worker.observation.k8s_client import (
@@ -237,6 +238,10 @@ async def _handle_suppress(result, decision) -> None:
                 "WHERE issue_id = $1::uuid AND status IN ('ready', 'in_progress')",
                 result.issue_id,
             )
+            await emit_domain_event(
+                conn, "issue.suppressed", "issue", result.issue_id,
+                payload={"suppress_until": suppress_until.isoformat()},
+            )
         logger.info("suppressed issue", issue_id=result.issue_id, until=suppress_until)
 
 
@@ -417,9 +422,10 @@ async def _handle_create_task(result, decision, obs) -> None:
             decision.action.runbook_url,
             f'{{"scanner": "{obs.scanner}", "check_id": "{obs.check_id}", "resource_kind": "{obs.resource_kind}"}}',
         )
-        await conn.execute(
-            "SELECT pg_notify('pinky_work_items', $1)",
-            json.dumps({"event_type": "work_item.created", "aggregate_id": str(work_item_id)}),
+        await emit_domain_event(
+            conn, "work_item.created", "work_item", str(work_item_id),
+            payload={"title": obs.title, "priority": priority, "source": "policy"},
+            cluster_id=obs.cluster_id,
         )
 
     logger.info(
@@ -467,6 +473,37 @@ async def _apply_policy_metadata(issue_id: str, action) -> None:
                 f'{{"risk_class": "{action.risk_class}"}}',
                 issue_id,
             )
+
+
+async def _create_cluster_client(cluster_id: str) -> Any:
+    """Create a K8s client using the cluster's observer binding credentials.
+
+    Falls back to ambient credentials if no observer binding exists.
+    """
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """SELECT cr.api_endpoint, cob.encrypted_credential
+           FROM cluster_registry cr
+           LEFT JOIN cluster_observer_bindings cob ON cob.cluster_id = cr.id
+           WHERE cr.id = $1::uuid
+           ORDER BY cob.created_at DESC LIMIT 1""",
+        cluster_id,
+    )
+    if row and row["encrypted_credential"] and row["api_endpoint"]:
+        from pinky_worker.security import decrypt
+        token = decrypt(
+            row["encrypted_credential"],
+            aad=f"cluster_observer_bindings:{cluster_id}",
+        ).decode()
+        logger.info("using observer binding credentials", cluster_id=cluster_id)
+        return await create_client(api_endpoint=row["api_endpoint"], token=token)
+
+    if row and row["api_endpoint"]:
+        logger.warning(
+            "no observer credential for cluster — falling back to ambient identity",
+            cluster_id=cluster_id,
+        )
+    return await create_client()
 
 
 async def observe_cluster(
@@ -533,7 +570,7 @@ async def observe_cluster(
 
     cycle = 0
     try:
-        api_client = await create_client()
+        api_client = await _create_cluster_client(cluster_id)
     except Exception:
         logger.exception("failed to create K8s client for cluster %s", cluster_id)
         return

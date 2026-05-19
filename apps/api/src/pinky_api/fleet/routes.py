@@ -213,6 +213,27 @@ async def get_binding_status(
     return {"status": binding.status, "binding": _serialize_binding(binding)}
 
 
+async def _copy_token_from_sibling(
+    repo: BindingRepository, principal_id: UUID, target: Any,
+) -> None:
+    """Copy encrypted token from another valid binding of the same principal."""
+    from pinky_api.security.crypto import decrypt
+
+    siblings = await repo.list_for_principal(principal_id)
+    for sibling in siblings:
+        if sibling.id == target.id or not sibling.encrypted_token:
+            continue
+        if sibling.status not in ("valid", "expiring"):
+            continue
+        try:
+            raw = decrypt(sibling.encrypted_token, aad=f"cluster_identity_bindings:{sibling.id}")
+            enc = encrypt(raw, aad=f"cluster_identity_bindings:{target.id}")
+            await repo.refresh_token(target.id, enc)
+            return
+        except Exception:
+            continue
+
+
 @router.post("/cluster-bindings", status_code=201)
 async def create_binding(
     req: BindingCreateRequest,
@@ -242,6 +263,9 @@ async def create_binding(
             status="valid",
             expires_at=datetime.now(UTC) + timedelta(hours=8),
         )
+
+    if binding and not binding.encrypted_token:
+        await _copy_token_from_sibling(repo, pid, binding)
 
     await emit(
         db, "binding.created", "cluster", cluster_uuid,

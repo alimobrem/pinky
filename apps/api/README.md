@@ -1,6 +1,6 @@
 # Pinky API
 
-FastAPI backend serving 63 REST endpoints for the Pinky platform. Handles authentication, CRUD operations, cluster resource access, execution orchestration, SSE streaming, and the Brain chat interface.
+FastAPI backend serving 78 REST endpoints for the Pinky platform. Handles authentication, CRUD operations, cluster resource access, execution orchestration, SSE streaming, and the Brain chat interface.
 
 ## Running
 
@@ -53,7 +53,7 @@ src/pinky_api/
 
 ## Authentication
 
-- **Session cookies:** HTTP-only, Secure, SameSite=Strict. Backed by Redis with idle/absolute timeouts.
+- **Session cookies:** HTTP-only, Secure, SameSite=Lax. Backed by Redis with idle/absolute timeouts.
 - **API tokens:** HMAC-SHA256 hashed. Bearer auth via `Authorization` header.
 - **OAuth:** OpenShift OIDC login flow. Token exchange + user info from K8s API.
 - **All routes protected** via global `get_current_principal` dependency. Unprotected paths explicitly listed.
@@ -62,7 +62,7 @@ src/pinky_api/
 
 ```bash
 cd apps/api
-.venv/bin/pytest tests/ -v                          # 417 tests
+.venv/bin/pytest tests/ -v                          # 430 tests
 .venv/bin/pytest tests/benchmark/ --benchmark-only  # 10 latency benchmarks
 ```
 

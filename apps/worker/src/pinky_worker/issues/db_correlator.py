@@ -8,6 +8,7 @@ import uuid
 import structlog
 
 from pinky_worker.db import get_pool
+from pinky_worker.events import emit_domain_event
 from pinky_worker.issues.correlator import CorrelationResult, RawObservation
 
 logger = structlog.get_logger(__name__)
@@ -84,6 +85,11 @@ class DbIssueCorrelator:
                     "resolved_at = NULL, resolved_by = NULL, updated_at = $1 WHERE id = $2",
                     obs.observed_at, existing["id"],
                 )
+                await emit_domain_event(
+                    conn, "issue.reopened", "issue", str(existing["id"]),
+                    payload={"correlation_key": obs.correlation_key, "severity": obs.severity},
+                    cluster_id=obs.cluster_id,
+                )
                 logger.info(
                     "reopened issue", issue_id=str(existing["id"]),
                     correlation_key=obs.correlation_key,
@@ -138,13 +144,15 @@ class DbIssueCorrelator:
                 obs.observed_at,
             )
 
-            await conn.execute(
-                "SELECT pg_notify('pinky_work_items', $1)",
-                json.dumps({"event_type": "work_item.created", "aggregate_id": str(work_item_id)}),
+            await emit_domain_event(
+                conn, "issue.created", "issue", str(issue_id),
+                payload={"title": obs.title, "severity": obs.severity, "scanner": obs.scanner},
+                cluster_id=obs.cluster_id,
             )
-            await conn.execute(
-                "SELECT pg_notify('pinky_issues', $1)",
-                json.dumps({"event_type": "issue.created", "aggregate_id": str(issue_id)}),
+            await emit_domain_event(
+                conn, "work_item.created", "work_item", str(work_item_id),
+                payload={"title": obs.title, "priority": "high" if obs.severity in ("critical", "high") else "medium"},
+                cluster_id=obs.cluster_id,
             )
 
             logger.info(
