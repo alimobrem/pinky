@@ -1,5 +1,5 @@
 global:
-  imageRegistry: quay.io/pinky-project
+  imageRegistry: quay.io/amobrem
 
 route:
   enabled: true
