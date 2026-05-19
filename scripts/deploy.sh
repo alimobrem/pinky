@@ -110,9 +110,9 @@ fi
 # Build + push (if requested)
 if [[ "${BUILD_ENABLED}" == "true" ]]; then
   echo "==> Building images..."
-  make docker-build REGISTRY="${PINKY_REGISTRY:-quay.io/amobrem}" TAG="${PINKY_TAG}"
+  make docker-build REGISTRY="${PINKY_REGISTRY:-quay.io/pinky-project}" TAG="${PINKY_TAG}"
   echo "==> Pushing images..."
-  make docker-push REGISTRY="${PINKY_REGISTRY:-quay.io/amobrem}" TAG="${PINKY_TAG}"
+  make docker-push REGISTRY="${PINKY_REGISTRY:-quay.io/pinky-project}" TAG="${PINKY_TAG}"
 fi
 
 # Helm install/upgrade

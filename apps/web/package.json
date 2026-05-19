@@ -1,6 +1,8 @@
 {
   "name": "@pinky/web",
   "version": "0.1.0",
+  "description": "Pinky web frontend — Next.js 15, React 19, Tailwind CSS v4",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",

@@ -1,5 +1,5 @@
 global:
-  imageRegistry: quay.io/amobrem
+  imageRegistry: quay.io/pinky-project
 
 route:
   enabled: true
@@ -14,7 +14,7 @@ api:
 
 worker:
   replicas: 1
-  excludeNamespacesRegex: "^(openshift-|kube-|default$|redhat-|multicluster-engine|open-cluster-management|hive|assisted-installer|hypershift)"
+  excludeNamespacesRegex: "^(openshift-|kube-|default$)"
 
 web:
   replicas: 1

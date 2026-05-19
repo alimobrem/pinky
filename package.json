@@ -1,5 +1,7 @@
 {
   "name": "pinky",
+  "description": "AI-powered Kubernetes operations platform with embedded SRE agent",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev:web": "pnpm --filter @pinky/web dev",

@@ -2,6 +2,7 @@
 name = "pinky-cli"
 version = "0.1.0"
 description = "Pinky CLI — operator automation interface"
+license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "typer>=0.15.0",

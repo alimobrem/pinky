@@ -17,7 +17,7 @@
 ## Repo Shape
 
 ```text
-/Users/amobrem/ali/pinky/
+pinky/
   apps/
     web/          # Next.js + React + TypeScript
     api/          # FastAPI + SQLAlchemy + Pydantic

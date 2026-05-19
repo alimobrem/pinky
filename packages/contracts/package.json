@@ -1,6 +1,8 @@
 {
   "name": "@pinky/contracts",
   "version": "0.1.0",
+  "description": "Shared TypeScript domain types for Pinky",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",

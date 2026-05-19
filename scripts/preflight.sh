@@ -2,7 +2,7 @@
 set -euo pipefail
 
 VALUES_FILE="${1:-infra/helm/values-dev.yaml}"
-REGISTRY="${PINKY_REGISTRY:-quay.io/amobrem}"
+REGISTRY="${PINKY_REGISTRY:-quay.io/pinky-project}"
 TAG="${PINKY_TAG:-latest}"
 KUBE="${PINKY_KUBE_CLI:-$(command -v oc 2>/dev/null || command -v kubectl 2>/dev/null || echo kubectl)}"
 ERRORS=0

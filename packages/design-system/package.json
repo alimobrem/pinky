@@ -1,6 +1,8 @@
 {
   "name": "@pinky/design-system",
   "version": "0.1.0",
+  "description": "Pinky React component library built on shadcn/ui",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
