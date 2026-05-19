@@ -2,6 +2,7 @@
 
 import json
 import logging
+from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID
 
@@ -200,6 +201,16 @@ async def start_execution(
         approval_id = approval_value
         changeset_digest = refs.get("changeset_digest", "")
         target_resources = refs.get("target_resources", [])
+
+        from pinky_api.models.execution import Approval
+        approval_check = await db.execute(
+            sa_select(Approval).where(Approval.id == UUID(approval_id))
+        )
+        approval_obj = approval_check.scalar_one_or_none()
+        if not approval_obj or approval_obj.status not in ("pending", "approved"):
+            raise HTTPException(status_code=409, detail="Approval is no longer valid — re-investigate first")
+        if approval_obj.expires_at and approval_obj.expires_at < datetime.now(UTC):
+            raise HTTPException(status_code=409, detail="Approval has expired — re-investigate first")
     else:
         await require_cluster_read_access(wi.cluster_id, principal, db, require_binding=True)
 

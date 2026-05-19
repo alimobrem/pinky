@@ -168,6 +168,35 @@ async def test_revalidate_binding_rejects_revoked() -> None:
 
 
 @pytest.mark.asyncio
+async def test_validate_approval_rejects_invalidated() -> None:
+    """Approval that was invalidated (e.g. by a new investigation) must be rejected."""
+    pool = FakePool(fetchrow_result={
+        "status": "invalidated",
+        "expires_at": datetime.now(UTC) + timedelta(hours=1),
+        "changeset_digest": "abc123",
+    })
+    with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
+        from pinky_worker.execution.activities import validate_approval
+        result = await validate_approval(str(uuid.uuid4()), "abc123")
+    assert result["valid"] is False
+
+
+@pytest.mark.asyncio
+async def test_validate_approval_stale_digest_from_previous_cycle() -> None:
+    """Approval created for execution A must fail if remediation sends digest from execution B."""
+    pool = FakePool(fetchrow_result={
+        "status": "pending",
+        "expires_at": datetime.now(UTC) + timedelta(hours=1),
+        "changeset_digest": "old_digest_from_exec_a",
+    })
+    with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
+        from pinky_worker.execution.activities import validate_approval
+        result = await validate_approval(str(uuid.uuid4()), "new_digest_from_exec_b")
+    assert result["valid"] is False
+    assert "changed" in result["reason"]
+
+
+@pytest.mark.asyncio
 async def test_revalidate_binding_rejects_not_found() -> None:
     pool = FakePool(fetchrow_result=None)
     with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):

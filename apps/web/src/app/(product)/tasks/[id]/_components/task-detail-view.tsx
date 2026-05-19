@@ -383,15 +383,21 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
                 </Card>
               )}
 
-            {investigation?.has_investigation && (
-              <RemediationPlan
-                steps={investigation.remediation_steps ?? []}
-                manualCommands={investigation.manual_commands ?? []}
-                clusterName={task?.cluster_display_name ?? task?.cluster_id}
-                onApply={() => startRemediation.mutate()}
-                applyPending={startRemediation.isPending}
-              />
-            )}
+            {investigation?.has_investigation && (() => {
+              const hasActiveRemediation = executions?.items?.some(
+                (e) => e.execution_type === "remediation" && ["running", "waiting_for_approval", "pending"].includes(e.status),
+              );
+              const canRemediate = !hasActiveRemediation && task.status !== "done";
+              return (
+                <RemediationPlan
+                  steps={investigation.remediation_steps ?? []}
+                  manualCommands={investigation.manual_commands ?? []}
+                  clusterName={task?.cluster_display_name ?? task?.cluster_id}
+                  onApply={canRemediate ? () => startRemediation.mutate() : undefined}
+                  applyPending={startRemediation.isPending}
+                />
+              );
+            })()}
 
             {resourceInfo && (
               <ResourceEditor

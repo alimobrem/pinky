@@ -168,6 +168,16 @@ async def gather_evidence(
     )
 
     pool = await get_pool()
+
+    await pool.execute(
+        """UPDATE work_items
+           SET artifact_refs = COALESCE(artifact_refs, '{}'::jsonb)
+               - 'approval_id' - 'changeset_digest' - 'target_resources' - 'plan_steps',
+               updated_at = now()
+           WHERE issue_id = $1::uuid AND artifact_refs ? 'approval_id'""",
+        issue_id,
+    )
+
     wi = await pool.fetchrow(
         "SELECT title, labels FROM work_items WHERE issue_id = $1::uuid LIMIT 1",
         issue_id,
