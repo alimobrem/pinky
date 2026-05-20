@@ -10,6 +10,7 @@ import structlog
 from pinky_worker.db import get_pool
 from pinky_worker.events import emit_domain_event
 from pinky_worker.issues.correlator import CorrelationResult, RawObservation
+from pinky_worker.transitions import transition_work_item
 
 logger = structlog.get_logger(__name__)
 
@@ -90,6 +91,12 @@ class DbIssueCorrelator:
                     payload={"correlation_key": obs.correlation_key, "severity": obs.severity},
                     cluster_id=obs.cluster_id,
                 )
+                done_wis = await conn.fetch(
+                    "SELECT id FROM work_items WHERE issue_id = $1 AND status = 'done'",
+                    existing["id"],
+                )
+                for wi in done_wis:
+                    await transition_work_item(pool, wi["id"], "ready", payload={"reason": "issue_reopened"})
                 logger.info(
                     "reopened issue", issue_id=str(existing["id"]),
                     correlation_key=obs.correlation_key,

@@ -39,6 +39,9 @@ class FakeConn:
     async def execute(self, query, *args):
         pass
 
+    async def fetch(self, query, *args):
+        return []
+
     async def fetchrow(self, query, *args):
         if "SELECT COUNT" in query:
             return {"cnt": 1}

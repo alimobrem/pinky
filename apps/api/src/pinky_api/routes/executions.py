@@ -444,6 +444,8 @@ async def approve_execution(
     await require_cluster_write_access(ex.cluster_id, principal, db)
     if ex.execution_type != "remediation":
         raise HTTPException(status_code=409, detail="Only remediation executions require approval")
+    if ex.status != "waiting_for_approval":
+        raise HTTPException(status_code=409, detail=f"Execution is {ex.status} — approval no longer applicable")
 
     try:
         temporal_client = await get_client()
@@ -451,23 +453,22 @@ async def approve_execution(
         logger.exception("temporal client unavailable for approval")
         raise HTTPException(status_code=503, detail="Workflow engine unavailable") from None
 
+    await _update_approval_status(db, ex.id, "approved", principal_uuid(principal))
+    await emit(
+        db, "approval.granted", "execution", ex.id,
+        {"changeset_digest": req.changeset_digest},
+        cluster_id=ex.cluster_id, principal_id=principal_uuid(principal),
+    )
+    await db.flush()
+
     try:
         handle = temporal_client.get_workflow_handle(f"remediation-{execution_id}")
         await handle.signal("approve", {"changeset_digest": req.changeset_digest})
-    except Exception:
-        logger.exception("failed to signal approval for %s", execution_id)
-        raise HTTPException(status_code=500, detail="Failed to signal workflow") from None
-
-    try:
-        await _update_approval_status(db, ex.id, "approved", principal_uuid(principal))
-        await emit(
-            db, "approval.granted", "execution", ex.id,
-            {"changeset_digest": req.changeset_digest},
-            cluster_id=ex.cluster_id, principal_id=principal_uuid(principal),
-        )
         await db.commit()
     except Exception:
-        logger.exception("DB update failed after approval signal for %s", execution_id)
+        await db.rollback()
+        logger.exception("failed to signal approval for %s", execution_id)
+        raise HTTPException(status_code=503, detail="Failed to deliver approval to workflow engine") from None
 
     return {"status": "approved", "execution_id": execution_id}
 
@@ -486,6 +487,8 @@ async def reject_execution(
     await require_cluster_write_access(ex.cluster_id, principal, db)
     if ex.execution_type != "remediation":
         raise HTTPException(status_code=409, detail="Only remediation executions require approval")
+    if ex.status != "waiting_for_approval":
+        raise HTTPException(status_code=409, detail=f"Execution is {ex.status} — rejection no longer applicable")
 
     try:
         temporal_client = await get_client()
@@ -493,22 +496,21 @@ async def reject_execution(
         logger.exception("temporal client unavailable for rejection")
         raise HTTPException(status_code=503, detail="Workflow engine unavailable") from None
 
+    await _update_approval_status(db, ex.id, "rejected", principal_uuid(principal))
+    await emit(
+        db, "approval.rejected", "execution", ex.id,
+        {"reason": req.reason},
+        cluster_id=ex.cluster_id, principal_id=principal_uuid(principal),
+    )
+    await db.flush()
+
     try:
         handle = temporal_client.get_workflow_handle(f"remediation-{execution_id}")
         await handle.signal("reject", {"reason": req.reason})
-    except Exception:
-        logger.exception("failed to signal rejection for %s", execution_id)
-        raise HTTPException(status_code=500, detail="Failed to signal workflow") from None
-
-    try:
-        await _update_approval_status(db, ex.id, "rejected", principal_uuid(principal))
-        await emit(
-            db, "approval.rejected", "execution", ex.id,
-            {"reason": req.reason},
-            cluster_id=ex.cluster_id, principal_id=principal_uuid(principal),
-        )
         await db.commit()
     except Exception:
-        logger.exception("DB update failed after reject signal for %s", execution_id)
+        await db.rollback()
+        logger.exception("failed to signal rejection for %s", execution_id)
+        raise HTTPException(status_code=503, detail="Failed to deliver rejection to workflow engine") from None
 
     return {"status": "rejected", "execution_id": execution_id}

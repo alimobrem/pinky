@@ -90,7 +90,7 @@ async def _emit_event(
         await pool.execute("SELECT pg_notify($1, $2)", "pinky_watch", notify)
         await pool.execute("SELECT pg_notify($1, $2)", f"pinky_execution_{execution_id}", notify)
     except Exception:
-        logger.debug("%s event emission skipped", event_type)
+        logger.warning("%s event emission failed", event_type, exc_info=True)
 
 
 async def _emit_tool_event(pool: Any, execution_id: str, tool_name: str, seq: int) -> None:
@@ -677,30 +677,17 @@ _EVENT_TO_STATUS: dict[str, str] = {
     "timed_out": "timed_out",
 }
 
-_STATUS_SQL: dict[str, str] = {
-    "running": "UPDATE executions SET status = 'running', started_at = COALESCE(started_at, $2) WHERE id = $1",
-    "waiting_for_approval": "UPDATE executions SET status = 'waiting_for_approval' WHERE id = $1",
-    "completed": "UPDATE executions SET status = 'completed', completed_at = $2 WHERE id = $1",
-    "failed": "UPDATE executions SET status = 'failed', completed_at = $2 WHERE id = $1",
-    "timed_out": "UPDATE executions SET status = 'timed_out', completed_at = $2 WHERE id = $1",
-}
-
-_LIFECYCLE_EVENTS = frozenset({
-    "started", "completed", "failed", "approval_required",
-    "approval_granted", "approval_rejected", "timed_out",
-})
-
-
 @activity.defn
 async def emit_execution_event(event: ExecutionEventPayload) -> None:
     """Emit an execution event to Postgres and trigger SSE broadcast.
 
-    Single authoritative projection path for execution state: event insertion,
-    status transitions (with state machine guard), auto-complete on verified
-    remediation, domain_events audit trail, and pg_notify.
+    Inserts the fine-grained execution_event row, then delegates status
+    transitions to the centralized transition_execution() which handles
+    state machine validation, domain events, pg_notify, approval cascade,
+    and work_item auto-reset on failure.
     """
     from pinky_worker.db import get_pool
-    from pinky_worker.execution.state_machine import InvalidTransitionError, validate_transition
+    from pinky_worker.transitions import transition_execution, transition_work_item
 
     pool = await get_pool()
     occurred = datetime.now(UTC)
@@ -712,25 +699,6 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
         stripped = exec_id_str.removeprefix("investigation-").removeprefix("remediation-")
         exec_uuid = UUID(stripped)
 
-    target_status = _EVENT_TO_STATUS.get(event.event_type)
-
-    exec_row = None
-    if target_status or event.event_type in _LIFECYCLE_EVENTS:
-        exec_row = await pool.fetchrow(
-            "SELECT status, execution_type, work_item_id, cluster_id FROM executions WHERE id = $1",
-            exec_uuid,
-        )
-
-    if target_status and exec_row:
-        try:
-            validate_transition(exec_row["status"], target_status)
-        except InvalidTransitionError:
-            logger.warning(
-                "blocked transition %s -> %s for execution %s",
-                exec_row["status"], target_status, exec_uuid,
-            )
-            return
-
     await pool.execute(
         """INSERT INTO execution_events (id, execution_id, event_type, sequence, payload, occurred_at)
            VALUES ($1, $2, $3, $4, $5, $6)
@@ -740,13 +708,19 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
         json.dumps(event.payload), occurred,
     )
 
+    target_status = _EVENT_TO_STATUS.get(event.event_type)
     if target_status:
-        sql = _STATUS_SQL.get(target_status)
-        if sql:
-            if target_status == "waiting_for_approval":
-                await pool.execute(sql, exec_uuid)
-            else:
-                await pool.execute(sql, exec_uuid, occurred)
+        ok = await transition_execution(pool, exec_uuid, target_status, payload=event.payload)
+        if not ok and target_status not in ("running",):
+            logger.warning(
+                "transition rejected %s -> %s for execution %s",
+                event.event_type, target_status, exec_uuid,
+            )
+
+    exec_row = await pool.fetchrow(
+        "SELECT status, execution_type, work_item_id, cluster_id FROM executions WHERE id = $1",
+        exec_uuid,
+    )
 
     if (event.event_type == "completed"
             and event.payload.get("verification_passed")
@@ -755,16 +729,13 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
             and exec_row["work_item_id"]):
         wi_id = exec_row["work_item_id"]
         try:
-            from pinky_worker.events import emit_domain_event
-            async with pool.acquire() as conn, conn.transaction():
-                await conn.execute(
-                    "UPDATE work_items SET status = 'done', updated_at = now() WHERE id = $1",
-                    wi_id,
-                )
-                issue_row = await conn.fetchrow(
-                    "SELECT issue_id FROM work_items WHERE id = $1", wi_id,
-                )
-                if issue_row and issue_row["issue_id"]:
+            await transition_work_item(pool, wi_id, "done", payload={"completed_by": "auto_complete"})
+            issue_row = await pool.fetchrow(
+                "SELECT issue_id FROM work_items WHERE id = $1", wi_id,
+            )
+            if issue_row and issue_row["issue_id"]:
+                from pinky_worker.events import emit_domain_event
+                async with pool.acquire() as conn:
                     await conn.execute(
                         "UPDATE issues SET status = 'resolved', resolved_by = 'remediation', "
                         "updated_at = now() WHERE id = $1",
@@ -775,11 +746,6 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
                         payload={"resolved_by": "remediation"},
                         cluster_id=str(exec_row["cluster_id"]) if exec_row.get("cluster_id") else None,
                     )
-                await emit_domain_event(
-                    conn, "work_item.completed", "work_item", str(wi_id),
-                    payload={"completed_by": "auto_complete"},
-                    cluster_id=str(exec_row["cluster_id"]) if exec_row.get("cluster_id") else None,
-                )
         except Exception:
             logger.exception("auto-complete failed for work_item %s", wi_id)
 
@@ -789,18 +755,6 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
         await pool.execute("SELECT pg_notify($1, $2)", f"pinky_execution_{exec_uuid}", notify_payload)
     except Exception:
         logger.warning("pg_notify skipped in execution event emission")
-
-    if event.event_type in _LIFECYCLE_EVENTS and exec_row:
-        try:
-            await pool.execute(
-                """INSERT INTO domain_events
-                   (id, aggregate_type, aggregate_id, event_type, cluster_id, payload, occurred_at)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7)""",
-                uuid4(), "execution", exec_uuid, event.event_type,
-                exec_row["cluster_id"], json.dumps(event.payload), occurred,
-            )
-        except Exception:
-            logger.warning("domain_event insertion failed for %s", event.event_type)
 
     logger.info("execution event emitted: %s %s exec=%s", event.event_type, event.execution_id, str(exec_uuid))
 

@@ -87,6 +87,7 @@ async def run_observer(
     temporal_enabled = os.environ.get("PINKY_TEMPORAL_ENABLED", "true") == "true"
 
     temporal_client = None
+    temporal_fail_count = 0
 
     logger.info("starting observer daemon", scan_interval=scan_interval)
 
@@ -96,15 +97,23 @@ async def run_observer(
             break
 
         if temporal_enabled and temporal_client is None:
+            temporal_fail_count += 1
             try:
                 from temporalio.client import Client
                 settings = get_settings()
                 temporal_client = await Client.connect(
                     settings.temporal.address, namespace=settings.temporal.namespace,
                 )
+                temporal_fail_count = 0
                 logger.info("observer connected to temporal")
             except Exception:
-                logger.warning("observer temporal connection failed — will retry next cycle")
+                if temporal_fail_count >= 3:
+                    logger.error(
+                        "temporal unavailable — investigations disabled",
+                        fail_count=temporal_fail_count,
+                    )
+                else:
+                    logger.warning("observer temporal connection failed — will retry next cycle")
 
         try:
             pool = await get_pool()

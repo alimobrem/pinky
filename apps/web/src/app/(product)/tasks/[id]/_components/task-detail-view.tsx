@@ -295,6 +295,31 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
         </div>
       )}
 
+      {remediationExec && ["failed", "timed_out", "cancelled"].includes(remediationExec.status) && task.status !== "done" && (() => {
+        const lastEvent = (timeline?.items ?? [])
+          .filter((e: { execution_id: string | null }) => e.execution_id === remediationExec.id)
+          .at(-1) as { payload?: Record<string, unknown> } | undefined;
+        const reason = (lastEvent?.payload?.reason as string) ?? remediationExec.status;
+        const guidance: Record<string, string> = {
+          approval_invalidated: "Re-investigate to generate a fresh plan and approval.",
+          approval_timeout: "Approval expired — re-investigate and approve within 24 hours.",
+          binding_expired: "Cluster binding expired — re-authenticate in Settings.",
+          step_failed: "A remediation step failed — check the execution log and retry.",
+          cancelled: "This execution was cancelled.",
+          sweep: "Execution timed out and was cleaned up automatically.",
+        };
+        return (
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-status-blocked/30 bg-status-blocked/5 px-4 py-3">
+            <p className="text-body-sm text-text-secondary">
+              {guidance[reason] ?? `Remediation ${remediationExec.status} — re-investigate to retry.`}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => investigate.mutate()} disabled={investigate.isPending}>
+              Re-investigate
+            </Button>
+          </div>
+        );
+      })()}
+
       <FadeIn>
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="space-y-4 lg:col-span-2">

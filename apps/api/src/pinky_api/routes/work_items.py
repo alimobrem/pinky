@@ -334,7 +334,7 @@ async def reset_work_item(
             handle = temporal_client.get_workflow_handle(workflow_id)
             await handle.cancel()
         except Exception:
-            logger.debug("could not cancel workflow %s", workflow_id)
+            logger.warning("could not cancel workflow %s — sweep will clean up", workflow_id)
 
     if current.issue_id:
         await db.execute(

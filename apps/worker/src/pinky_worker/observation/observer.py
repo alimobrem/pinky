@@ -49,6 +49,7 @@ from pinky_worker.policy.engine import (
     rules_from_definitions,
 )
 from pinky_worker.queues import INVESTIGATION_QUEUE
+from pinky_worker.transitions import transition_execution, transition_work_item
 
 logger = structlog.get_logger(__name__)
 
@@ -212,8 +213,8 @@ async def _dispatch_investigation(
             await pool.execute("DELETE FROM executions WHERE id = $1", exec_id)
         else:
             logger.exception("failed to dispatch investigation", workflow_id=workflow_id)
-            await pool.execute(
-                "UPDATE executions SET status = 'failed' WHERE id = $1", exec_id,
+            await transition_execution(
+                pool, exec_id, "failed", payload={"reason": "dispatch_failed"},
             )
 
 
@@ -233,15 +234,16 @@ async def _handle_suppress(result, decision) -> None:
                 "updated_at = now() WHERE id = $2::uuid",
                 suppress_until, result.issue_id,
             )
-            await conn.execute(
-                "UPDATE work_items SET status = 'done', updated_at = now() "
-                "WHERE issue_id = $1::uuid AND status IN ('ready', 'in_progress')",
-                result.issue_id,
-            )
             await emit_domain_event(
                 conn, "issue.suppressed", "issue", result.issue_id,
                 payload={"suppress_until": suppress_until.isoformat()},
             )
+        wi_rows = await pool.fetch(
+            "SELECT id FROM work_items WHERE issue_id = $1::uuid AND status IN ('ready', 'in_progress')",
+            result.issue_id,
+        )
+        for wi in wi_rows:
+            await transition_work_item(pool, wi["id"], "done", payload={"reason": "issue_suppressed"})
         logger.info("suppressed issue", issue_id=result.issue_id, until=suppress_until)
 
 
@@ -309,12 +311,14 @@ async def _sweep_stale_issues(
                    WHERE id = $1 AND status = 'open'""",
                 issue_id,
             )
-            await conn.execute(
-                """UPDATE work_items
-                   SET status = 'done', updated_at = now()
-                   WHERE issue_id = $1 AND status IN ('ready', 'in_progress')""",
+            stale_wis = await conn.fetch(
+                "SELECT id FROM work_items WHERE issue_id = $1 AND status IN ('ready', 'in_progress')",
                 issue_id,
             )
+        for wi in stale_wis:
+            await transition_work_item(pool, wi["id"], "done", payload={"reason": "issue_auto_resolved"})
+
+        async with pool.acquire() as conn:
             existing_event = await conn.fetchrow(
                 """SELECT id, payload FROM domain_events
                    WHERE event_type = 'issue.auto_resolved'
@@ -360,8 +364,8 @@ async def _sweep_stale_issues(
 async def _sweep_orphaned_tasks(cluster_id: str) -> int:
     from pinky_worker.db import get_pool
     pool = await get_pool()
-    result = await pool.execute(
-        """UPDATE work_items SET status = 'done', updated_at = now()
+    rows = await pool.fetch(
+        """SELECT id FROM work_items
            WHERE cluster_id = $1::uuid
              AND status NOT IN ('done')
              AND issue_id IN (
@@ -369,7 +373,10 @@ async def _sweep_orphaned_tasks(cluster_id: str) -> int:
              )""",
         cluster_id,
     )
-    count = int(result.split()[-1])
+    count = 0
+    for row in rows:
+        if await transition_work_item(pool, row["id"], "done", payload={"reason": "orphan_sweep"}):
+            count += 1
     if count:
         logger.info("orphaned task sweep", cluster_id=cluster_id, completed=count)
     return count
@@ -378,17 +385,22 @@ async def _sweep_orphaned_tasks(cluster_id: str) -> int:
 async def _sweep_stuck_executions(cluster_id: str) -> int:
     from pinky_worker.db import get_pool
     pool = await get_pool()
-    result = await pool.execute(
-        """UPDATE executions SET status = 'failed', completed_at = now()
-           WHERE cluster_id = $1::uuid
-             AND status = 'pending'
-             AND execution_type = 'investigation'
-             AND created_at < now() - interval '5 minutes'""",
+    rows = await pool.fetch(
+        """SELECT id, status FROM executions
+           WHERE cluster_id = $1::uuid AND (
+               (status = 'pending' AND created_at < now() - interval '5 minutes') OR
+               (status = 'running' AND started_at < now() - interval '30 minutes') OR
+               (status = 'waiting_for_approval' AND created_at < now() - interval '4 hours 30 minutes')
+           )""",
         cluster_id,
     )
-    count = int(result.split()[-1])
+    count = 0
+    for row in rows:
+        target = "timed_out" if row["status"] == "waiting_for_approval" else "failed"
+        if await transition_execution(pool, row["id"], target, payload={"reason": "sweep"}):
+            count += 1
     if count:
-        logger.warning("stuck execution sweep", cluster_id=cluster_id, failed=count)
+        logger.warning("stuck execution sweep", cluster_id=cluster_id, resolved=count)
     return count
 
 
