@@ -29,7 +29,7 @@ EXEC_TRANSITIONS: dict[str, set[str]] = {
 EXEC_TERMINAL: frozenset[str] = frozenset({"completed", "failed", "cancelled", "timed_out"})
 
 WI_TRANSITIONS: dict[str, set[str]] = {
-    "ready": {"in_progress"},
+    "ready": {"in_progress", "done"},
     "in_progress": {"blocked", "waiting_for_approval", "done", "ready"},
     "blocked": {"in_progress", "done", "ready"},
     "waiting_for_approval": {"in_progress", "done", "ready"},

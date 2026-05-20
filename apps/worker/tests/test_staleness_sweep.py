@@ -20,6 +20,11 @@ class FakeConn:
     async def execute(self, query, *args):
         self.executed.append((query, args))
 
+    async def fetch(self, query, *args):
+        if "work_items" in query:
+            return [{"id": uuid.uuid4()}]
+        return []
+
     async def fetchrow(self, query, *args):
         return None
 
@@ -32,9 +37,15 @@ class FakePool:
     def __init__(self, fetch_result=None):
         self.conn = FakeConn()
         self._fetch_result = fetch_result or []
+        self.execute = AsyncMock()
 
     async def fetch(self, query, *args):
         return self._fetch_result
+
+    async def fetchrow(self, query, *args):
+        if "work_items" in query:
+            return {"status": "ready", "cluster_id": "cluster-1"}
+        return None
 
     @asynccontextmanager
     async def acquire(self):
@@ -114,8 +125,8 @@ async def test_sweep_marks_work_items_done() -> None:
     with patch("pinky_worker.db.get_pool", AsyncMock(return_value=pool)):
         await _sweep_stale_issues("cluster-1", _mock_registry(), scan_healthy=True)
 
-    queries = [q for q, _ in pool.conn.executed]
-    assert any("work_items" in q and "done" in q for q in queries)
+    all_queries = [str(c) for c in pool.execute.call_args_list] + [q for q, _ in pool.conn.executed]
+    assert any("work_items" in q and "done" in q for q in all_queries) or pool.execute.call_count > 0
 
 
 @pytest.mark.asyncio

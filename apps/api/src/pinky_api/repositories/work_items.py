@@ -11,7 +11,7 @@ from pinky_api.models.work_item import WorkItem
 from pinky_api.repositories.base import BaseRepository
 
 VALID_TRANSITIONS: dict[str, set[str]] = {
-    "ready": {"in_progress"},
+    "ready": {"in_progress", "done"},
     "in_progress": {"blocked", "waiting_for_approval", "done", "ready"},
     "blocked": {"in_progress", "done", "ready"},
     "waiting_for_approval": {"in_progress", "done", "ready"},

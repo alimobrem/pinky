@@ -130,7 +130,7 @@ class TestTransitionWorkItem:
     @pytest.mark.asyncio
     async def test_invalid_transition_returns_false(self) -> None:
         pool = _make_pool({"status": "ready", "cluster_id": uuid4()})
-        assert await transition_work_item(pool, uuid4(), "done") is False
+        assert await transition_work_item(pool, uuid4(), "blocked") is False
 
     @pytest.mark.asyncio
     async def test_idempotent_same_status(self) -> None:
