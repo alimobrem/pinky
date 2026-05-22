@@ -459,6 +459,13 @@ async def approve_execution(
         {"changeset_digest": req.changeset_digest},
         cluster_id=ex.cluster_id, principal_id=principal_uuid(principal),
     )
+    from pinky_api.repositories.analytics import AnalyticsRepository
+    analytics = AnalyticsRepository(db)
+    await analytics.record(
+        "approval_decided",
+        {"decision": "approved", "execution_id": str(ex.id)},
+        execution_id=ex.id,
+    )
     await db.flush()
 
     try:
@@ -501,6 +508,13 @@ async def reject_execution(
         db, "approval.rejected", "execution", ex.id,
         {"reason": req.reason},
         cluster_id=ex.cluster_id, principal_id=principal_uuid(principal),
+    )
+    from pinky_api.repositories.analytics import AnalyticsRepository
+    analytics = AnalyticsRepository(db)
+    await analytics.record(
+        "approval_decided",
+        {"decision": "rejected", "execution_id": str(ex.id), "reason": req.reason},
+        execution_id=ex.id,
     )
     await db.flush()
 
