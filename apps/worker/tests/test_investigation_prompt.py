@@ -42,6 +42,12 @@ def _make_evidence(
 def _mock_llm_response(content: str = '```json\n{"summary": "test"}\n```'):
     response = MagicMock()
     response.content = content
+    response.input_tokens = 100
+    response.output_tokens = 50
+    response.model = "gemini-2.0-flash"
+    response.provider = "vertex"
+    response.latency_ms = 1000
+    response.cached = False
     return response
 
 
@@ -50,11 +56,16 @@ def mock_llm():
     router = MagicMock()
     router.complete = AsyncMock(return_value=_mock_llm_response())
     router_cls = MagicMock(return_value=router)
+
+    fake_pool = MagicMock()
+    fake_pool.execute = AsyncMock()
+
     with (
         patch("pinky_worker.llm.provider.LLMRouter", router_cls),
         patch("pinky_worker.llm.vertex_provider.VertexProvider"),
         patch("pinky_worker.llm.redaction.redact_evidence_sections", side_effect=lambda x: x),
         patch("temporalio.activity.heartbeat"),
+        patch("pinky_worker.db.get_pool", AsyncMock(return_value=fake_pool)),
     ):
         yield router
 
