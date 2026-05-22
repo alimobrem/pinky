@@ -106,12 +106,34 @@ async def roi_metrics(since: str = "30d", cluster_id: str | None = None, db: Asy
 
 @router.get("/scanners")
 async def scanner_quality(since: str = "30d", db: AsyncSession = Depends(get_db)) -> dict:
-    from pinky_api.models.observation import Observation
     result = await db.execute(
-        select(Observation.scanner, func.count(Observation.id).label("total"))
-        .group_by(Observation.scanner)
+        text("""
+            SELECT
+                o.scanner,
+                COUNT(*) AS signal_total,
+                COUNT(*) FILTER (WHERE i.status = 'suppressed') AS signal_suppressed,
+                COUNT(*) FILTER (WHERE wi.id IS NOT NULL) AS signal_tasked,
+                COUNT(*) FILTER (WHERE wi.status = 'dismissed') AS signal_dismissed
+            FROM observations o
+            LEFT JOIN issues i ON i.correlation_key = o.correlation_key
+            LEFT JOIN work_items wi ON wi.issue_id = i.id
+            GROUP BY o.scanner
+            ORDER BY signal_total DESC
+        """),
     )
-    scanners = [{"scanner": row.scanner, "signal_total": row.total} for row in result.all()]
+    scanners = []
+    for row in result.all():
+        total = row.signal_total
+        suppressed = row.signal_suppressed
+        dismissed = row.signal_dismissed
+        scanners.append({
+            "scanner": row.scanner,
+            "signal_total": total,
+            "signal_suppressed": suppressed,
+            "signal_tasked": row.signal_tasked,
+            "false_positive_rate": round(dismissed / total, 3) if total > 0 else None,
+            "noise_ratio": round(suppressed / total, 3) if total > 0 else None,
+        })
     return {"scanners": scanners, "period": since}
 
 
@@ -124,7 +146,8 @@ async def trends(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     if metric not in _VALID_METRICS:
-        raise HTTPException(status_code=400, detail=f"Invalid metric: {metric}. Must be one of: {', '.join(_VALID_METRICS)}")
+        valid = ", ".join(_VALID_METRICS)
+        raise HTTPException(status_code=400, detail=f"Invalid metric: {metric}. Must be one of: {valid}")
     delta = _PERIOD_MAP.get(period)
     if delta is None:
         raise HTTPException(status_code=400, detail=f"Invalid period: {period}")
