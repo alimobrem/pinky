@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
 import time
 from dataclasses import dataclass
 from enum import StrEnum
@@ -96,24 +98,26 @@ class LLMRouter:
     def __init__(self) -> None:
         self._providers: list[LLMProviderProtocol] = []
         self._breakers: dict[str, CircuitBreaker] = {}
+        self._semaphore = asyncio.Semaphore(int(os.environ.get("PINKY_LLM_MAX_CONCURRENT", "5")))
 
     def register(self, provider: LLMProviderProtocol) -> None:
         self._providers.append(provider)
         self._breakers[provider.config.name] = CircuitBreaker()
 
     async def complete(self, request: LLMRequest) -> LLMResponse:
-        for provider in self._providers:
-            breaker = self._breakers[provider.config.name]
-            if not breaker.can_execute():
-                continue
+        async with self._semaphore:
+            for provider in self._providers:
+                breaker = self._breakers[provider.config.name]
+                if not breaker.can_execute():
+                    continue
 
-            try:
-                response = await provider.complete(request)
-                breaker.record_success()
-                return response
-            except Exception:
-                logger.exception("LLM provider %s failed", provider.config.name)
-                breaker.record_failure()
-                continue
+                try:
+                    response = await provider.complete(request)
+                    breaker.record_success()
+                    return response
+                except Exception:
+                    logger.exception("LLM provider %s failed", provider.config.name)
+                    breaker.record_failure()
+                    continue
 
-        raise RuntimeError("All LLM providers unavailable")
+            raise RuntimeError("All LLM providers unavailable")

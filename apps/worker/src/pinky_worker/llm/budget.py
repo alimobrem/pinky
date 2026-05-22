@@ -52,3 +52,7 @@ class ExecutionTelemetry:
     latency_ms: int
     cache_hit: bool
     evidence_hash: str
+
+
+class BudgetExhausted(Exception):
+    pass
