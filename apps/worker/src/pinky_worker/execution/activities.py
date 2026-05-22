@@ -120,6 +120,25 @@ async def _emit_command_event(
     })
 
 
+async def _emit_analytics_event(
+    pool: Any, event_type: str, payload: dict,
+    cluster_id: str = "", execution_id: str = "",
+) -> None:
+    try:
+        await pool.execute(
+            """INSERT INTO analytics_events (id, event_type, execution_id, cluster_id, payload, occurred_at)
+               VALUES ($1, $2, $3, $4, $5, $6)""",
+            uuid4(),
+            event_type,
+            UUID(execution_id) if execution_id else None,
+            UUID(cluster_id) if cluster_id else None,
+            json.dumps(payload),
+            datetime.now(UTC),
+        )
+    except Exception:
+        logger.warning("analytics event %s emission failed", event_type, exc_info=True)
+
+
 async def _create_observer_client(cluster_id: str, pool: Any) -> Any:
     """Create a K8s client using the cluster's observer binding credentials."""
     from pinky_worker.observation.k8s_client import create_client
@@ -605,6 +624,23 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
     )
     logger.info("artifact stored: %s", artifact.artifact_id)
 
+    exec_row = await pool.fetchrow(
+        "SELECT work_item_id, cluster_id FROM executions WHERE id = $1",
+        exec_uuid,
+    )
+    await _emit_analytics_event(
+        pool, "investigation_completed",
+        {
+            "artifact_id": artifact.artifact_id,
+            "issue_id": artifact.issue_id,
+            "confidence": artifact.confidence,
+            "evidence_hash": artifact.evidence_hash,
+            "cached": False,
+        },
+        cluster_id=str(exec_row["cluster_id"]) if exec_row and exec_row.get("cluster_id") else "",
+        execution_id=str(exec_uuid),
+    )
+
     # Create approval and populate artifact_refs when remediation steps exist
     normalized_steps = _normalize_steps(artifact.remediation_steps) if artifact.remediation_steps else []
     if artifact.remediation_steps and not normalized_steps:
@@ -746,6 +782,16 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
         wi_id = exec_row["work_item_id"]
         try:
             await transition_work_item(pool, wi_id, "done", payload={"completed_by": "auto_complete"})
+            await _emit_analytics_event(
+                pool, "remediation_completed",
+                {"outcome": "verified_fixed", "work_item_id": str(wi_id)},
+                cluster_id=str(exec_row["cluster_id"]) if exec_row.get("cluster_id") else "",
+                execution_id=str(exec_uuid),
+            )
+            await pool.execute(
+                "UPDATE executions SET outcome = $1 WHERE id = $2",
+                "verified_fixed", exec_uuid,
+            )
             issue_row = await pool.fetchrow(
                 "SELECT issue_id FROM work_items WHERE id = $1", wi_id,
             )
