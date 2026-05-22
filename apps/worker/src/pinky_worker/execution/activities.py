@@ -403,6 +403,8 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str, execution
     from pinky_worker.llm.provider import LLMRequest, LLMRouter, ModelTier
     from pinky_worker.llm.redaction import redact_evidence_sections
     from pinky_worker.llm.vertex_provider import VertexProvider
+    from pinky_worker.db import get_pool
+    pool = await get_pool()
 
     redacted = redact_evidence_sections(evidence.sections)
     evidence_text = "\n\n".join(f"## {k}\n{v}" for k, v in redacted.items())
@@ -471,6 +473,20 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str, execution
         model_tier=ModelTier.REASONING,
         max_tokens=_LLM_MAX_TOKENS,
     ))
+
+    await _emit_event(
+        pool, execution_id, "llm_call", 50,
+        {
+            "model_tier": ModelTier.REASONING.value,
+            "model": response.model,
+            "provider": response.provider,
+            "input_tokens": response.input_tokens,
+            "output_tokens": response.output_tokens,
+            "latency_ms": response.latency_ms,
+            "cache_hit": response.cached,
+            "evidence_hash": evidence.evidence_hash,
+        },
+    )
 
     activity.heartbeat("parsing response")
 
