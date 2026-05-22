@@ -10,6 +10,7 @@ from pinky_api.db.deps import get_db
 from pinky_api.models.execution import Execution
 from pinky_api.models.issue import Issue
 from pinky_api.models.work_item import WorkItem
+from pinky_api.repositories.analytics import AnalyticsRepository
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 
@@ -18,6 +19,15 @@ _SINCE_MAP = {
     "4h": timedelta(hours=4),
     "24h": timedelta(hours=24),
 }
+
+_PERIOD_MAP = {
+    "1d": timedelta(days=1),
+    "7d": timedelta(days=7),
+    "30d": timedelta(days=30),
+    "90d": timedelta(days=90),
+}
+
+_VALID_METRICS = {"token_usage", "issues_resolved", "cache_hit_rate", "scanner_signals"}
 
 
 @router.get("/watch-summary")
@@ -103,6 +113,54 @@ async def scanner_quality(since: str = "30d", db: AsyncSession = Depends(get_db)
     )
     scanners = [{"scanner": row.scanner, "signal_total": row.total} for row in result.all()]
     return {"scanners": scanners, "period": since}
+
+
+@router.get("/trends")
+async def trends(
+    metric: str = "token_usage",
+    period: str = "7d",
+    bucket: str = "day",
+    cluster_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    if metric not in _VALID_METRICS:
+        raise HTTPException(status_code=400, detail=f"Invalid metric: {metric}. Must be one of: {', '.join(_VALID_METRICS)}")
+    delta = _PERIOD_MAP.get(period)
+    if delta is None:
+        raise HTTPException(status_code=400, detail=f"Invalid period: {period}")
+    end = datetime.now(UTC)
+    start = end - delta
+    repo = AnalyticsRepository(db)
+
+    if metric == "token_usage":
+        buckets = await repo.get_token_usage_by_period(start, end, bucket)
+    elif metric == "issues_resolved":
+        result = await db.execute(
+            text("""
+                SELECT date_trunc(:bucket, resolved_at) AS ts, COUNT(*) AS value
+                FROM issues WHERE status = 'resolved' AND resolved_at BETWEEN :start AND :end
+                GROUP BY ts ORDER BY ts
+            """),
+            {"bucket": bucket, "start": start, "end": end},
+        )
+        buckets = [{"timestamp": r.ts.isoformat(), "value": r.value} for r in result.all()]
+    elif metric == "cache_hit_rate":
+        cache_data = await repo.get_cache_hit_rate(start, end)
+        buckets = [{"timestamp": start.isoformat(), "value": cache_data["rate"]}]
+    elif metric == "scanner_signals":
+        result = await db.execute(
+            text("""
+                SELECT date_trunc(:bucket, observed_at) AS ts, COUNT(*) AS value
+                FROM observations WHERE observed_at BETWEEN :start AND :end
+                GROUP BY ts ORDER BY ts
+            """),
+            {"bucket": bucket, "start": start, "end": end},
+        )
+        buckets = [{"timestamp": r.ts.isoformat(), "value": r.value} for r in result.all()]
+    else:
+        buckets = []
+
+    return {"metric": metric, "period": period, "bucket_size": bucket, "buckets": buckets}
 
 
 @router.get("/export")
