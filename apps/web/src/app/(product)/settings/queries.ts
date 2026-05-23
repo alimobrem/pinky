@@ -86,8 +86,34 @@ export const analyticsScannersOptions = (since = "30d") =>
     queryKey: QUERY_KEYS.analyticsScanners(since),
     queryFn: () =>
       api.get<{
-        scanners: { scanner: string; signal_total: number }[];
+        scanners: {
+          scanner: string;
+          signal_total: number;
+          signal_suppressed: number;
+          signal_tasked: number;
+          false_positive_rate: number;
+          noise_ratio: number;
+        }[];
         period: string;
       }>(`/api/v1/analytics/scanners?since=${since}`),
+    staleTime: 60_000,
+  });
+
+export const analyticsTrendsOptions = (metric: string, period = "7d", bucket = "day") =>
+  queryOptions({
+    queryKey: ["analytics-trends", metric, period, bucket] as const,
+    queryFn: () =>
+      api.get<{
+        metric: string;
+        period: string;
+        bucket_size: string;
+        buckets: {
+          timestamp: string;
+          value?: number;
+          input_tokens?: number;
+          output_tokens?: number;
+          call_count?: number;
+        }[];
+      }>(`/api/v1/analytics/trends?metric=${metric}&period=${period}&bucket=${bucket}`),
     staleTime: 60_000,
   });
