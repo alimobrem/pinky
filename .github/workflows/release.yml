@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: quay.io/amobrem
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Build API image
+        run: docker build -f infra/docker/Dockerfile.api -t ${{ env.REGISTRY }}/pinky-api:${{ steps.version.outputs.VERSION }} .
+
+      - name: Build Web image
+        run: docker build -f infra/docker/Dockerfile.web -t ${{ env.REGISTRY }}/pinky-web:${{ steps.version.outputs.VERSION }} .
+
+      - name: Build Worker image
+        run: docker build -f infra/docker/Dockerfile.worker -t ${{ env.REGISTRY }}/pinky-worker:${{ steps.version.outputs.VERSION }} .
+
+      - name: Scan images with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/pinky-api:${{ steps.version.outputs.VERSION }}
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+
+      - name: Push images
+        run: |
+          docker push ${{ env.REGISTRY }}/pinky-api:${{ steps.version.outputs.VERSION }}
+          docker push ${{ env.REGISTRY }}/pinky-web:${{ steps.version.outputs.VERSION }}
+          docker push ${{ env.REGISTRY }}/pinky-worker:${{ steps.version.outputs.VERSION }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign images
+        run: |
+          cosign sign --yes ${{ env.REGISTRY }}/pinky-api:${{ steps.version.outputs.VERSION }}
+          cosign sign --yes ${{ env.REGISTRY }}/pinky-web:${{ steps.version.outputs.VERSION }}
+          cosign sign --yes ${{ env.REGISTRY }}/pinky-worker:${{ steps.version.outputs.VERSION }}
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/pinky-api:${{ steps.version.outputs.VERSION }}
+          artifact-name: sbom-api.spdx.json
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            sbom-api.spdx.json
