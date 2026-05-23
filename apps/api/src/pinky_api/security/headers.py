@@ -16,6 +16,7 @@ CSP_DIRECTIVES = {
     "frame-ancestors": "'none'",
     "base-uri": "'self'",
     "form-action": "'self'",
+    "report-uri": "/api/v1/csp-report",
 }
 
 CSP_HEADER = "; ".join(f"{k} {v}" for k, v in CSP_DIRECTIVES.items())

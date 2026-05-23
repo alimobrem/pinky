@@ -176,6 +176,19 @@ async def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post("/api/v1/csp-report", status_code=204)
+async def csp_report(request: Request) -> Response:
+    body = await request.json()
+    report = body.get("csp-report", {})
+    logger.warning(
+        "csp_violation",
+        document_uri=report.get("document-uri"),
+        violated_directive=report.get("violated-directive"),
+        blocked_uri=report.get("blocked-uri"),
+    )
+    return Response(status_code=204)
+
+
 @app.get("/api/v1/readyz")
 async def readyz() -> JSONResponse:
     import pinky_api.auth._state as auth_state
