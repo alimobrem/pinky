@@ -1,4 +1,4 @@
-.PHONY: dev dev-infra dev-api dev-worker dev-web dev-web-clean lint typecheck test verify clean db-upgrade db-migrate db-retention docker-build docker-push helm-lint helm-template deploy
+.PHONY: dev dev-infra dev-api dev-worker dev-web dev-web-clean lint typecheck test verify clean db-upgrade db-migrate db-retention chaos-test docker-build docker-push helm-lint helm-template deploy
 
 # Development
 CONTAINER_ENGINE ?= podman
@@ -54,6 +54,10 @@ db-migrate:
 
 db-retention:
 	./scripts/retention.sh
+
+# Chaos tests
+chaos-test:
+	cd tests && python -m pytest chaos/ -v -m chaos
 
 # Docker
 REGISTRY ?= $(shell oc registry info 2>/dev/null || echo "localhost:5000")
