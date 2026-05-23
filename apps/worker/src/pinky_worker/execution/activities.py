@@ -419,10 +419,10 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str, execution
     """Run LLM-powered investigation using the matching skill definition."""
     activity.heartbeat("running investigation")
 
+    from pinky_worker.db import get_pool
     from pinky_worker.llm.provider import LLMRequest, LLMRouter, ModelTier
     from pinky_worker.llm.redaction import redact_evidence_sections
     from pinky_worker.llm.vertex_provider import VertexProvider
-    from pinky_worker.db import get_pool
     pool = await get_pool()
 
     redacted = redact_evidence_sections(evidence.sections)
