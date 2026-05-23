@@ -127,3 +127,6 @@ llm:
 
 debug: false
 logLevel: INFO
+
+observability:
+  otlpEndpoint: ""

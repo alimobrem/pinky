@@ -20,6 +20,11 @@ dependencies = [
     "python-multipart>=0.0.18",
     "temporalio>=1.9.0",
     "pyyaml>=6.0",
+    "opentelemetry-api>=1.27.0",
+    "opentelemetry-sdk>=1.27.0",
+    "opentelemetry-instrumentation-fastapi>=0.48b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.48b0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.27.0",
 ]
 
 [project.optional-dependencies]

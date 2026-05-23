@@ -37,6 +37,8 @@ logger = structlog.get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    import os
+
     import redis.asyncio as aioredis
 
     import pinky_api.auth._state as auth_state
@@ -52,6 +54,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         idle_timeout_minutes=settings.auth.session_idle_timeout_minutes,
         absolute_timeout_hours=settings.auth.session_absolute_timeout_hours,
     )
+
+    # OpenTelemetry initialization (opt-in via OTEL_EXPORTER_OTLP_ENDPOINT)
+    otel_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if otel_endpoint:
+        from opentelemetry import trace
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+        resource = Resource.create({"service.name": "pinky-api"})
+        provider = TracerProvider(resource=resource)
+        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+        trace.set_tracer_provider(provider)
+        FastAPIInstrumentor.instrument_app(app)
+        SQLAlchemyInstrumentor().instrument()
+        logger.info("OpenTelemetry initialized", endpoint=otel_endpoint)
 
     yield
 

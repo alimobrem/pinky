@@ -40,3 +40,9 @@ data:
   PINKY_AUTH__OIDC_ISSUER_URL: {{ .Values.auth.oidc.issuerUrl | quote }}
   PINKY_AUTH__OIDC_CLIENT_ID: {{ .Values.auth.oidc.clientId | quote }}
   {{- end }}
+  OTEL_SERVICE_NAME: pinky-api
+  {{- if .Values.observability }}
+  {{- if .Values.observability.otlpEndpoint }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.observability.otlpEndpoint | quote }}
+  {{- end }}
+  {{- end }}
