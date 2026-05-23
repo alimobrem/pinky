@@ -1,0 +1,9 @@
+{
+  "minimum_scores": {
+    "structure": 1.0,
+    "safety": 1.0,
+    "relevance": 0.5,
+    "redaction": 1.0
+  },
+  "description": "Minimum acceptable grader scores. CI fails if any fixture drops below these."
+}
