@@ -106,3 +106,35 @@ class AnalyticsRepository(BaseRepository):
             "p50_seconds": row.p50 if row and row.p50 else None,
             "p95_seconds": row.p95 if row and row.p95 else None,
         }
+
+    async def get_scanner_quality(self) -> list[dict]:
+        """Get scanner quality metrics (signal counts, FP rate, noise ratio)."""
+        result = await self.session.execute(
+            text("""
+                SELECT
+                    o.scanner,
+                    COUNT(*) AS signal_total,
+                    COUNT(*) FILTER (WHERE i.status = 'suppressed') AS signal_suppressed,
+                    COUNT(*) FILTER (WHERE wi.id IS NOT NULL) AS signal_tasked,
+                    COUNT(*) FILTER (WHERE wi.status = 'dismissed') AS signal_dismissed
+                FROM observations o
+                LEFT JOIN issues i ON i.correlation_key = o.correlation_key
+                LEFT JOIN work_items wi ON wi.issue_id = i.id
+                GROUP BY o.scanner
+                ORDER BY signal_total DESC
+            """),
+        )
+        scanners = []
+        for row in result.all():
+            total = row.signal_total
+            suppressed = row.signal_suppressed
+            dismissed = row.signal_dismissed
+            scanners.append({
+                "scanner": row.scanner,
+                "signal_total": total,
+                "signal_suppressed": suppressed,
+                "signal_tasked": row.signal_tasked,
+                "false_positive_rate": round(dismissed / total, 3) if total > 0 else None,
+                "noise_ratio": round(suppressed / total, 3) if total > 0 else None,
+            })
+        return scanners

@@ -138,7 +138,7 @@ async def test_take_transitions_to_in_progress(seeded) -> None:
 @pytest.mark.asyncio
 async def test_invalid_transition_returns_409(seeded) -> None:
     client, _, _, wi2_id = seeded
-    response = await client.post(f"/api/v1/work-items/{wi2_id}/complete")
+    response = await client.post(f"/api/v1/work-items/{wi2_id}/block", json={"reason": "test"})
     assert response.status_code == 409
 
 

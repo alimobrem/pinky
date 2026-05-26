@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { analyticsRoiOptions, analyticsScannersOptions, analyticsTrendsOptions } from "../queries";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -44,29 +44,48 @@ export function AnalyticsTab() {
   const completionRate = m ? Math.round(m.task_completion_rate * 100) : 0;
   const resolutionRate = m && m.issues_total > 0 ? Math.round((m.issues_resolved / m.issues_total) * 100) : 0;
 
-  const tokenChartData = tokenTrend?.buckets.map((b) => ({
-    timestamp: b.timestamp,
-    total: (b.input_tokens ?? 0) + (b.output_tokens ?? 0),
-  })) ?? [];
+  const tokenChartData = useMemo(
+    () =>
+      tokenTrend?.buckets.map((b) => ({
+        timestamp: b.timestamp,
+        total: (b.input_tokens ?? 0) + (b.output_tokens ?? 0),
+      })) ?? [],
+    [tokenTrend]
+  );
 
-  const cacheChartData = cacheHitTrend?.buckets.map((b) => ({
-    timestamp: b.timestamp,
-    rate: b.value ?? 0,
-  })) ?? [];
+  const cacheChartData = useMemo(
+    () =>
+      cacheHitTrend?.buckets.map((b) => ({
+        timestamp: b.timestamp,
+        rate: b.value ?? 0,
+      })) ?? [],
+    [cacheHitTrend]
+  );
 
-  const totalTokens = tokenChartData.reduce((sum, d) => sum + d.total, 0);
-  const avgCacheHitRate = cacheChartData.length > 0
-    ? Math.round((cacheChartData.reduce((sum, d) => sum + d.rate, 0) / cacheChartData.length) * 100)
-    : 0;
+  const totalTokens = useMemo(
+    () => tokenChartData.reduce((sum, d) => sum + d.total, 0),
+    [tokenChartData]
+  );
 
-  const sortedScanners = scanners?.scanners
-    ? [...scanners.scanners].sort((a, b) => {
-        const aVal = a[sortField];
-        const bVal = b[sortField];
-        const dir = sortDir === "asc" ? 1 : -1;
-        return aVal < bVal ? -dir : aVal > bVal ? dir : 0;
-      })
-    : [];
+  const avgCacheHitRate = useMemo(
+    () =>
+      cacheChartData.length > 0
+        ? Math.round((cacheChartData.reduce((sum, d) => sum + d.rate, 0) / cacheChartData.length) * 100)
+        : 0,
+    [cacheChartData]
+  );
+
+  const sortedScanners = useMemo(() => {
+    if (!scanners?.scanners) return [];
+    const list = [...scanners.scanners];
+    list.sort((a, b) => {
+      const aVal = a[sortField];
+      const bVal = b[sortField];
+      const dir = sortDir === "asc" ? 1 : -1;
+      return aVal < bVal ? -dir : aVal > bVal ? dir : 0;
+    });
+    return list;
+  }, [scanners, sortField, sortDir]);
 
   const handleSort = (field: keyof ScannerMetric) => {
     if (sortField === field) {

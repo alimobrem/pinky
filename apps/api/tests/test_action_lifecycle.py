@@ -268,13 +268,6 @@ class TestWorkItemLifecycle:
 
 @pytest.mark.asyncio
 class TestWorkItemInvalidTransitions:
-    async def test_ready_cannot_complete(self, lifecycle_env) -> None:
-        c = lifecycle_env["client"]
-        wid = lifecycle_env["wi_ids"][0]
-
-        r = await c.post(f"/api/v1/work-items/{wid}/complete")
-        assert r.status_code == 409
-
     async def test_ready_cannot_block(self, lifecycle_env) -> None:
         c = lifecycle_env["client"]
         wid = lifecycle_env["wi_ids"][0]

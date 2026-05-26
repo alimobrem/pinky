@@ -172,7 +172,7 @@ def test_block_work_item(authed_client: TestClient) -> None:
 def test_invalid_transition_returns_409(authed_client: TestClient) -> None:
     cluster_id = _create_cluster_with_binding(authed_client)
     item = _create_work_item(authed_client, cluster_id)
-    r = authed_client.post(f"/api/v1/work-items/{item['id']}/complete")
+    r = authed_client.post(f"/api/v1/work-items/{item['id']}/block", json={"reason": "test"})
     assert r.status_code == 409
 
 

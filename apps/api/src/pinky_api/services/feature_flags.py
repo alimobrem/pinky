@@ -4,12 +4,13 @@ from __future__ import annotations
 import time
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import case, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.models.feature_flag import FeatureFlag
 
 _CACHE_TTL = 30
+_MAX_CACHE_SIZE = 10_000
 _cache: dict[str, tuple[float, bool]] = {}
 
 
@@ -32,31 +33,39 @@ async def is_enabled(
         if now - cached_at < _CACHE_TTL:
             return value
 
-    for scope_type, scope_id in [
-        ("principal", principal_id),
-        ("cluster", cluster_id),
-        ("global", None),
-    ]:
-        if scope_type != "global" and scope_id is None:
-            continue
-
-        stmt = select(FeatureFlag).where(
-            FeatureFlag.flag_name == flag_name, FeatureFlag.scope_type == scope_type
+    scope_filters = [FeatureFlag.scope_type == "global"]
+    if principal_id:
+        scope_filters.append(
+            (FeatureFlag.scope_type == "principal") & (FeatureFlag.scope_id == principal_id)
         )
-        stmt = (
-            stmt.where(FeatureFlag.scope_id == scope_id)
-            if scope_id
-            else stmt.where(FeatureFlag.scope_id.is_(None))
+    if cluster_id:
+        scope_filters.append(
+            (FeatureFlag.scope_type == "cluster") & (FeatureFlag.scope_id == cluster_id)
         )
 
-        result = await db.execute(stmt)
-        flag = result.scalar_one_or_none()
-        if flag is not None:
-            _cache[cache_key] = (now, flag.enabled)
-            return flag.enabled
+    stmt = (
+        select(FeatureFlag)
+        .where(FeatureFlag.flag_name == flag_name)
+        .where(or_(*scope_filters))
+        .order_by(
+            case(
+                (FeatureFlag.scope_type == "principal", 1),
+                (FeatureFlag.scope_type == "cluster", 2),
+                else_=3,
+            )
+        )
+        .limit(1)
+    )
+    result = await db.execute(stmt)
+    flag = result.scalar_one_or_none()
+    enabled = flag.enabled if flag is not None else False
 
-    _cache[cache_key] = (now, False)
-    return False
+    if len(_cache) >= _MAX_CACHE_SIZE:
+        oldest_key = min(_cache, key=lambda k: _cache[k][0])
+        del _cache[oldest_key]
+
+    _cache[cache_key] = (now, enabled)
+    return enabled
 
 
 def clear_cache() -> None:

@@ -106,34 +106,8 @@ async def roi_metrics(since: str = "30d", cluster_id: str | None = None, db: Asy
 
 @router.get("/scanners")
 async def scanner_quality(since: str = "30d", db: AsyncSession = Depends(get_db)) -> dict:
-    result = await db.execute(
-        text("""
-            SELECT
-                o.scanner,
-                COUNT(*) AS signal_total,
-                COUNT(*) FILTER (WHERE i.status = 'suppressed') AS signal_suppressed,
-                COUNT(*) FILTER (WHERE wi.id IS NOT NULL) AS signal_tasked,
-                COUNT(*) FILTER (WHERE wi.status = 'dismissed') AS signal_dismissed
-            FROM observations o
-            LEFT JOIN issues i ON i.correlation_key = o.correlation_key
-            LEFT JOIN work_items wi ON wi.issue_id = i.id
-            GROUP BY o.scanner
-            ORDER BY signal_total DESC
-        """),
-    )
-    scanners = []
-    for row in result.all():
-        total = row.signal_total
-        suppressed = row.signal_suppressed
-        dismissed = row.signal_dismissed
-        scanners.append({
-            "scanner": row.scanner,
-            "signal_total": total,
-            "signal_suppressed": suppressed,
-            "signal_tasked": row.signal_tasked,
-            "false_positive_rate": round(dismissed / total, 3) if total > 0 else None,
-            "noise_ratio": round(suppressed / total, 3) if total > 0 else None,
-        })
+    repo = AnalyticsRepository(db)
+    scanners = await repo.get_scanner_quality()
     return {"scanners": scanners, "period": since}
 
 
