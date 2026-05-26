@@ -22,6 +22,7 @@ from pinky_api.routes.analytics import router as analytics_router
 from pinky_api.routes.api_tokens import router as api_tokens_router
 from pinky_api.routes.definitions import router as definitions_router
 from pinky_api.routes.executions import router as executions_router
+from pinky_api.routes.feature_flags import router as feature_flags_router
 from pinky_api.routes.history import router as history_router
 from pinky_api.routes.issues import router as issues_router
 from pinky_api.routes.policy_rules import router as policy_rules_router
@@ -116,6 +117,7 @@ app.include_router(issues_router)
 app.include_router(history_router)
 app.include_router(alerts_router)
 app.include_router(executions_router)
+app.include_router(feature_flags_router)
 app.include_router(streams_router)
 app.include_router(definitions_router)
 app.include_router(webhooks_router)
