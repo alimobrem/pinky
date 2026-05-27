@@ -105,7 +105,12 @@ class LLMRouter:
         self._breakers[provider.config.name] = CircuitBreaker()
 
     async def complete(self, request: LLMRequest) -> LLMResponse:
-        async with self._semaphore:
+        timeout = TIER_TIMEOUTS.get(request.model_tier, 120)
+        try:
+            await asyncio.wait_for(self._semaphore.acquire(), timeout=timeout)
+        except asyncio.TimeoutError:
+            raise RuntimeError("LLM concurrency limit reached, request timed out")
+        try:
             for provider in self._providers:
                 breaker = self._breakers[provider.config.name]
                 if not breaker.can_execute():
@@ -121,3 +126,5 @@ class LLMRouter:
                     continue
 
             raise RuntimeError("All LLM providers unavailable")
+        finally:
+            self._semaphore.release()

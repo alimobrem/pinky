@@ -107,6 +107,32 @@ class AnalyticsRepository(BaseRepository):
             "p95_seconds": row.p95 if row and row.p95 else None,
         }
 
+    async def get_issues_resolved_by_period(
+        self, start: datetime, end: datetime, bucket: str = "day",
+    ) -> list[dict]:
+        result = await self.session.execute(
+            text("""
+                SELECT date_trunc(:bucket, resolved_at) AS ts, COUNT(*) AS value
+                FROM issues WHERE status = 'resolved' AND resolved_at BETWEEN :start AND :end
+                GROUP BY ts ORDER BY ts
+            """),
+            {"bucket": bucket, "start": start, "end": end},
+        )
+        return [{"timestamp": r.ts.isoformat(), "value": r.value} for r in result.all()]
+
+    async def get_scanner_signals_by_period(
+        self, start: datetime, end: datetime, bucket: str = "day",
+    ) -> list[dict]:
+        result = await self.session.execute(
+            text("""
+                SELECT date_trunc(:bucket, observed_at) AS ts, COUNT(*) AS value
+                FROM observations WHERE observed_at BETWEEN :start AND :end
+                GROUP BY ts ORDER BY ts
+            """),
+            {"bucket": bucket, "start": start, "end": end},
+        )
+        return [{"timestamp": r.ts.isoformat(), "value": r.value} for r in result.all()]
+
     async def get_scanner_quality(self) -> list[dict]:
         """Get scanner quality metrics (signal counts, FP rate, noise ratio)."""
         result = await self.session.execute(

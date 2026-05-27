@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.db.deps import get_db
@@ -132,28 +132,12 @@ async def trends(
     if metric == "token_usage":
         buckets = await repo.get_token_usage_by_period(start, end, bucket)
     elif metric == "issues_resolved":
-        result = await db.execute(
-            text("""
-                SELECT date_trunc(:bucket, resolved_at) AS ts, COUNT(*) AS value
-                FROM issues WHERE status = 'resolved' AND resolved_at BETWEEN :start AND :end
-                GROUP BY ts ORDER BY ts
-            """),
-            {"bucket": bucket, "start": start, "end": end},
-        )
-        buckets = [{"timestamp": r.ts.isoformat(), "value": r.value} for r in result.all()]
+        buckets = await repo.get_issues_resolved_by_period(start, end, bucket)
     elif metric == "cache_hit_rate":
         cache_data = await repo.get_cache_hit_rate(start, end)
         buckets = [{"timestamp": start.isoformat(), "value": cache_data["rate"]}]
     elif metric == "scanner_signals":
-        result = await db.execute(
-            text("""
-                SELECT date_trunc(:bucket, observed_at) AS ts, COUNT(*) AS value
-                FROM observations WHERE observed_at BETWEEN :start AND :end
-                GROUP BY ts ORDER BY ts
-            """),
-            {"bucket": bucket, "start": start, "end": end},
-        )
-        buckets = [{"timestamp": r.ts.isoformat(), "value": r.value} for r in result.all()]
+        buckets = await repo.get_scanner_signals_by_period(start, end, bucket)
     else:
         buckets = []
 
