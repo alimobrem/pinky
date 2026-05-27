@@ -115,7 +115,7 @@ async def test_observer_clean_scan() -> None:
         return HEALTHY_PODS
 
     with (
-        patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
+        patch("pinky_worker.observation.observer._create_cluster_client", return_value=mock_client),
         patch("pinky_worker.observation.observer._fetch_for_scanner", side_effect=mock_fetch),
     ):
         await observe_cluster(
@@ -139,7 +139,7 @@ async def test_observer_detects_crash_loop() -> None:
         return UNHEALTHY_PODS
 
     with (
-        patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
+        patch("pinky_worker.observation.observer._create_cluster_client", return_value=mock_client),
         patch("pinky_worker.observation.observer._fetch_for_scanner", side_effect=mock_fetch),
         patch("pinky_worker.observation.observer._get_reopen_count", return_value=0),
     ):
@@ -164,7 +164,7 @@ async def test_observer_closes_client_on_error() -> None:
         raise RuntimeError("K8s down")
 
     with (
-        patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
+        patch("pinky_worker.observation.observer._create_cluster_client", return_value=mock_client),
         patch("pinky_worker.observation.observer._fetch_for_scanner", side_effect=mock_fetch_error),
     ):
         await observe_cluster(
@@ -189,7 +189,7 @@ async def test_observer_runs_multiple_cycles() -> None:
         return HEALTHY_PODS
 
     with (
-        patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
+        patch("pinky_worker.observation.observer._create_cluster_client", return_value=mock_client),
         patch("pinky_worker.observation.observer._fetch_for_scanner", side_effect=mock_fetch),
     ):
         await observe_cluster(
@@ -237,7 +237,7 @@ async def test_observer_skips_scanner_without_checks() -> None:
     mock_correlator = AsyncMock()
 
     with (
-        patch("pinky_worker.observation.observer.create_client", return_value=mock_client),
+        patch("pinky_worker.observation.observer._create_cluster_client", return_value=mock_client),
         patch("pinky_worker.observation.observer._fetch_for_scanner") as mock_fetch,
     ):
         await observe_cluster(
