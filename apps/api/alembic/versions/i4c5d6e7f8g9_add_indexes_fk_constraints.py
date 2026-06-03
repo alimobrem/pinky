@@ -14,6 +14,9 @@ depends_on = None
 
 
 def upgrade() -> None:
+    op.execute(
+        "DELETE FROM execution_events WHERE execution_id NOT IN (SELECT id FROM executions)"
+    )
     op.create_foreign_key(
         "fk_execution_events_execution_id",
         "execution_events",
