@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -55,22 +55,21 @@ export function DashboardView() {
     staleTime: 30_000,
   });
 
-  const isLoading = tasksLoading || issuesLoading || historyLoading || clustersLoading || summaryLoading;
   const hasError = tasksError || issuesError || historyError || clustersError;
 
   const items = tasks?.items ?? [];
-  const readyCount = items.filter((t) => t.status === "ready").length;
-  const activeCount = items.filter((t) =>
-    t.status === "in_progress",
-  ).length;
-  const blockedCount = items.filter((t) => t.status === "blocked").length;
-  const approvalCount = items.filter(
-    (t) => t.status === "waiting_for_approval",
-  ).length;
+  const { readyCount, activeCount, blockedCount, approvalCount } = useMemo(() => ({
+    readyCount: items.filter((t) => t.status === "ready").length,
+    activeCount: items.filter((t) => t.status === "in_progress").length,
+    blockedCount: items.filter((t) => t.status === "blocked").length,
+    approvalCount: items.filter((t) => t.status === "waiting_for_approval").length,
+  }), [items]);
   const issueCount = issues?.total_count ?? issues?.items?.length ?? 0;
   const clusterList = clusters?.items ?? [];
-  const readyClusters = clusterList.filter((c) => c.onboarding_state === "ready");
-  const degradedClusters = clusterList.filter((c) => c.onboarding_state !== "ready");
+  const { readyClusters, degradedClusters } = useMemo(() => ({
+    readyClusters: clusterList.filter((c) => c.onboarding_state === "ready"),
+    degradedClusters: clusterList.filter((c) => c.onboarding_state !== "ready"),
+  }), [clusterList]);
 
   return (
     <div className="space-y-8">
@@ -81,7 +80,7 @@ export function DashboardView() {
         </p>
       </div>
 
-      {!isLoading && hasError && (
+      {hasError && (
         <Card className="border-status-blocked/30 bg-status-blocked/5">
           <CardContent className="flex items-center gap-3 p-4">
             <AlertTriangle size={18} className="text-status-blocked" />
@@ -92,8 +91,8 @@ export function DashboardView() {
         </Card>
       )}
 
-      {/* Stat cards */}
-      {isLoading ? (
+      {/* Stat cards — render as soon as tasks query resolves */}
+      {tasksLoading ? (
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}>

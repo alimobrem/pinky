@@ -25,17 +25,32 @@ interface EventBusContext {
 
 const EventBusCtx = createContext<EventBusContext | null>(null);
 
+const DEBOUNCE_MS = 500;
+
 export function EventBusProvider({ children }: { children: ReactNode }) {
   const subscribers = useRef(new Map<string, EventHandler>());
+  const pendingEnvelope = useRef<SSEEnvelope | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushToSubscribers = useCallback((envelope: SSEEnvelope) => {
+    for (const handler of subscribers.current.values()) {
+      handler(envelope);
+    }
+  }, []);
 
   const { state, lastUpdated } = useSSE("/api/v1/streams/events", {
     onEvent: {
       update: (data) => {
         try {
           const envelope: SSEEnvelope = typeof data === "string" ? JSON.parse(data) : data;
-          for (const handler of subscribers.current.values()) {
-            handler(envelope);
-          }
+          pendingEnvelope.current = envelope;
+          if (debounceTimer.current) clearTimeout(debounceTimer.current);
+          debounceTimer.current = setTimeout(() => {
+            if (pendingEnvelope.current) {
+              flushToSubscribers(pendingEnvelope.current);
+              pendingEnvelope.current = null;
+            }
+          }, DEBOUNCE_MS);
         } catch (err) {
           console.warn("[EventBus] malformed SSE event:", err);
         }

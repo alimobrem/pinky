@@ -29,7 +29,7 @@ export const tasksOptions = (filters?: TaskFilters & { cursor?: string }) => {
     queryKey: QUERY_KEYS.tasks(filters),
     queryFn: () =>
       api.get<PaginatedResponse<WorkItem>>(`/api/v1/work-items?${qs}`),
-    staleTime: 15_000,
+    staleTime: 30_000,
   });
 };
 
