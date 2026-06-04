@@ -72,11 +72,17 @@ graph LR
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Tasks](docs/screenshots/tasks.png) |
 | **Dashboard** — Fleet overview, stat cards, Brain status, open issues | **Tasks** — Prioritized task inbox with search, filters, and preview |
 | ![Task Detail](docs/screenshots/task-detail.png) | ![Watch](docs/screenshots/watch.png) |
-| **Task Detail** — Brain investigation, confidence score, remediation steps | **Watch** — Live issue feed with severity filtering and SSE updates |
-| ![History](docs/screenshots/history.png) | ![Analytics](docs/screenshots/analytics.png) |
-| **History** — Audit trail of all events across the fleet | **Analytics** — ROI metrics, token usage, cache hit rate, scanner quality |
-| ![Definitions](docs/screenshots/settings-definitions.png) | ![Login](docs/screenshots/login.png) |
-| **Definitions** — 64 markdown-driven scanners, tools, skills, policies | **Login** — OpenShift OAuth + external OIDC |
+| **Task Detail** — Brain investigation, confidence score, remediation steps | **Watch** — Live issue feed with severity filtering and SSE |
+| ![Signals](docs/screenshots/watch-signals.png) | ![History](docs/screenshots/history.png) |
+| **Signals** — Raw observations by scanner, check, severity, and resource | **History** — Audit trail of all events across the fleet |
+| ![Analytics](docs/screenshots/analytics.png) | ![Definitions](docs/screenshots/settings-definitions.png) |
+| **Analytics** — ROI metrics, token usage, cache hit rate, scanner quality | **Definitions** — 64 markdown-driven scanners, tools, skills, policies |
+| ![Rules](docs/screenshots/settings-rules.png) | ![Webhooks](docs/screenshots/settings-webhooks.png) |
+| **Rules** — Declarative policy rules with priority ordering | **Webhooks** — Outbound webhook subscriptions for event delivery |
+| ![Access](docs/screenshots/settings-access.png) | ![API Tokens](docs/screenshots/settings-tokens.png) |
+| **Access** — Principal management and cluster bindings | **API Tokens** — Long-lived tokens for CLI and CI automation |
+| ![Maintenance](docs/screenshots/settings-maintenance.png) | ![Login](docs/screenshots/login.png) |
+| **Maintenance** — System health, stale task cleanup, diagnostics | **Login** — OpenShift OAuth + external OIDC |
 
 ## Quick Start
 
