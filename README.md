@@ -84,6 +84,20 @@ graph LR
 | ![Maintenance](docs/screenshots/settings-maintenance.png) | ![Login](docs/screenshots/login.png) |
 | **Maintenance** — System health, stale task cleanup, diagnostics | **Login** — OpenShift OAuth + external OIDC |
 
+<details>
+<summary><strong>More screenshots</strong> — Task detail views, Brain chat, cluster detail</summary>
+
+| | |
+|:---:|:---:|
+| ![Remediation](docs/screenshots/task-detail-actions.png) | ![Reasoning](docs/screenshots/task-detail-reasoning.png) |
+| **Remediation Steps** — Selectable actions with risk badges and "Apply" button | **Investigation Reasoning** — Full Brain analysis with root cause details |
+| ![Timeline](docs/screenshots/task-detail-timeline.png) | ![Brain Chat](docs/screenshots/brain-chat.png) |
+| **Timeline** — Execution lifecycle from evidence gathering to completion | **Brain Chat** — Conversational interface with suggestion chips |
+| ![Cluster Detail](docs/screenshots/cluster-detail.png) | |
+| **Cluster Detail** — Overview, nodes, namespaces, issues, events tabs | |
+
+</details>
+
 ## Quick Start
 
 ### Prerequisites
