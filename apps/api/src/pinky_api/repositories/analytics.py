@@ -57,21 +57,15 @@ class AnalyticsRepository(BaseRepository):
         self, start: datetime, end: datetime, cluster_id: str | None = None,
     ) -> dict:
         params: dict = {"start": start, "end": end}
-        cluster_filter = ""
-        if cluster_id:
-            cluster_filter = "AND e.cluster_id = :cluster_id"
-            params["cluster_id"] = cluster_id
-        result = await self.session.execute(
-            text(f"""
-                SELECT e.outcome, COUNT(*) as cnt
-                FROM executions e
-                WHERE e.outcome IS NOT NULL
-                  AND e.completed_at BETWEEN :start AND :end
-                  {cluster_filter}
-                GROUP BY e.outcome
-            """),
-            params,
+        base_query = (
+            "SELECT e.outcome, COUNT(*) as cnt FROM executions e "
+            "WHERE e.outcome IS NOT NULL AND e.completed_at BETWEEN :start AND :end"
         )
+        if cluster_id:
+            base_query += " AND e.cluster_id = :cluster_id"
+            params["cluster_id"] = cluster_id
+        base_query += " GROUP BY e.outcome"
+        result = await self.session.execute(text(base_query), params)
         return {row.outcome: row.cnt for row in result.all()}
 
     async def get_cache_hit_rate(self, start: datetime, end: datetime) -> dict:

@@ -108,8 +108,8 @@ class LLMRouter:
         timeout = TIER_TIMEOUTS.get(request.model_tier, 120)
         try:
             await asyncio.wait_for(self._semaphore.acquire(), timeout=timeout)
-        except asyncio.TimeoutError:
-            raise RuntimeError("LLM concurrency limit reached, request timed out")
+        except TimeoutError:
+            raise RuntimeError("LLM concurrency limit reached, request timed out") from None
         try:
             for provider in self._providers:
                 breaker = self._breakers[provider.config.name]

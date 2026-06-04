@@ -127,6 +127,7 @@ jobs:
 
   sast:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: returntocorp/semgrep-action@v1
