@@ -77,12 +77,10 @@ graph LR
 | **Signals** — Raw observations by scanner, check, severity, and resource | **History** — Audit trail of all events across the fleet |
 | ![Analytics](docs/screenshots/analytics.png) | ![Definitions](docs/screenshots/settings-definitions.png) |
 | **Analytics** — ROI metrics, token usage, cache hit rate, scanner quality | **Definitions** — 64 markdown-driven scanners, tools, skills, policies |
-| ![Rules](docs/screenshots/settings-rules.png) | ![Webhooks](docs/screenshots/settings-webhooks.png) |
-| **Rules** — Declarative policy rules with priority ordering | **Webhooks** — Outbound webhook subscriptions for event delivery |
-| ![Access](docs/screenshots/settings-access.png) | ![API Tokens](docs/screenshots/settings-tokens.png) |
-| **Access** — Principal management and cluster bindings | **API Tokens** — Long-lived tokens for CLI and CI automation |
-| ![Maintenance](docs/screenshots/settings-maintenance.png) | ![Login](docs/screenshots/login.png) |
-| **Maintenance** — System health, stale task cleanup, diagnostics | **Login** — OpenShift OAuth + external OIDC |
+| ![Access](docs/screenshots/settings-access.png) | ![Maintenance](docs/screenshots/settings-maintenance.png) |
+| **Access** — Cluster bindings with status and expiry | **Maintenance** — Workflow health checks and stale data cleanup |
+| ![Login](docs/screenshots/login.png) | |
+| **Login** — OpenShift OAuth + external OIDC | |
 
 <details>
 <summary><strong>More screenshots</strong> — Task detail views, Brain chat, cluster detail</summary>
