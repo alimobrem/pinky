@@ -65,6 +65,17 @@ graph LR
     style Done fill:#16a34a,stroke:#15803d,color:#fff
 ```
 
+## Screenshots
+
+| | |
+|:---:|:---:|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Tasks](docs/screenshots/tasks.png) |
+| **Dashboard** — Fleet overview, stat cards, Brain status, open issues | **Tasks** — Prioritized task inbox with search, filters, and preview |
+| ![Watch](docs/screenshots/watch.png) | ![Analytics](docs/screenshots/analytics.png) |
+| **Watch** — Live issue feed with severity filtering and SSE updates | **Analytics** — ROI metrics, token usage, cache hit rate, scanner quality |
+| ![Login](docs/screenshots/login.png) | |
+| **Login** — OpenShift OAuth + external OIDC | |
+
 ## Quick Start
 
 ### Prerequisites
