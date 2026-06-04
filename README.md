@@ -71,10 +71,12 @@ graph LR
 |:---:|:---:|
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Tasks](docs/screenshots/tasks.png) |
 | **Dashboard** — Fleet overview, stat cards, Brain status, open issues | **Tasks** — Prioritized task inbox with search, filters, and preview |
-| ![Watch](docs/screenshots/watch.png) | ![Analytics](docs/screenshots/analytics.png) |
-| **Watch** — Live issue feed with severity filtering and SSE updates | **Analytics** — ROI metrics, token usage, cache hit rate, scanner quality |
-| ![Login](docs/screenshots/login.png) | |
-| **Login** — OpenShift OAuth + external OIDC | |
+| ![Task Detail](docs/screenshots/task-detail.png) | ![Watch](docs/screenshots/watch.png) |
+| **Task Detail** — Brain investigation, confidence score, remediation steps | **Watch** — Live issue feed with severity filtering and SSE updates |
+| ![History](docs/screenshots/history.png) | ![Analytics](docs/screenshots/analytics.png) |
+| **History** — Audit trail of all events across the fleet | **Analytics** — ROI metrics, token usage, cache hit rate, scanner quality |
+| ![Definitions](docs/screenshots/settings-definitions.png) | ![Login](docs/screenshots/login.png) |
+| **Definitions** — 64 markdown-driven scanners, tools, skills, policies | **Login** — OpenShift OAuth + external OIDC |
 
 ## Quick Start
 
