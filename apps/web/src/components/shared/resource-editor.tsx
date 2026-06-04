@@ -45,7 +45,16 @@ export function ResourceEditor({ clusterId, namespace, kind, name }: ResourceEdi
       setOriginalContent(data.yaml);
       setLoaded(true);
     },
-    onError: () => toast.error("Failed to fetch resource"),
+    onError: (err: unknown) => {
+      const status = (err as { status?: number })?.status;
+      if (status === 404) {
+        toast.error("Resource no longer exists on the cluster");
+      } else if (status === 401) {
+        toast.error("Cluster binding expired — reconnect to the cluster");
+      } else {
+        toast.error("Failed to fetch resource");
+      }
+    },
   });
 
   const applyResource = useMutation({
