@@ -8,6 +8,7 @@ creates a session in Redis, and sets the HTTP-only cookie.
 
 import logging
 import secrets
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import RedirectResponse
@@ -174,9 +175,29 @@ async def callback(code: str, state: str, response: Response, db: AsyncSession =
     binding_repo = BindingRepository(db)
     pid = UUID(principal_data["id"])
     existing_bindings = await binding_repo.list_for_principal(pid)
+    bound_cluster_ids = {b.cluster_id for b in existing_bindings}
+
     for binding in existing_bindings:
         enc_token = encrypt(access_token.encode(), aad=f"cluster_identity_bindings:{binding.id}")
         await binding_repo.refresh_token(binding.id, enc_token)
+
+    from pinky_api.repositories.clusters import ClusterRepository
+
+    cluster_repo = ClusterRepository(db)
+    all_clusters = await cluster_repo.list_all()
+    for cluster in all_clusters:
+        if cluster.id not in bound_cluster_ids:
+            new_binding = await binding_repo.create(
+                principal_id=pid,
+                cluster_id=cluster.id,
+                cluster_username=principal_data.get("display_name", ""),
+                binding_method="oauth",
+                status="valid",
+                expires_at=datetime.now(UTC) + timedelta(hours=8),
+            )
+            enc_token = encrypt(access_token.encode(), aad=f"cluster_identity_bindings:{new_binding.id}")
+            await binding_repo.refresh_token(new_binding.id, enc_token)
+            logger.info("auto-created cluster binding for %s on %s", pid, cluster.id)
 
     await db.commit()
 

@@ -15,6 +15,10 @@ class ClusterRepository(BaseRepository):
         stmt = select(ClusterRegistry)
         return await self.paginate(stmt, ClusterRegistry, limit=limit, cursor=cursor)
 
+    async def list_all(self) -> list[ClusterRegistry]:
+        result = await self.session.execute(select(ClusterRegistry))
+        return list(result.scalars().all())
+
     async def get(self, cluster_id: UUID) -> ClusterRegistry | None:
         result = await self.session.execute(
             select(ClusterRegistry).where(ClusterRegistry.id == cluster_id)
