@@ -184,13 +184,19 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     onError: () => toast.error("Failed to start investigation"),
   });
   const startRemediation = useMutation({
-    mutationFn: () =>
-      api.post<Execution>(
+    mutationFn: async () => {
+      const exec = await api.post<Execution>(
         `/api/v1/executions?work_item_id=${encodeURIComponent(taskId)}&execution_type=remediation`,
-      ),
+      );
+      const refs = task?.artifact_refs as Record<string, unknown> | undefined;
+      const digest = (refs?.changeset_digest as string) ?? "";
+      await api.post(`/api/v1/executions/${exec.id}/approve`, { changeset_digest: digest });
+      return exec;
+    },
     onSuccess: () => {
       invalidateAll();
-      toast.success("Remediation started");
+      toast.success("Remediation approved — applying changes...");
+      setTimeout(() => invalidateAll(), 3000);
     },
     onError: (err) => {
       const msg = err instanceof Error ? err.message : "Failed to start remediation";
