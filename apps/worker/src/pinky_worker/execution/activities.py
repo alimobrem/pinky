@@ -536,7 +536,7 @@ async def run_investigation(evidence: EvidenceBundle, skill_body: str, execution
 _VALID_ACTIONS = {"scale", "patch", "delete_pod", "rollback"}
 
 
-def _normalize_step(step: dict) -> dict | None:
+def _normalize_step(step: dict, actual_kind: str = "") -> dict | None:
     kind = step.get("resource_kind", "").lower() or "deployment"
     name = step.get("resource_name", "")
     ns = step.get("resource_namespace", step.get("namespace", "default"))
@@ -552,6 +552,14 @@ def _normalize_step(step: dict) -> dict | None:
     if not name:
         logger.warning("remediation step rejected: no resource name in %s", step)
         return None
+
+    if actual_kind and kind not in _KIND_TO_API and actual_kind.lower() in _KIND_TO_API:
+        logger.info("correcting resource_kind %s -> %s from work item", kind, actual_kind.lower())
+        kind = actual_kind.lower()
+    elif actual_kind and kind in ("deployment", "pod") and actual_kind.lower() != kind:
+        if actual_kind.lower() in _KIND_TO_API:
+            logger.info("correcting LLM resource_kind %s -> %s from work item", kind, actual_kind.lower())
+            kind = actual_kind.lower()
 
     action = step.get("action", "patch")
     if action not in _VALID_ACTIONS:
@@ -571,10 +579,10 @@ def _normalize_step(step: dict) -> dict | None:
     }
 
 
-def _normalize_steps(steps: list[dict]) -> list[dict]:
+def _normalize_steps(steps: list[dict], actual_kind: str = "") -> list[dict]:
     normalized = []
     for s in steps:
-        n = _normalize_step(s)
+        n = _normalize_step(s, actual_kind=actual_kind)
         if n:
             normalized.append(n)
     return normalized
@@ -642,7 +650,17 @@ async def store_artifact(artifact: InvestigationArtifact) -> str:
     )
 
     # Create approval and populate artifact_refs when remediation steps exist
-    normalized_steps = _normalize_steps(artifact.remediation_steps) if artifact.remediation_steps else []
+    actual_kind = artifact.skill_used[:50].split("/")[0] if "/" in artifact.skill_used else ""
+    wi_row = await pool.fetchrow(
+        "SELECT labels FROM work_items WHERE issue_id = $1::uuid LIMIT 1", artifact.issue_id,
+    )
+    if wi_row and wi_row["labels"]:
+        wi_labels = json.loads(wi_row["labels"]) if isinstance(wi_row["labels"], str) else wi_row["labels"]
+        actual_kind = wi_labels.get("kind", actual_kind)
+    normalized_steps = (
+        _normalize_steps(artifact.remediation_steps, actual_kind=actual_kind)
+        if artifact.remediation_steps else []
+    )
     if artifact.remediation_steps and not normalized_steps:
         logger.warning("all remediation steps rejected during normalization")
         return artifact.artifact_id
