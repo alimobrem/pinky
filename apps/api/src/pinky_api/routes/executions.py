@@ -188,12 +188,15 @@ async def start_execution(
         await require_cluster_write_access(wi.cluster_id, principal, db)
         refs = wi.artifact_refs if isinstance(wi.artifact_refs, dict) else {}
         raw_plan_steps = refs.get("plan_steps")
-        binding_value = refs.get("binding_id")
         approval_value = refs.get("approval_id")
         if not isinstance(raw_plan_steps, list) or not raw_plan_steps:
             raise HTTPException(status_code=409, detail="Remediation plan not available for this task")
-        if not isinstance(binding_value, str) or not binding_value:
+        from pinky_api.repositories.bindings import BindingRepository
+        user_binding_repo = BindingRepository(db)
+        user_binding = await user_binding_repo.get_for_cluster(principal_uuid(principal), wi.cluster_id)
+        if not user_binding or user_binding.status not in ("valid", "expiring"):
             raise HTTPException(status_code=409, detail="Cluster binding required before remediation can start")
+        binding_value = str(user_binding.id)
         if not isinstance(approval_value, str) or not approval_value:
             raise HTTPException(status_code=409, detail="Approval is required before remediation can start")
         plan_steps = cast("list[dict[str, Any]]", raw_plan_steps)
