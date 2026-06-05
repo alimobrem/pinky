@@ -873,12 +873,22 @@ _KIND_TO_API: dict[str, tuple[str, str]] = {
     "pod": ("api/v1", "pods"),
     "service": ("api/v1", "services"),
     "configmap": ("api/v1", "configmaps"),
+    "secret": ("api/v1", "secrets"),
+    "namespace": ("api/v1", "namespaces"),
     "deployment": ("apis/apps/v1", "deployments"),
     "statefulset": ("apis/apps/v1", "statefulsets"),
     "daemonset": ("apis/apps/v1", "daemonsets"),
     "replicaset": ("apis/apps/v1", "replicasets"),
     "job": ("apis/batch/v1", "jobs"),
     "cronjob": ("apis/batch/v1", "cronjobs"),
+    "ingress": ("apis/networking.k8s.io/v1", "ingresses"),
+    "networkpolicy": ("apis/networking.k8s.io/v1", "networkpolicies"),
+    "horizontalpodautoscaler": ("apis/autoscaling/v2", "horizontalpodautoscalers"),
+    "hpa": ("apis/autoscaling/v2", "horizontalpodautoscalers"),
+    "rollout": ("apis/argoproj.io/v1alpha1", "rollouts"),
+    "route": ("apis/route.openshift.io/v1", "routes"),
+    "clusterserviceversion": ("apis/operators.coreos.com/v1alpha1", "clusterserviceversions"),
+    "csv": ("apis/operators.coreos.com/v1alpha1", "clusterserviceversions"),
 }
 
 
