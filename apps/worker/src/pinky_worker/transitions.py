@@ -107,7 +107,7 @@ async def transition_execution(
             cluster_id=cluster_id_str,
         )
 
-    if target_status in EXEC_TERMINAL:
+    if target_status in EXEC_TERMINAL and row.get("execution_type") == "remediation":
         await pool.execute(
             "UPDATE approvals SET status = 'invalidated' "
             "WHERE execution_id = $1 AND status = 'pending'",
