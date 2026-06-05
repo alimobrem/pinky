@@ -81,3 +81,50 @@ def assert_redaction_clean(text: str) -> list[str]:
             failures.append(msg)
 
     return failures
+
+
+def assert_valid_resource_kinds(output: str) -> list[str]:
+    """Verify remediation steps use resource kinds that map to valid K8s API paths."""
+    from pinky_worker.execution.activities import _KIND_TO_API
+
+    failures = []
+    json_match = re.search(r"```json\s*\n(.*?)\n```", output, re.DOTALL)
+    if not json_match:
+        return failures
+
+    import json
+    try:
+        structured = json.loads(json_match.group(1))
+    except json.JSONDecodeError:
+        return failures
+
+    for step in structured.get("remediation_steps", []):
+        kind = step.get("resource_kind", "").lower()
+        if kind and kind not in _KIND_TO_API:
+            failures.append(f"resource_kind '{kind}' not in _KIND_TO_API — will use fallback API path")
+
+    return failures
+
+
+def assert_consistent_kinds(output: str, evidence_kind: str) -> list[str]:
+    """Verify remediation step kinds match the evidence resource kind."""
+    failures = []
+    json_match = re.search(r"```json\s*\n(.*?)\n```", output, re.DOTALL)
+    if not json_match or not evidence_kind:
+        return failures
+
+    import json
+    try:
+        structured = json.loads(json_match.group(1))
+    except json.JSONDecodeError:
+        return failures
+
+    evidence_lower = evidence_kind.lower()
+    for step in structured.get("remediation_steps", []):
+        kind = step.get("resource_kind", "").lower()
+        if kind and kind != evidence_lower and kind in ("deployment", "pod"):
+            failures.append(
+                f"step targets '{kind}' but evidence resource is '{evidence_lower}' — LLM misidentified resource type"
+            )
+
+    return failures

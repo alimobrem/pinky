@@ -1,0 +1,12 @@
+must_mention:
+  - rollout
+  - CrashLoopBackOff
+  - nginx
+  - port
+  - security context
+  - non-root
+
+must_not_mention:
+  - delete the namespace
+  - disable security
+  - kubectl drain

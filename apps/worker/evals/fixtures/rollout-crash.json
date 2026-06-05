@@ -1,0 +1,15 @@
+{
+  "resource_kind": "rollout",
+  "resource_namespace": "guestbook",
+  "resource_name": "demo-rollout",
+  "issue_title": "Rollout guestbook/demo-rollout in CrashLoopBackOff",
+  "sections": {
+    "cluster_id": "test-cluster-001",
+    "issue_id": "test-issue-rollout",
+    "issue_title": "Rollout guestbook/demo-rollout in CrashLoopBackOff",
+    "target_resource": "[{\"name\": \"demo-rollout-8854df9b8-rl59g\", \"namespace\": \"guestbook\", \"status\": \"Running\", \"containers\": [{\"name\": \"app\", \"image\": \"nginx:latest\", \"state\": {\"type\": \"waiting\", \"reason\": \"CrashLoopBackOff\"}, \"restart_count\": 12, \"last_state\": {\"type\": \"terminated\", \"reason\": \"Error\", \"exit_code\": 1}}]}]",
+    "events": "[{\"reason\": \"BackOff\", \"message\": \"Back-off restarting failed container app in pod demo-rollout-8854df9b8-rl59g_guestbook\", \"type\": \"Warning\", \"count\": 24}, {\"reason\": \"SecurityContextDenied\", \"message\": \"unable to validate against any security context constraint: [provider restricted-v2: .containers[0].runAsNonRoot != true]\", \"type\": \"Warning\", \"count\": 12}]",
+    "pod_logs": "2026-06-01T10:00:00Z nginx: [emerg] bind() to 0.0.0.0:80 failed (13: Permission denied)\n2026-06-01T10:00:00Z nginx: configuration file /etc/nginx/nginx.conf test failed",
+    "resource_detail": "{\"kind\": \"Rollout\", \"apiVersion\": \"argoproj.io/v1alpha1\", \"metadata\": {\"name\": \"demo-rollout\", \"namespace\": \"guestbook\"}, \"spec\": {\"replicas\": 3, \"strategy\": {\"canary\": {\"steps\": [{\"setWeight\": 20}, {\"pause\": {\"duration\": \"30s\"}}]}}, \"template\": {\"spec\": {\"containers\": [{\"name\": \"app\", \"image\": \"nginx:latest\", \"ports\": [{\"containerPort\": 80}]}]}}}}"
+  }
+}
