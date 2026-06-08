@@ -29,6 +29,7 @@ UNPROTECTED_PATHS = {
     "/api/v1/auth/test-login",
     "/api/v1/csp-report",
     "/metrics",
+    "/api/v1/metrics",
 }
 
 STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
