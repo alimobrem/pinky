@@ -85,12 +85,23 @@ jobs:
           PINKY_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
         run: alembic upgrade head
       - name: Install Temporal CLI
-        run: curl -sSf https://temporal.download/cli.sh | sh && echo "${HOME}/.temporalio/bin" >> "${GITHUB_PATH}"
+        run: |
+          curl -sSf https://temporal.download/cli.sh | sh
+          echo "${HOME}/.temporalio/bin" >> "${GITHUB_PATH}"
+      - name: Start Temporal dev server
+        run: |
+          ${HOME}/.temporalio/bin/temporal server start-dev --headless &
+          sleep 5
+          until ${HOME}/.temporalio/bin/temporal operator cluster health 2>/dev/null; do
+            echo "Waiting for Temporal..."
+            sleep 2
+          done
       - name: Integration tests
         working-directory: apps/worker
         env:
           TEST_DATABASE_URL: postgresql://pinky:pinky@localhost:5432/pinky
-        run: pytest tests/integration/ -v
+        run: pytest tests/integration/ -v --timeout=60
+        timeout-minutes: 5
 
   worker-evals:
     runs-on: ubuntu-latest
