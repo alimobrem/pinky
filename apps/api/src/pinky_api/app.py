@@ -1,3 +1,4 @@
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -7,6 +8,7 @@ import structlog
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
@@ -110,6 +112,34 @@ async def logging_context_middleware(request: Request, call_next) -> Response:
     return response
 
 
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next) -> Response:
+    from pinky_api.metrics import REQUEST_COUNT, REQUEST_LATENCY
+
+    start = time.monotonic()
+    response = await call_next(request)
+    duration = time.monotonic() - start
+
+    endpoint = request.url.path
+    # Normalize dynamic path segments to reduce cardinality
+    parts = endpoint.split("/")
+    normalized = "/".join(
+        ":id" if len(p) > 30 else p for p in parts
+    )
+
+    REQUEST_COUNT.labels(
+        method=request.method,
+        endpoint=normalized,
+        status=response.status_code,
+    ).inc()
+    REQUEST_LATENCY.labels(
+        method=request.method,
+        endpoint=normalized,
+    ).observe(duration)
+
+    return response
+
+
 app.include_router(auth_router)
 app.include_router(fleet_router)
 app.include_router(work_items_router)
@@ -171,6 +201,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
             }
         },
     )
+
+
+@app.get("/metrics")
+async def metrics() -> Response:
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/api/v1/healthz")

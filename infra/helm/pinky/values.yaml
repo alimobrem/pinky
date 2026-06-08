@@ -130,3 +130,5 @@ logLevel: INFO
 
 observability:
   otlpEndpoint: ""
+  serviceMonitor: false
+  scrapeInterval: "30s"

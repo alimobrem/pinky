@@ -1,0 +1,17 @@
+{{- if .Values.observability.serviceMonitor }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "pinky.fullname" . }}
+  labels:
+    {{- include "pinky.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: api
+      {{- include "pinky.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.observability.scrapeInterval | default "30s" }}
+{{- end }}
