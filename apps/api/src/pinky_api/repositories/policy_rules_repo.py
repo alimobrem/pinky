@@ -1,5 +1,7 @@
 """Policy rule repository."""
 
+from __future__ import annotations
+
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
@@ -23,6 +25,12 @@ class PolicyRuleRepository(BaseRepository):
         self.session.add(rule)
         await self.session.flush()
         return rule
+
+    async def list_enabled(self) -> list[PolicyRule]:
+        """Return all enabled rules ordered by priority (for evaluation)."""
+        stmt = select(PolicyRule).where(PolicyRule.enabled.is_(True)).order_by(PolicyRule.priority)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
     async def delete(self, rule_id: UUID) -> bool:
         existing = await self.get(rule_id)

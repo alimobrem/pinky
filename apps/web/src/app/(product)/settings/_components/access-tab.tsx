@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRetryableMutation } from "@/hooks/use-retryable-mutation";
 import type { ClusterRegistryEntry, PaginatedResponse } from "@pinky/contracts";
 import { api } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
@@ -25,7 +26,8 @@ export function AccessTab() {
   const { data: clusters } = useQuery(clustersOptions());
   const [connectOpen, setConnectOpen] = useState(false);
 
-  const refresh = useMutation({
+  const refresh = useRetryableMutation({
+    errorMessage: "Failed to refresh binding",
     mutationFn: (id: string) => api.post(`/api/v1/cluster-bindings/${id}/refresh`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.bindings() });
@@ -33,7 +35,8 @@ export function AccessTab() {
     },
   });
 
-  const revoke = useMutation({
+  const revoke = useRetryableMutation({
+    errorMessage: "Failed to revoke binding",
     mutationFn: (id: string) => api.del(`/api/v1/cluster-bindings/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.bindings() });
@@ -119,7 +122,8 @@ function ConnectClusterDialog({
   const qc = useQueryClient();
   const [clusterId, setClusterId] = useState("");
 
-  const connect = useMutation({
+  const connect = useRetryableMutation({
+    errorMessage: "Failed to connect",
     mutationFn: () =>
       api.post("/api/v1/cluster-bindings", {
         cluster_id: clusterId,
@@ -131,7 +135,6 @@ function ConnectClusterDialog({
       onOpenChange(false);
       toast.success("Cluster connected");
     },
-    onError: () => toast.error("Failed to connect"),
   });
 
   return (

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRetryableMutation } from "@/hooks/use-retryable-mutation";
 import { api } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 import { definitionsOptions } from "../queries";
@@ -36,7 +37,8 @@ export function DefinitionsTab() {
   );
   const kinds = [...new Set((data?.items ?? []).map((d) => d.kind))].sort();
 
-  const del = useMutation({
+  const del = useRetryableMutation({
+    errorMessage: "Failed to delete definition",
     mutationFn: (d: { kind: string; name: string }) =>
       api.del(`/api/v1/definitions/${d.kind}/${d.name}`),
     onSuccess: () => {
@@ -165,7 +167,8 @@ function EditDefinitionDialog({
   const [body, setBody] = useState(definition.body || "");
   const [enabled, setEnabled] = useState(definition.enabled);
 
-  const save = useMutation({
+  const save = useRetryableMutation({
+    errorMessage: "Failed to save definition",
     mutationFn: () =>
       api.post("/api/v1/definitions", {
         kind: definition.kind,
@@ -181,7 +184,6 @@ function EditDefinitionDialog({
       onClose();
       toast.success(isFilesystem ? "Override saved (DB overrides built-in)" : "Definition updated");
     },
-    onError: () => toast.error("Failed to save definition"),
   });
 
   const validJson = (() => {
@@ -280,7 +282,8 @@ function CreateDefinitionDialog({ open, onOpenChange }: { open: boolean; onOpenC
   const [frontmatter, setFrontmatter] = useState("{}");
   const [body, setBody] = useState("");
 
-  const create = useMutation({
+  const create = useRetryableMutation({
+    errorMessage: "Failed to create definition",
     mutationFn: () =>
       api.post("/api/v1/definitions", {
         kind,
@@ -296,7 +299,6 @@ function CreateDefinitionDialog({ open, onOpenChange }: { open: boolean; onOpenC
       onOpenChange(false);
       toast.success("Definition created");
     },
-    onError: () => toast.error("Failed to create definition"),
   });
 
   const valid = name.length > 0 && (() => { try { JSON.parse(frontmatter); return true; } catch { return false; } })();

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRetryableMutation } from "@/hooks/use-retryable-mutation";
 import type { ApiTokenCreateResponse } from "@pinky/contracts";
 import { api } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
@@ -38,13 +39,13 @@ export function TokensTab() {
   const { data } = useQuery(apiTokensOptions());
   const [createOpen, setCreateOpen] = useState(false);
 
-  const revoke = useMutation({
+  const revoke = useRetryableMutation({
+    errorMessage: "Failed to revoke token",
     mutationFn: (id: string) => api.del(`/api/v1/api-tokens/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.apiTokens() });
       toast.success("Token revoked");
     },
-    onError: () => toast.error("Failed to revoke token"),
   });
 
   return (
@@ -87,7 +88,7 @@ export function TokensTab() {
                     <TableCell>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-text-tertiary hover:text-status-blocked">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-text-tertiary hover:text-status-blocked" disabled={revoke.isPending}>
                             <Trash2 size={14} />
                           </Button>
                         </AlertDialogTrigger>
@@ -122,7 +123,8 @@ function CreateTokenDialog({ open, onOpenChange }: { open: boolean; onOpenChange
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const create = useMutation({
+  const create = useRetryableMutation({
+    errorMessage: "Failed to create token",
     mutationFn: () =>
       api.post<ApiTokenCreateResponse>("/api/v1/api-tokens", {
         name,
@@ -134,7 +136,6 @@ function CreateTokenDialog({ open, onOpenChange }: { open: boolean; onOpenChange
       setCreatedToken(data.token);
       toast.success("Token created");
     },
-    onError: () => toast.error("Failed to create token"),
   });
 
   function handleOpenChange(next: boolean) {

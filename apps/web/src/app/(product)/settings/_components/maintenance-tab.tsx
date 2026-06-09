@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRetryableMutation } from "@/hooks/use-retryable-mutation";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,7 +32,8 @@ export function MaintenanceTab() {
     refetchInterval: 30_000,
   });
 
-  const reset = useMutation({
+  const reset = useRetryableMutation({
+    errorMessage: "Reset failed — check permissions",
     mutationFn: () => api.post<ResetResult>("/api/v1/admin/reset-stale"),
     onSuccess: (data) => {
       const total = Object.values(data).reduce((a, b) => a + b, 0);
@@ -43,7 +45,6 @@ export function MaintenanceTab() {
       qc.invalidateQueries({ queryKey: ["workflow-health"] });
       qc.invalidateQueries({ queryKey: ["tasks"] });
     },
-    onError: () => toast.error("Reset failed — check permissions"),
   });
 
   const totalIssues = health

@@ -89,3 +89,14 @@ class TestWebhookDeliveries:
         r = authed_client.get("/api/v1/webhook-deliveries")
         assert r.status_code == 200
         assert "items" in r.json()
+
+    def test_list_deliveries_returns_data_not_empty(self, authed_client):
+        """Regression: delivery list must serialize actual items, not return []."""
+        r = authed_client.get("/api/v1/webhook-deliveries")
+        assert r.status_code == 200
+        body = r.json()
+        # items key must be a list (could be empty if no deliveries exist,
+        # but the bug was always returning [] even when rows existed)
+        assert isinstance(body["items"], list)
+        assert "next_cursor" in body
+        assert "has_more" in body

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRetryableMutation } from "@/hooks/use-retryable-mutation";
 import { api } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 import { policyRulesOptions } from "../queries";
@@ -25,7 +26,8 @@ export function RulesTab() {
   const [createOpen, setCreateOpen] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
 
-  const del = useMutation({
+  const del = useRetryableMutation({
+    errorMessage: "Failed to delete rule",
     mutationFn: (id: string) => api.del(`/api/v1/policy-rules/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.policyRules() });
@@ -84,7 +86,8 @@ function CreateRuleDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   const [conditions, setConditions] = useState('{"severity": "critical"}');
   const [action, setAction] = useState('{"type": "investigate"}');
 
-  const create = useMutation({
+  const create = useRetryableMutation({
+    errorMessage: "Failed to create rule",
     mutationFn: () =>
       api.post("/api/v1/policy-rules", {
         name,
@@ -99,7 +102,6 @@ function CreateRuleDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
       onOpenChange(false);
       toast.success("Rule created");
     },
-    onError: () => toast.error("Failed to create rule"),
   });
 
   const validJson = (() => {
@@ -157,10 +159,10 @@ function TestRuleDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (
   }, null, 2));
   const [result, setResult] = useState<string | null>(null);
 
-  const evaluate = useMutation({
+  const evaluate = useRetryableMutation({
+    errorMessage: "Evaluation failed",
     mutationFn: () => api.post<{ matched: boolean; rule_name?: string; action?: Record<string, unknown> }>("/api/v1/policy-rules/evaluate", JSON.parse(input)),
     onSuccess: (data) => setResult(JSON.stringify(data, null, 2)),
-    onError: () => toast.error("Evaluation failed"),
   });
 
   return (

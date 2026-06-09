@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRetryableMutation } from "@/hooks/use-retryable-mutation";
 import { api } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 import { webhooksOptions } from "../queries";
@@ -25,7 +26,8 @@ export function WebhooksTab() {
   const { data } = useQuery(webhooksOptions());
   const [createOpen, setCreateOpen] = useState(false);
 
-  const del = useMutation({
+  const del = useRetryableMutation({
+    errorMessage: "Failed to delete webhook",
     mutationFn: (id: string) => api.del(`/api/v1/webhook-subscriptions/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.webhooks() });
@@ -81,7 +83,8 @@ function CreateWebhookDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const [formatter, setFormatter] = useState("generic");
   const [channelConfig, setChannelConfig] = useState("");
 
-  const create = useMutation({
+  const create = useRetryableMutation({
+    errorMessage: "Failed to create webhook",
     mutationFn: () => {
       const body: Record<string, unknown> = {
         name,
@@ -100,7 +103,6 @@ function CreateWebhookDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       onOpenChange(false);
       toast.success("Webhook created");
     },
-    onError: () => toast.error("Failed to create webhook"),
   });
 
   return (

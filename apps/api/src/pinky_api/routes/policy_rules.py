@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pinky_api.auth.deps import require_admin
 from pinky_api.db.deps import get_db
+from pinky_api.policy import PolicyInput, evaluate, rules_from_db_rows
 from pinky_api.repositories.policy_rules_repo import PolicyRuleRepository
 
 router = APIRouter(prefix="/api/v1/policy-rules", tags=["policy-rules"])
@@ -108,5 +109,22 @@ async def delete_policy_rule(
 
 
 @router.post("/evaluate")
-async def evaluate_policy_rule(req: PolicyRuleEvalRequest, _admin: dict = Depends(require_admin)) -> dict:
-    return {"matched": False, "rule_name": "<default>", "action": "observe"}
+async def evaluate_policy_rule(
+    req: PolicyRuleEvalRequest,
+    db: AsyncSession = Depends(get_db),
+    _admin: dict = Depends(require_admin),
+) -> dict:
+    repo = PolicyRuleRepository(db)
+    db_rules = await repo.list_enabled()
+    eval_rules = rules_from_db_rows(db_rules)
+    inp = PolicyInput(
+        scanner=req.scanner,
+        check_id=req.check_id,
+        severity=req.severity,
+        resource_kind=req.resource_kind,
+        resource_namespace=req.resource_namespace,
+        cluster_id=req.cluster_id,
+        labels=req.labels,
+        recurrence_count=req.recurrence_count,
+    )
+    return evaluate(eval_rules, inp)
