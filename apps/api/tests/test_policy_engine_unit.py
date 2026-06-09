@@ -101,14 +101,14 @@ class TestEvaluate:
     def test_priority_ordering(self):
         rules = [
             EvalPolicyRule(
-                name="low-pri", priority=50,
-                conditions=PolicyConditions(severity="critical"),
-                action=PolicyAction(action_type="observe"),
-            ),
-            EvalPolicyRule(
                 name="high-pri", priority=10,
                 conditions=PolicyConditions(severity="critical"),
                 action=PolicyAction(action_type="investigate"),
+            ),
+            EvalPolicyRule(
+                name="low-pri", priority=50,
+                conditions=PolicyConditions(severity="critical"),
+                action=PolicyAction(action_type="observe"),
             ),
         ]
         result = evaluate(rules, PolicyInput(severity="critical"))
