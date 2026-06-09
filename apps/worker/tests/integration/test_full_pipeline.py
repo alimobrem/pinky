@@ -365,6 +365,7 @@ async def test_full_pipeline(conn: asyncpg.Connection, cluster_id: str, workflow
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.timeout(120)
 async def test_investigation_to_remediation_to_verification(
     conn: asyncpg.Connection,
     cluster_id: str,
@@ -568,6 +569,7 @@ async def test_pipeline_with_rejection(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.timeout(120)
 async def test_pipeline_with_failed_verification(
     conn: asyncpg.Connection,
     cluster_id: str,
