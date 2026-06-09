@@ -37,6 +37,17 @@ WI_TRANSITIONS: dict[str, set[str]] = {
 }
 
 
+async def _emit_on(pool, conn, event_type: str, entity_type: str,
+                   entity_id: str, *, payload: dict, cluster_id: str | None) -> None:
+    if conn:
+        await emit_domain_event(conn, event_type, entity_type, entity_id,
+                                payload=payload, cluster_id=cluster_id)
+    else:
+        async with pool.acquire() as _conn:
+            await emit_domain_event(_conn, event_type, entity_type, entity_id,
+                                    payload=payload, cluster_id=cluster_id)
+
+
 # ---------------------------------------------------------------------------
 # Execution transitions
 # ---------------------------------------------------------------------------
@@ -47,15 +58,20 @@ async def transition_execution(
     target_status: str,
     *,
     payload: dict | None = None,
+    conn=None,
 ) -> bool:
     """Validate and apply an execution status transition.
 
     Returns True on success (including idempotent no-ops).
     Returns False if the transition is invalid or the row doesn't exist.
+
+    When *conn* is provided, all queries run on that connection (useful for
+    joining an outer transaction). Otherwise queries go through *pool*.
     """
+    db = conn or pool
     uid = UUID(str(exec_id)) if not isinstance(exec_id, UUID) else exec_id
 
-    row = await pool.fetchrow(
+    row = await db.fetchrow(
         "SELECT status, execution_type, work_item_id, cluster_id FROM executions WHERE id = $1",
         uid,
     )
@@ -80,35 +96,28 @@ async def transition_execution(
         return False
 
     if target_status in EXEC_TERMINAL:
-        await pool.execute(
+        await db.execute(
             "UPDATE executions SET status = $1, completed_at = now() WHERE id = $2",
             target_status, uid,
         )
     elif target_status == "running":
-        await pool.execute(
+        await db.execute(
             "UPDATE executions SET status = 'running', started_at = COALESCE(started_at, now()) WHERE id = $1",
             uid,
         )
     else:
-        await pool.execute(
+        await db.execute(
             "UPDATE executions SET status = $1 WHERE id = $2",
             target_status, uid,
         )
 
     cluster_id_str = str(row["cluster_id"]) if row["cluster_id"] else None
 
-    async with pool.acquire() as conn:
-        await emit_domain_event(
-            conn,
-            f"execution.{target_status}",
-            "execution",
-            str(uid),
-            payload=payload or {},
-            cluster_id=cluster_id_str,
-        )
+    await _emit_on(pool, conn, f"execution.{target_status}", "execution",
+                   str(uid), payload=payload or {}, cluster_id=cluster_id_str)
 
     if target_status in EXEC_TERMINAL and row.get("execution_type") == "remediation":
-        await pool.execute(
+        await db.execute(
             "UPDATE approvals SET status = 'invalidated' "
             "WHERE execution_id = $1 AND status = 'pending'",
             uid,
@@ -120,6 +129,7 @@ async def transition_execution(
             row["work_item_id"],
             "ready",
             payload={"reason": f"execution_{target_status}"},
+            conn=conn,
         )
 
     return True
@@ -135,15 +145,20 @@ async def transition_work_item(
     target_status: str,
     *,
     payload: dict | None = None,
+    conn=None,
 ) -> bool:
     """Validate and apply a work_item status transition.
 
     Returns True on success (including idempotent no-ops).
     Returns False if the transition is invalid or the row doesn't exist.
+
+    When *conn* is provided, all queries run on that connection (useful for
+    joining an outer transaction). Otherwise queries go through *pool*.
     """
+    db = conn or pool
     uid = UUID(str(wi_id)) if not isinstance(wi_id, UUID) else wi_id
 
-    row = await pool.fetchrow(
+    row = await db.fetchrow(
         "SELECT status, cluster_id FROM work_items WHERE id = $1",
         uid,
     )
@@ -164,21 +179,14 @@ async def transition_work_item(
         )
         return False
 
-    await pool.execute(
+    await db.execute(
         "UPDATE work_items SET status = $1, updated_at = now() WHERE id = $2",
         target_status, uid,
     )
 
     cluster_id_str = str(row["cluster_id"]) if row["cluster_id"] else None
 
-    async with pool.acquire() as conn:
-        await emit_domain_event(
-            conn,
-            f"work_item.{target_status}",
-            "work_item",
-            str(uid),
-            payload=payload or {},
-            cluster_id=cluster_id_str,
-        )
+    await _emit_on(pool, conn, f"work_item.{target_status}", "work_item",
+                   str(uid), payload=payload or {}, cluster_id=cluster_id_str)
 
     return True

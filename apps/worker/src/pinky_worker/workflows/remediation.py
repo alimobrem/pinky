@@ -15,6 +15,7 @@ with workflow.unsafe.imports_passed_through():
         revalidate_binding,
         validate_approval,
     )
+    from pinky_worker.queues import VERIFICATION_TIMEOUT
     from pinky_worker.workflows.verification import VerificationInput, VerificationWorkflow
 
 
@@ -191,6 +192,7 @@ class RemediationWorkflow:
                     cluster_id=input.cluster_id,
                     target_resources=input.target_resources,
                 ),
+                execution_timeout=VERIFICATION_TIMEOUT,
             )
 
             await workflow.execute_activity(

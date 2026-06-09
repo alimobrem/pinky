@@ -9,7 +9,9 @@ import {
   useRef,
   type ReactNode,
 } from "react";
+import { toast } from "sonner";
 import type { SSEEvent } from "@pinky/contracts";
+import { redirectToLogin } from "@/lib/session";
 import { useSSE, type SSEConnectionState } from "@/hooks/use-sse";
 export type { SSEConnectionState } from "@/hooks/use-sse";
 
@@ -55,6 +57,15 @@ export function EventBusProvider({ children }: { children: ReactNode }) {
           console.warn("[EventBus] malformed SSE event:", err);
         }
       },
+    },
+    onAuthExpired: (reason, clusterId) => {
+      if (reason === "binding_expired") {
+        toast.warning(
+          `Cluster binding expired${clusterId ? ` for ${clusterId}` : ""}. Re-authenticate to continue.`,
+        );
+        return;
+      }
+      redirectToLogin();
     },
   });
 

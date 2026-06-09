@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
+from temporalio.exceptions import CancelledError
 
 with workflow.unsafe.imports_passed_through():
     from pinky_worker.execution.activities import (
@@ -169,6 +170,18 @@ class InvestigationWorkflow:
                 confidence=artifact.confidence,
                 tool_calls=artifact.tool_calls,
             )
+        except CancelledError:
+            await workflow.execute_activity(
+                emit_execution_event,
+                ExecutionEventPayload(
+                    execution_id=exec_id,
+                    event_type="failed",
+                    sequence=99,
+                    payload={"reason": "cancelled"},
+                ),
+                start_to_close_timeout=timedelta(seconds=30),
+            )
+            raise
         except Exception as err:
             await workflow.execute_activity(
                 emit_execution_event,

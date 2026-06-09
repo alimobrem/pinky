@@ -48,7 +48,7 @@ from pinky_worker.policy.engine import (
     evaluate,
     rules_from_definitions,
 )
-from pinky_worker.queues import INVESTIGATION_QUEUE
+from pinky_worker.queues import INVESTIGATION_QUEUE, INVESTIGATION_TIMEOUT
 from pinky_worker.transitions import transition_execution, transition_work_item
 
 logger = structlog.get_logger(__name__)
@@ -76,6 +76,25 @@ _DEFAULT_EXCLUDE_NS = os.environ.get(
     "PINKY_EXCLUDE_NAMESPACES_REGEX",
     r"^(openshift-|openshift$|kube-|default$|stackrox$)",
 )
+
+
+def _record_cb_failure(
+    failures: int, cycle: int, cluster_id: str, reason: str,
+) -> tuple[int, int]:
+    failures += 1
+    skip_until = 0
+    if failures >= 3:
+        skip_cycles = min(16, 2 ** (failures - 3))
+        skip_until = cycle + skip_cycles
+        logger.warning(
+            "circuit breaker: backing off",
+            cluster_id=cluster_id,
+            reason=reason,
+            consecutive_failures=failures,
+            skip_cycles=skip_cycles,
+            resume_at_cycle=skip_until,
+        )
+    return failures, skip_until
 
 
 async def _fetch_for_scanner(api_client, scanner_def) -> list[dict]:
@@ -199,6 +218,7 @@ async def _dispatch_investigation(
             },
             id=workflow_id,
             task_queue=INVESTIGATION_QUEUE,
+            execution_timeout=INVESTIGATION_TIMEOUT,
         )
         logger.info(
             "dispatched investigation",
@@ -581,6 +601,8 @@ async def observe_cluster(
     logger.info("starting observer", cluster_id=cluster_id, scanners=len(scanner_defs))
 
     cycle = 0
+    cb_failures = 0
+    cb_skip_until = 0
     try:
         api_client = await _create_cluster_client(cluster_id)
     except Exception:
@@ -600,6 +622,12 @@ async def observe_cluster(
                 logger.info("shutdown requested, stopping observer", cluster_id=cluster_id)
                 break
             cycle += 1
+
+            if cycle < cb_skip_until:
+                if max_cycles == 0 or cycle < max_cycles:
+                    await asyncio.sleep(scan_interval)
+                continue
+
             logger.info("scan cycle", cluster_id=cluster_id, cycle=cycle)
 
             try:
@@ -618,6 +646,15 @@ async def observe_cluster(
                     except Exception:
                         scanners_failed += 1
                         logger.exception("scanner failed", scanner=scanner_def.name)
+
+                if scanners_run > 0 and scanners_failed == scanners_run:
+                    cb_failures, cb_skip_until = _record_cb_failure(
+                        cb_failures, cycle, cluster_id, "cluster unreachable",
+                    )
+                    if max_cycles == 0 or cycle < max_cycles:
+                        await asyncio.sleep(scan_interval)
+                    continue
+
                 scan_healthy = scanners_run > 0 and scanners_failed < scanners_run
 
                 # Root-cause correlation: identify NotReady nodes
@@ -689,8 +726,14 @@ async def observe_cluster(
                 await _sweep_orphaned_tasks(cluster_id)
                 await _sweep_stuck_executions(cluster_id)
 
+                cb_failures = 0
+                cb_skip_until = 0
+
             except Exception:
                 logger.exception("scan cycle failed", cluster_id=cluster_id, cycle=cycle)
+                cb_failures, cb_skip_until = _record_cb_failure(
+                    cb_failures, cycle, cluster_id, "scan cycle failed",
+                )
 
             if max_cycles == 0 or cycle < max_cycles:
                 await asyncio.sleep(scan_interval)

@@ -90,7 +90,11 @@ async def _emit_event(
         await pool.execute("SELECT pg_notify($1, $2)", "pinky_watch", notify)
         await pool.execute("SELECT pg_notify($1, $2)", f"pinky_execution_{execution_id}", notify)
     except Exception:
-        logger.warning("%s event emission failed", event_type, exc_info=True)
+        logger.error(
+            "event emission failed",
+            exc_info=True,
+            extra={"execution_id": execution_id, "event_type": event_type},
+        )
 
 
 async def _emit_tool_event(pool: Any, execution_id: str, tool_name: str, seq: int) -> None:
@@ -787,35 +791,33 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
                 event.event_type, target_status, exec_uuid,
             )
 
-    exec_row = await pool.fetchrow(
-        "SELECT status, execution_type, work_item_id, cluster_id FROM executions WHERE id = $1",
-        exec_uuid,
-    )
+    if event.event_type == "completed" and event.payload.get("verification_passed"):
+        exec_row = await pool.fetchrow(
+            "SELECT status, execution_type, work_item_id, cluster_id FROM executions WHERE id = $1",
+            exec_uuid,
+        )
+    else:
+        exec_row = None
 
-    if (event.event_type == "completed"
-            and event.payload.get("verification_passed")
-            and exec_row
+    if (exec_row
             and exec_row["execution_type"] == "remediation"
             and exec_row["work_item_id"]):
         wi_id = exec_row["work_item_id"]
         try:
-            await transition_work_item(pool, wi_id, "done", payload={"completed_by": "auto_complete"})
-            await _emit_analytics_event(
-                pool, "remediation_completed",
-                {"outcome": "verified_fixed", "work_item_id": str(wi_id)},
-                cluster_id=str(exec_row["cluster_id"]) if exec_row.get("cluster_id") else "",
-                execution_id=str(exec_uuid),
-            )
-            await pool.execute(
-                "UPDATE executions SET outcome = $1 WHERE id = $2",
-                "verified_fixed", exec_uuid,
-            )
-            issue_row = await pool.fetchrow(
-                "SELECT issue_id FROM work_items WHERE id = $1", wi_id,
-            )
-            if issue_row and issue_row["issue_id"]:
-                from pinky_worker.events import emit_domain_event
-                async with pool.acquire() as conn:
+            async with pool.acquire() as conn, conn.transaction():
+                await transition_work_item(
+                    pool, wi_id, "done",
+                    payload={"completed_by": "auto_complete"}, conn=conn,
+                )
+                await conn.execute(
+                    "UPDATE executions SET outcome = $1 WHERE id = $2",
+                    "verified_fixed", exec_uuid,
+                )
+                issue_row = await conn.fetchrow(
+                    "SELECT issue_id FROM work_items WHERE id = $1", wi_id,
+                )
+                if issue_row and issue_row["issue_id"]:
+                    from pinky_worker.events import emit_domain_event
                     await conn.execute(
                         "UPDATE issues SET status = 'resolved', resolved_by = 'remediation', "
                         "updated_at = now() WHERE id = $1",
@@ -826,8 +828,20 @@ async def emit_execution_event(event: ExecutionEventPayload) -> None:
                         payload={"resolved_by": "remediation"},
                         cluster_id=str(exec_row["cluster_id"]) if exec_row.get("cluster_id") else None,
                     )
+            await _emit_analytics_event(
+                pool, "remediation_completed",
+                {"outcome": "verified_fixed", "work_item_id": str(wi_id)},
+                cluster_id=str(exec_row["cluster_id"]) if exec_row.get("cluster_id") else "",
+                execution_id=str(exec_uuid),
+            )
         except Exception:
-            logger.exception("auto-complete failed for work_item %s", wi_id)
+            logger.error(
+                "auto-complete failed",
+                work_item_id=str(wi_id),
+                execution_id=str(exec_uuid),
+                event_type=event.event_type,
+                exc_info=True,
+            )
 
     try:
         notify_payload = json.dumps({"event_type": event.event_type, "execution_id": str(exec_uuid)})

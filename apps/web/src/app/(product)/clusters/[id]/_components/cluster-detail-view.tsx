@@ -113,30 +113,25 @@ export function ClusterDetailView({
     );
   }
 
-  if (clusterError instanceof ApiError && clusterError.status === 404) {
-    return (
-      <EmptyState
-        icon={Server}
-        title="Cluster not found"
-        description="This cluster may have been removed."
-        action={
-          <Button variant="outline" size="sm" onClick={() => router.push("/settings")}>
-            Back to settings
-          </Button>
-        }
-      />
-    );
+  if (clusterError) {
+    if (clusterError instanceof ApiError && clusterError.status === 404) {
+      return (
+        <EmptyState
+          icon={Server}
+          title="Cluster not found"
+          description="This cluster may have been removed."
+          action={
+            <Button variant="outline" size="sm" onClick={() => router.push("/settings")}>
+              Back to settings
+            </Button>
+          }
+        />
+      );
+    }
+    throw clusterError;
   }
 
-  if (!cluster) {
-    return (
-      <EmptyState
-        icon={Server}
-        title="Failed to load cluster"
-        description="Something went wrong loading cluster details."
-      />
-    );
-  }
+  if (!cluster) return null;
 
   const observerDot: WorkItemStatus =
     cluster.observer_health === "healthy"

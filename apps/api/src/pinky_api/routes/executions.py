@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID
 
@@ -256,6 +256,7 @@ async def start_execution(
                 },
                 id=f"remediation-{ex.id}",
                 task_queue="remediation",
+                execution_timeout=timedelta(hours=5),
             )
         else:
             workflow_input = {
@@ -272,6 +273,7 @@ async def start_execution(
                 workflow_input,
                 id=f"investigation-{ex.id}",
                 task_queue="investigation",
+                execution_timeout=timedelta(minutes=30),
             )
         logger.info("temporal workflow started for execution %s", str(ex.id))
     except Exception:

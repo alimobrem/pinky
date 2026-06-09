@@ -47,7 +47,10 @@ class PromClient:
         url = f"{self._base_url}{path}"
         ssl_ctx = self._ssl_context()
         async with (
-            aiohttp.ClientSession(headers=self._headers()) as session,
+            aiohttp.ClientSession(
+                headers=self._headers(),
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as session,
             session.get(url, ssl=ssl_ctx) as resp,
         ):
             resp.raise_for_status()

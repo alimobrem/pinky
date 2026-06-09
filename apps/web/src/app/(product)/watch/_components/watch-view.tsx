@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, type ReactNode } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Issue, Execution, PaginatedResponse, WatchSummary } from "@pinky/contracts";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -65,6 +65,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SignalsTab } from "./signals-tab";
 import { useCluster } from "@/hooks/use-cluster";
 import { usePaginatedData } from "@/hooks/use-paginated-data";
+import { useRetryableMutation } from "@/hooks/use-retryable-mutation";
 import Link from "next/link";
 import {
   Activity,
@@ -730,35 +731,36 @@ export function WatchView() {
 
   // -- Mutations --
 
-  const suppress = useMutation({
+  const suppress = useRetryableMutation({
+    errorMessage: "Failed to suppress issue",
     mutationFn: ({ id, until }: { id: string; until: string }) =>
       api.post(`/api/v1/issues/${id}/suppress`, { until }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Issue suppressed");
     },
-    onError: () => toast.error("Failed to suppress issue"),
   });
 
-  const resolve = useMutation({
+  const resolve = useRetryableMutation({
+    errorMessage: "Failed to resolve issue",
     mutationFn: (id: string) => api.post(`/api/v1/issues/${id}/resolve`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Issue resolved");
     },
-    onError: () => toast.error("Failed to resolve issue"),
   });
 
-  const escalate = useMutation({
+  const escalate = useRetryableMutation({
+    errorMessage: "Failed to escalate issue",
     mutationFn: (id: string) => api.post(`/api/v1/issues/${id}/escalate`, {}),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["issues"] });
       toast.success("Issue escalated to investigation");
     },
-    onError: () => toast.error("Failed to escalate issue"),
   });
 
-  const investigate = useMutation({
+  const investigate = useRetryableMutation({
+    errorMessage: "Failed to start investigation",
     mutationFn: (issueId: string) =>
       api.post(`/api/v1/executions?issue_id=${encodeURIComponent(issueId)}&execution_type=investigation`),
     onSuccess: () => {
@@ -766,26 +768,25 @@ export function WatchView() {
       qc.invalidateQueries({ queryKey: ["executions"] });
       toast.success("Investigation started");
     },
-    onError: () => toast.error("Failed to start investigation"),
   });
 
-  const cancelExec = useMutation({
+  const cancelExec = useRetryableMutation({
+    errorMessage: "Failed to cancel execution",
     mutationFn: (id: string) => api.post(`/api/v1/executions/${id}/cancel`, {}),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["executions"] });
       toast.info("Execution cancelled");
     },
-    onError: () => toast.error("Failed to cancel execution"),
   });
 
-  const rejectExec = useMutation({
+  const rejectExec = useRetryableMutation({
+    errorMessage: "Failed to reject execution",
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       api.post(`/api/v1/executions/${id}/reject`, { reason }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["executions"] });
       toast.info("Execution rejected");
     },
-    onError: () => toast.error("Failed to reject execution"),
   });
 
   const anyMutating = suppress.isPending || resolve.isPending || escalate.isPending || investigate.isPending;

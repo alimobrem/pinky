@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Play,
@@ -12,7 +12,6 @@ import {
   ExternalLink,
   ChevronRight,
   Loader2,
-  Search,
   XCircle,
   CheckCircle,
   Undo2,
@@ -20,7 +19,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 import {
   taskOptions,
@@ -29,6 +28,7 @@ import {
   executionsOptions,
 } from "../queries";
 import { useEventBus } from "@/hooks/use-event-bus";
+import { useRetryableMutation } from "@/hooks/use-retryable-mutation";
 import { MarkdownContent } from "@/components/shared/markdown-content";
 import { RemediationPlan } from "./remediation-plan";
 import { ExecutionTerminal } from "@/components/shared/execution-terminal";
@@ -93,7 +93,7 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   const [blockReason, setBlockReason] = useState("");
   const [terminalOpen, setTerminalOpen] = useState(false);
 
-  const { data: task, isLoading: taskLoading } = useQuery(taskOptions(taskId));
+  const { data: task, isLoading: taskLoading, error: taskError } = useQuery(taskOptions(taskId));
   const { data: executions } = useQuery(executionsOptions(taskId));
   const { data: investigation } = useQuery(investigationOptions(taskId));
   const { data: timeline } = useQuery(timelineOptions(taskId));
@@ -125,30 +125,34 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
     }
   });
 
-  const release = useMutation({
+  const release = useRetryableMutation({
+    errorMessage: "Failed to release task",
     mutationFn: () => api.post(`/api/v1/work-items/${taskId}/release`),
     onSuccess: () => { invalidateAll(); toast.success("Task released"); },
-    onError: () => toast.error("Failed to release task"),
   });
-  const start = useMutation({
+  const start = useRetryableMutation({
+    errorMessage: "Failed to start task",
     mutationFn: () => api.post(`/api/v1/work-items/${taskId}/start`),
     onSuccess: () => { invalidateAll(); toast.success("Task started"); },
   });
-  const complete = useMutation({
+  const complete = useRetryableMutation({
+    errorMessage: "Failed to complete task",
     mutationFn: () => api.post(`/api/v1/work-items/${taskId}/complete`),
     onSuccess: () => { invalidateAll(); toast.success("Task completed"); },
   });
-  const block = useMutation({
+  const block = useRetryableMutation({
+    errorMessage: "Failed to block task",
     mutationFn: (reason: string) =>
       api.post(`/api/v1/work-items/${taskId}/block`, { reason }),
     onSuccess: () => { invalidateAll(); setBlockReason(""); toast.success("Task blocked"); },
   });
-  const take = useMutation({
+  const take = useRetryableMutation({
+    errorMessage: "Failed to take task",
     mutationFn: () => api.post(`/api/v1/work-items/${taskId}/take`),
     onSuccess: () => { invalidateAll(); toast.success("Task assigned to you"); },
-    onError: () => toast.error("Failed to take task"),
   });
-  const approve = useMutation({
+  const approve = useRetryableMutation({
+    errorMessage: "Failed to approve execution",
     mutationFn: ({ execId, digest }: { execId: string; digest: string }) =>
       api.post(`/api/v1/executions/${execId}/approve`, { changeset_digest: digest }),
     onSuccess: () => {
@@ -157,22 +161,24 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
       setTimeout(() => invalidateAll(), 3000);
     },
   });
-  const reject = useMutation({
+  const reject = useRetryableMutation({
+    errorMessage: "Failed to reject execution",
     mutationFn: ({ execId, reason }: { execId: string; reason: string }) =>
       api.post(`/api/v1/executions/${execId}/reject`, { reason }),
     onSuccess: () => { invalidateAll(); toast.success("Execution rejected"); },
   });
-  const cancelExec = useMutation({
+  const cancelExec = useRetryableMutation({
+    errorMessage: "Failed to cancel execution",
     mutationFn: (execId: string) => api.post(`/api/v1/executions/${execId}/cancel`),
     onSuccess: () => { invalidateAll(); toast.success("Execution cancelled"); },
-    onError: () => toast.error("Failed to cancel execution"),
   });
-  const resetTask = useMutation({
+  const resetTask = useRetryableMutation({
+    errorMessage: "Failed to reset task",
     mutationFn: () => api.post(`/api/v1/work-items/${taskId}/reset`),
     onSuccess: () => { invalidateAll(); setTerminalOpen(false); toast.success("Task reset — ready for re-investigation"); },
-    onError: () => toast.error("Failed to reset task"),
   });
-  const investigate = useMutation({
+  const investigate = useRetryableMutation({
+    errorMessage: "Failed to start investigation",
     mutationFn: () =>
       api.post<Execution>(
         `/api/v1/executions?work_item_id=${encodeURIComponent(taskId)}&execution_type=investigation`,
@@ -181,9 +187,9 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
       invalidateAll();
       toast.success("Investigation started");
     },
-    onError: () => toast.error("Failed to start investigation"),
   });
-  const startRemediation = useMutation({
+  const startRemediation = useRetryableMutation({
+    errorMessage: "Failed to start remediation",
     mutationFn: async () => {
       const exec = await api.post<Execution>(
         `/api/v1/executions?work_item_id=${encodeURIComponent(taskId)}&execution_type=remediation`,
@@ -197,10 +203,6 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
       invalidateAll();
       toast.success("Remediation approved — applying changes...");
       setTimeout(() => invalidateAll(), 3000);
-    },
-    onError: (err) => {
-      const msg = err instanceof Error ? err.message : "Failed to start remediation";
-      toast.error(msg);
     },
   });
 
@@ -240,20 +242,24 @@ export function TaskDetailView({ taskId }: TaskDetailViewProps) {
   }, [hasRunningRemediation]);
 
   if (taskLoading) return <SkeletonRow rows={3} />;
-  if (!task) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
+  if (taskError) {
+    if (taskError instanceof ApiError && taskError.status === 404) {
+      return (
         <EmptyState
-          icon={Search}
+          icon={XCircle}
           title="Task not found"
           description="This task may have been resolved or removed."
+          action={
+            <Button variant="outline" size="sm" onClick={() => router.push("/tasks")}>
+              Back to Tasks
+            </Button>
+          }
         />
-        <Button variant="ghost" className="mt-4" onClick={() => router.push("/tasks")}>
-          Back to Tasks
-        </Button>
-      </div>
-    );
+      );
+    }
+    throw taskError;
   }
+  if (!task) return null;
 
   const activeExec = executions?.items?.find(
     (e) => (e.status === "running" || e.status === "pending") && e.execution_type === "investigation",

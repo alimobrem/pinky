@@ -69,9 +69,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       lower.includes("binding") ||
       lower.includes("reauthentication required") ||
       lower.includes("cluster access");
-    if (!isBindingIssue && typeof window !== "undefined") {
-      window.location.href = "/login";
-    }
     throw isBindingIssue ? new ClusterBindingError(message) : new SessionExpiredError(message);
   }
 

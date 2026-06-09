@@ -1,18 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
-import { api } from "@/lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, XCircle } from "lucide-react";
+import { api, ApiError } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 import { executionOptions, executionEventsOptions } from "../queries";
 import { ExecutionMonitor } from "@/components/shared/execution-monitor";
 import { ExecutionTerminal } from "@/components/shared/execution-terminal";
 import { StatusIndicator } from "@/components/shared/status-indicator";
+import { EmptyState } from "@/components/shared/empty-state";
+import { SkeletonRow } from "@/components/shared/skeleton-row";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useEventBus } from "@/hooks/use-event-bus";
+import { useRetryableMutation } from "@/hooks/use-retryable-mutation";
 import { toast } from "sonner";
 
 interface ExecutionDetailViewProps {
@@ -24,7 +27,7 @@ export function ExecutionDetailView({ taskId, execId }: ExecutionDetailViewProps
   const router = useRouter();
   const qc = useQueryClient();
 
-  const { data: execution } = useQuery(executionOptions(execId));
+  const { data: execution, isLoading, error } = useQuery(executionOptions(execId));
   const { data: events } = useQuery(executionEventsOptions(taskId));
 
   const invalidateAll = () => {
@@ -38,17 +41,37 @@ export function ExecutionDetailView({ taskId, execId }: ExecutionDetailViewProps
     }
   });
 
-  const approve = useMutation({
+  const approve = useRetryableMutation({
+    errorMessage: "Failed to approve",
     mutationFn: ({ id, digest }: { id: string; digest: string }) =>
       api.post(`/api/v1/executions/${id}/approve`, { changeset_digest: digest }),
     onSuccess: () => { invalidateAll(); toast.success("Approved"); },
   });
-  const reject = useMutation({
+  const reject = useRetryableMutation({
+    errorMessage: "Failed to reject",
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       api.post(`/api/v1/executions/${id}/reject`, { reason }),
     onSuccess: () => { invalidateAll(); toast.success("Rejected"); },
   });
 
+  if (isLoading) return <SkeletonRow rows={3} />;
+  if (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      return (
+        <EmptyState
+          icon={XCircle}
+          title="Execution not found"
+          description="This execution may have been removed or expired."
+          action={
+            <Button variant="outline" size="sm" onClick={() => router.back()}>
+              Go back
+            </Button>
+          }
+        />
+      );
+    }
+    throw error;
+  }
   if (!execution) return null;
 
   const isRemediation = execution.execution_type === "remediation";

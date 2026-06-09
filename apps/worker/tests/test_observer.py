@@ -306,3 +306,121 @@ async def test_fetch_no_exclusion_returns_all() -> None:
         result = await _fetch_for_scanner(None, scanner_def)
 
     assert len(result) == 2
+
+
+async def test_circuit_breaker_skips_after_consecutive_failures() -> None:
+    """After 3 consecutive all-scanner failures, cycles are skipped with backoff."""
+    mock_client = AsyncMock()
+    fetch_call_count = 0
+
+    async def mock_fetch_error(api_client, scanner_def):
+        nonlocal fetch_call_count
+        fetch_call_count += 1
+        raise RuntimeError("K8s unreachable")
+
+    with (
+        patch("pinky_worker.observation.observer._create_cluster_client", return_value=mock_client),
+        patch("pinky_worker.observation.observer._fetch_for_scanner", side_effect=mock_fetch_error),
+    ):
+        # Run 5 cycles. First 3 fail normally. Cycle 4 should be skipped (backoff=1).
+        # Cycle 5 should run again.
+        await observe_cluster(
+            cluster_id="cluster-1",
+            registry=_mock_registry(),
+            correlator=AsyncMock(),
+            scan_interval=0,
+            max_cycles=5,
+        )
+
+    # Cycles 1-3 each call fetch once (1 scanner with checks). Cycle 4 is skipped.
+    # Cycle 5 runs again → total 4 fetch calls.
+    assert fetch_call_count == 4
+
+
+async def test_circuit_breaker_resets_on_success() -> None:
+    """A successful scan resets the circuit breaker failure count."""
+    mock_client = AsyncMock()
+    mock_correlator = AsyncMock()
+    cycle_num = 0
+
+    async def mock_fetch(api_client, scanner_def):
+        nonlocal cycle_num
+        cycle_num += 1
+        # Fail first 2 cycles, succeed on 3rd
+        if cycle_num <= 2:
+            raise RuntimeError("K8s unreachable")
+        return HEALTHY_PODS
+
+    with (
+        patch("pinky_worker.observation.observer._create_cluster_client", return_value=mock_client),
+        patch("pinky_worker.observation.observer._fetch_for_scanner", side_effect=mock_fetch),
+    ):
+        await observe_cluster(
+            cluster_id="cluster-1",
+            registry=_mock_registry(),
+            correlator=mock_correlator,
+            scan_interval=0,
+            max_cycles=4,
+        )
+
+    # All 4 cycles should have run (no skipping) because failure count never hit 3.
+    assert cycle_num == 4
+
+
+async def test_circuit_breaker_exponential_backoff() -> None:
+    """Backoff increases exponentially: 1, 2, 4, 8, 16 (capped) skip cycles."""
+    mock_client = AsyncMock()
+    fetch_call_count = 0
+
+    async def mock_fetch_error(api_client, scanner_def):
+        nonlocal fetch_call_count
+        fetch_call_count += 1
+        raise RuntimeError("K8s unreachable")
+
+    with (
+        patch("pinky_worker.observation.observer._create_cluster_client", return_value=mock_client),
+        patch("pinky_worker.observation.observer._fetch_for_scanner", side_effect=mock_fetch_error),
+    ):
+        # Run enough cycles to see backoff escalation.
+        # Cycles 1-3: run (fail). Cycle 4: skip (backoff=1). Cycle 5: run (fail, 4th).
+        # Cycle 6-7: skip (backoff=2). Cycle 8: run (fail, 5th).
+        await observe_cluster(
+            cluster_id="cluster-1",
+            registry=_mock_registry(),
+            correlator=AsyncMock(),
+            scan_interval=0,
+            max_cycles=8,
+        )
+
+    # Cycles that actually fetch: 1, 2, 3, 5, 8 → 5 fetch calls
+    assert fetch_call_count == 5
+
+
+async def test_circuit_breaker_on_full_cycle_exception() -> None:
+    """Circuit breaker also triggers on full scan cycle exceptions (not just scanner failures)."""
+    mock_client = AsyncMock()
+    correlator = AsyncMock()
+    # Make correlate raise to trigger the outer except block
+    correlator.correlate.side_effect = RuntimeError("DB connection lost")
+
+    async def mock_fetch(api_client, scanner_def):
+        return UNHEALTHY_PODS
+
+    with (
+        patch("pinky_worker.observation.observer._create_cluster_client", return_value=mock_client),
+        patch("pinky_worker.observation.observer._fetch_for_scanner", side_effect=mock_fetch),
+        patch("pinky_worker.observation.observer._get_reopen_count", return_value=0),
+    ):
+        await observe_cluster(
+            cluster_id="cluster-1",
+            registry=_mock_registry(),
+            correlator=correlator,
+            scan_interval=0,
+            max_cycles=5,
+        )
+
+    # Cycles 1-3: run (correlate raises on first obs each cycle).
+    # Cycle 4: runs (3+1=4 < skip_until=4 is False). Correlate raises.
+    # Cycle 5: skipped (5 < skip_until=6).
+    # Each failed cycle calls correlate once (raises on first observation).
+    assert correlator.correlate.call_count == 4
