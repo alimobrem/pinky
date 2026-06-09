@@ -174,6 +174,96 @@ async def remove_cluster(
     await db.commit()
 
 
+# ── Observer Bindings ──
+
+
+class ObserverBindingRequest(BaseModel):
+    token: str
+
+
+@router.post("/clusters/{cluster_id}/observer-binding")
+async def create_observer_binding(
+    cluster_id: str,
+    req: ObserverBindingRequest,
+    db: AsyncSession = Depends(get_db),
+    _admin: dict = Depends(require_admin),
+) -> dict:
+    cid = _require_uuid(cluster_id, "Cluster")
+    repo = ClusterRepository(db)
+    cluster = await repo.get(cid)
+    if cluster is None:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+
+    aad = f"cluster_observer_bindings:{cid}"
+    encrypted = encrypt(req.token.encode(), aad=aad)
+
+    result = await db.execute(
+        select(ClusterObserverBinding).where(ClusterObserverBinding.cluster_id == cid)
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        existing.encrypted_credential = encrypted
+        existing.auth_method = "service_account"
+        existing.health_state = "unknown"
+    else:
+        binding = ClusterObserverBinding(
+            cluster_id=cid,
+            auth_method="service_account",
+            health_state="unknown",
+            encrypted_credential=encrypted,
+        )
+        db.add(binding)
+
+    cluster.onboarding_state = "ready"
+    await db.commit()
+    return {"status": "configured"}
+
+
+@router.get("/clusters/{cluster_id}/observer-binding")
+async def get_observer_binding(
+    cluster_id: str,
+    db: AsyncSession = Depends(get_db),
+    _admin: dict = Depends(require_admin),
+) -> dict:
+    cid = _require_uuid(cluster_id, "Cluster")
+    result = await db.execute(
+        select(ClusterObserverBinding).where(ClusterObserverBinding.cluster_id == cid)
+    )
+    binding = result.scalar_one_or_none()
+    if binding is None:
+        raise HTTPException(status_code=404, detail="Observer binding not configured")
+    return {
+        "cluster_id": str(binding.cluster_id),
+        "auth_method": binding.auth_method,
+        "health_state": binding.health_state,
+        "last_observation_at": binding.last_observation_at.isoformat() if binding.last_observation_at else None,
+        "created_at": binding.created_at.isoformat() if binding.created_at else "",
+    }
+
+
+@router.delete("/clusters/{cluster_id}/observer-binding", status_code=204)
+async def delete_observer_binding(
+    cluster_id: str,
+    db: AsyncSession = Depends(get_db),
+    _admin: dict = Depends(require_admin),
+) -> None:
+    cid = _require_uuid(cluster_id, "Cluster")
+    result = await db.execute(
+        select(ClusterObserverBinding).where(ClusterObserverBinding.cluster_id == cid)
+    )
+    binding = result.scalar_one_or_none()
+    if binding is None:
+        raise HTTPException(status_code=404, detail="Observer binding not found")
+    await db.delete(binding)
+
+    repo = ClusterRepository(db)
+    cluster = await repo.get(cid)
+    if cluster:
+        cluster.onboarding_state = "pending"
+    await db.commit()
+
+
 # ── Cluster Identity Bindings ──
 
 
@@ -182,6 +272,13 @@ def _safe_uuid(value: str) -> UUID | None:
         return UUID(value)
     except (ValueError, AttributeError):
         return None
+
+
+def _require_uuid(value: str, label: str = "Resource") -> UUID:
+    cid = _safe_uuid(value)
+    if cid is None:
+        raise HTTPException(status_code=404, detail=f"{label} not found")
+    return cid
 
 
 @router.get("/cluster-bindings")

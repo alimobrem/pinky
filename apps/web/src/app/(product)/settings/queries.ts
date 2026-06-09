@@ -2,13 +2,14 @@ import { queryOptions } from "@tanstack/react-query";
 import type {
   ApiToken,
   ClusterRegistryEntry,
+  ClusterObserverBinding,
   Definition,
   WebhookSubscription,
   PolicyRule,
   ClusterIdentityBinding,
   PaginatedResponse,
 } from "@pinky/contracts";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/constants";
 
 export const clustersOptions = () =>
@@ -60,6 +61,24 @@ export const apiTokensOptions = () =>
     queryKey: QUERY_KEYS.apiTokens(),
     queryFn: () =>
       api.get<{ items: ApiToken[] }>("/api/v1/api-tokens"),
+    staleTime: 30_000,
+  });
+
+export const observerBindingOptions = (clusterId: string, enabled: boolean) =>
+  queryOptions({
+    queryKey: QUERY_KEYS.observerBinding(clusterId),
+    queryFn: async () => {
+      try {
+        return await api.get<ClusterObserverBinding>(
+          `/api/v1/clusters/${clusterId}/observer-binding`,
+        );
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
+      }
+    },
+    enabled,
+    retry: false,
     staleTime: 30_000,
   });
 

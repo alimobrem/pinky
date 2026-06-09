@@ -41,6 +41,7 @@ export const QUERY_KEYS = {
   analyticsRoi: (since?: string) => ["analytics-roi", since] as const,
   analyticsScanners: (since?: string) => ["analytics-scanners", since] as const,
   watchSummary: (since?: string) => ["watch-summary", since] as const,
+  observerBinding: (clusterId: string) => ["observer-binding", clusterId] as const,
 } as const;
 
 export const SIDEBAR_WIDTH = {
