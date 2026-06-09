@@ -106,17 +106,17 @@ def test_create_sets_onboarding_ready(authed_client: TestClient) -> None:
     assert cluster["onboarding_state"] == "ready"
 
 
-def test_non_admin_rejected(non_admin_client: TestClient, authed_client: TestClient) -> None:
-    cluster_id = _create_cluster(authed_client)
+def test_non_admin_rejected(non_admin_client: TestClient) -> None:
+    fake_id = str(uuid.uuid4())
     assert non_admin_client.post(
-        f"/api/v1/clusters/{cluster_id}/observer-binding",
+        f"/api/v1/clusters/{fake_id}/observer-binding",
         json={"token": "nope"},
     ).status_code == 403
     assert non_admin_client.get(
-        f"/api/v1/clusters/{cluster_id}/observer-binding",
+        f"/api/v1/clusters/{fake_id}/observer-binding",
     ).status_code == 403
     assert non_admin_client.delete(
-        f"/api/v1/clusters/{cluster_id}/observer-binding",
+        f"/api/v1/clusters/{fake_id}/observer-binding",
     ).status_code == 403
 
 
