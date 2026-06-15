@@ -574,7 +574,7 @@ async def test_pipeline_with_failed_verification(
     conn: asyncpg.Connection,
     cluster_id: str,
     pool_patch: FakePool,
-    workflow_env: WorkflowEnvironment,
+    time_skipping_env: WorkflowEnvironment,
 ) -> None:
     """Approve + apply succeeds, but verification fails → no auto-complete."""
     issue_id, wi_id, rem_exec_id = await _seed_issue_work_item_execution(
@@ -587,11 +587,11 @@ async def test_pipeline_with_failed_verification(
         mock_verify_fail, mock_revalidate_binding,
     ]
     async with Worker(
-        workflow_env.client, task_queue=TASK_QUEUE,
+        time_skipping_env.client, task_queue=TASK_QUEUE,
         workflows=[RemediationWorkflow, VerificationWorkflow],
         activities=rem_activities,
     ):
-        handle = await workflow_env.client.start_workflow(
+        handle = await time_skipping_env.client.start_workflow(
             RemediationWorkflow.run,
             RemediationInput(
                 execution_id=rem_exec_id,
