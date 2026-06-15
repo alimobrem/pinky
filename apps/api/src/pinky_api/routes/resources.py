@@ -53,7 +53,7 @@ async def _resolve_token(cluster_id: UUID, principal: dict, db: AsyncSession) ->
     try:
         token = decrypt(binding.encrypted_token, aad=f"cluster_identity_bindings:{binding.id}").decode()
     except Exception:
-        logger.exception("token decryption failed for binding %s", binding.id)
+        logger.exception("cluster binding decryption failed for %s", binding.id)
         raise HTTPException(status_code=401, detail="Cluster binding invalid — please re-authenticate") from None
     return cluster.api_endpoint, token
 

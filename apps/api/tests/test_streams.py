@@ -25,6 +25,7 @@ def test_unauthed_stream_rejected(unauthed_client: TestClient) -> None:
 
 def test_stream_routes_registered() -> None:
     from pinky_api.app import app
+    from tests.conftest import collect_route_paths
 
     stream_paths = {
         "/api/v1/streams/events",
@@ -32,15 +33,16 @@ def test_stream_routes_registered() -> None:
         "/api/v1/streams/watch",
         "/api/v1/streams/issues",
     }
-    registered = {r.path for r in app.routes if hasattr(r, "path")}
+    registered = collect_route_paths(app)
     for path in stream_paths:
         assert path in registered, f"{path} not registered in app"
 
 
 def test_unified_stream_registered() -> None:
     from pinky_api.app import app
+    from tests.conftest import collect_route_paths
 
-    registered = {r.path for r in app.routes if hasattr(r, "path")}
+    registered = collect_route_paths(app)
     assert "/api/v1/streams/events" in registered
 
 

@@ -638,7 +638,7 @@ async def chat_with_brain(
                     binding.encrypted_token, aad=f"cluster_identity_bindings:{binding.id}",
                 ).decode()
             except Exception:
-                logger.exception("token decryption failed for binding %s", binding.id)
+                logger.exception("cluster binding decryption failed for %s", binding.id)
 
     tools: list[anthropic.types.ToolParam] = [
         {

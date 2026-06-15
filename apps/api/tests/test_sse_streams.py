@@ -66,8 +66,9 @@ class TestQueueOverflow:
 class TestSSEEndpointRegistration:
     def test_all_stream_endpoints_registered(self) -> None:
         from pinky_api.app import app
+        from tests.conftest import collect_route_paths
 
-        registered = {r.path for r in app.routes if hasattr(r, "path")}
+        registered = collect_route_paths(app)
         assert "/api/v1/streams/events" in registered
         assert "/api/v1/streams/work-items" in registered
         assert "/api/v1/streams/watch" in registered

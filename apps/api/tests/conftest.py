@@ -4,6 +4,7 @@ import os
 from collections.abc import AsyncIterator
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -11,6 +12,23 @@ from sqlalchemy.pool import NullPool
 from pinky_api.app import app
 from pinky_api.auth.middleware import get_current_principal
 from pinky_api.db.deps import get_db
+
+
+def collect_route_paths(application: FastAPI) -> set[str]:
+    """Collect all registered route paths, handling both Starlette <1.3 and >=1.3.
+
+    Starlette >=1.3 wraps included routers in _IncludedRouter objects
+    instead of flattening routes at the top level.
+    """
+    paths: set[str] = set()
+    for r in application.routes:
+        if hasattr(r, "path"):
+            paths.add(r.path)
+        if hasattr(r, "original_router") and hasattr(r.original_router, "routes"):
+            for sub in r.original_router.routes:
+                if hasattr(sub, "path"):
+                    paths.add(sub.path)
+    return paths
 
 TEST_DB_URL = os.environ.get(
     "TEST_DATABASE_URL",

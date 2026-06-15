@@ -135,7 +135,7 @@ async def _validate_api_token(raw_token: str) -> dict:
         await db.commit()
 
     if principal_row is None:
-        logger.error("API token references nonexistent principal %s", token_row.principal_id)
+        logger.error("API auth entry references nonexistent principal %s", token_row.principal_id)
         raise HTTPException(status_code=401, detail="Invalid API token")
 
     groups = principal_row.groups if principal_row.groups else []

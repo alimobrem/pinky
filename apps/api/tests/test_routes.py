@@ -128,7 +128,9 @@ def test_analytics_endpoints(authed_client: TestClient) -> None:
 
 
 def test_sse_stream_endpoints_registered() -> None:
-    routes = [r.path for r in app.routes if hasattr(r, "path")]
+    from tests.conftest import collect_route_paths
+
+    routes = collect_route_paths(app)
     assert "/api/v1/streams/work-items" in routes
     assert "/api/v1/streams/watch" in routes
     assert "/api/v1/streams/issues" in routes
