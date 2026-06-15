@@ -641,12 +641,6 @@ async def test_pipeline_with_failed_verification(
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(scope="session")
-async def time_skipping_env():
-    """Separate time-skipping Temporal environment for timeout tests."""
-    async with await WorkflowEnvironment.start_time_skipping() as env:
-        yield env
-
 
 async def test_pipeline_with_approval_timeout(
     conn: asyncpg.Connection,

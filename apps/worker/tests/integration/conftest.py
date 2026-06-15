@@ -32,6 +32,12 @@ async def workflow_env(_check_temporal: None):
         yield env
 
 
+@pytest.fixture(scope="session")
+async def time_skipping_env():
+    async with await WorkflowEnvironment.start_time_skipping() as env:
+        yield env
+
+
 @pytest.fixture
 async def conn():
     c = await asyncpg.connect(TEST_DB_URL)

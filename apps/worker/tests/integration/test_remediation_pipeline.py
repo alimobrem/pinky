@@ -6,19 +6,17 @@ K8s API calls mocked. Verifies every state transition and failure mode.
 
 from __future__ import annotations
 
-import json
 import uuid
 
 import asyncpg
 import pytest
 from temporalio import activity
-from temporalio.common import RetryPolicy
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
 from pinky_worker.execution.activities import ExecutionEventPayload
 from pinky_worker.workflows.remediation import RemediationInput, RemediationResult, RemediationWorkflow
-from pinky_worker.workflows.verification import VerificationInput, VerificationResult, VerificationWorkflow
+from pinky_worker.workflows.verification import VerificationWorkflow
 
 TASK_QUEUE = "test-remediation-pipeline"
 
@@ -88,9 +86,10 @@ def _reset():
     _apply_call_count = 0
 
 
-_DEFAULT_STEPS = [
-    {"action": "scale", "namespace": "default", "resource": "deployment/web", "params": {"replicas": 3}, "description": "Scale web to 3"},
-]
+_DEFAULT_STEPS = [{
+    "action": "scale", "namespace": "default", "resource": "deployment/web",
+    "params": {"replicas": 3}, "description": "Scale web to 3",
+}]
 
 
 def _make_input(steps: list[dict] | None = None) -> RemediationInput:
@@ -122,18 +121,21 @@ async def _run_workflow(
             id=f"test-rem-{uuid.uuid4()}", task_queue=TASK_QUEUE,
         )
         if send_approve:
-            await handle.signal(RemediationWorkflow.approve, {"approver": "test", "changeset_digest": input.changeset_digest})
+            await handle.signal(
+                RemediationWorkflow.approve,
+                {"approver": "test", "changeset_digest": input.changeset_digest},
+            )
         return await handle.result()
 
 
 # --- Happy Path ---
 
 
-async def test_remediation_happy_path(workflow_env: WorkflowEnvironment) -> None:
+async def test_remediation_happy_path(time_skipping_env: WorkflowEnvironment) -> None:
     """Full success: approve → apply → verify → completed."""
     inp = _make_input()
     result = await _run_workflow(
-        workflow_env, inp,
+        time_skipping_env, inp,
         [mock_emit, mock_validate_ok, mock_apply_success, mock_verify_pass, mock_revalidate_binding],
     )
 
@@ -174,8 +176,14 @@ async def test_apply_failure_stops_workflow(workflow_env: WorkflowEnvironment) -
 async def test_partial_failure_does_not_complete(workflow_env: WorkflowEnvironment) -> None:
     """Step 1 succeeds, step 2 fails → workflow fails, no partial 'done'."""
     inp = _make_input(steps=[
-        {"action": "scale", "resource": "deployment/web", "namespace": "default", "params": {"replicas": 3}, "description": "Step 1", "_step_index": 0},
-        {"action": "patch", "resource": "deployment/api", "namespace": "default", "params": {"patch": {}}, "description": "Step 2", "_step_index": 1},
+        {
+            "action": "scale", "resource": "deployment/web", "namespace": "default",
+            "params": {"replicas": 3}, "description": "Step 1", "_step_index": 0,
+        },
+        {
+            "action": "patch", "resource": "deployment/api", "namespace": "default",
+            "params": {"patch": {}}, "description": "Step 2", "_step_index": 1,
+        },
     ])
     result = await _run_workflow(
         workflow_env, inp,
@@ -188,11 +196,11 @@ async def test_partial_failure_does_not_complete(workflow_env: WorkflowEnvironme
     assert len(progress_events) >= 1
 
 
-async def test_verification_failure_keeps_open(workflow_env: WorkflowEnvironment) -> None:
+async def test_verification_failure_keeps_open(time_skipping_env: WorkflowEnvironment) -> None:
     """Apply succeeds, verify fails → completed but verification_passed=False."""
     inp = _make_input()
     result = await _run_workflow(
-        workflow_env, inp,
+        time_skipping_env, inp,
         [mock_emit, mock_validate_ok, mock_apply_success, mock_verify_fail, mock_revalidate_binding],
     )
 
@@ -273,11 +281,11 @@ async def test_empty_plan_steps(workflow_env: WorkflowEnvironment) -> None:
 # --- Event Type Contract ---
 
 
-async def test_event_type_matches_frontend(workflow_env: WorkflowEnvironment) -> None:
+async def test_event_type_matches_frontend(time_skipping_env: WorkflowEnvironment) -> None:
     """pg_notify event_type must match what the frontend SSE handler filters on."""
     inp = _make_input()
     await _run_workflow(
-        workflow_env, inp,
+        time_skipping_env, inp,
         [mock_emit, mock_validate_ok, mock_apply_success, mock_verify_pass, mock_revalidate_binding],
     )
 
@@ -316,7 +324,7 @@ async def test_binding_expired_stops_workflow(workflow_env: WorkflowEnvironment)
 # --- Idempotency ---
 
 
-async def test_idempotent_apply_succeeds_twice(workflow_env: WorkflowEnvironment) -> None:
+async def test_idempotent_apply_succeeds_twice(time_skipping_env: WorkflowEnvironment) -> None:
     """Applying the same step twice (e.g., after retry) must not break."""
     call_count = 0
 
@@ -328,7 +336,7 @@ async def test_idempotent_apply_succeeds_twice(workflow_env: WorkflowEnvironment
 
     inp = _make_input()
     result = await _run_workflow(
-        workflow_env, inp,
+        time_skipping_env, inp,
         [mock_emit, mock_validate_ok, mock_apply_idempotent, mock_verify_pass, mock_revalidate_binding],
     )
 
