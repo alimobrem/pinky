@@ -408,7 +408,8 @@ async def _sweep_stuck_executions(cluster_id: str) -> int:
     rows = await pool.fetch(
         """SELECT id, status FROM executions
            WHERE cluster_id = $1::uuid AND (
-               (status = 'pending' AND created_at < now() - interval '5 minutes') OR
+               (status = 'pending' AND execution_type != 'remediation'
+                AND created_at < now() - interval '5 minutes') OR
                (status = 'running' AND started_at < now() - interval '30 minutes') OR
                (status = 'waiting_for_approval' AND created_at < now() - interval '4 hours 30 minutes')
            )""",

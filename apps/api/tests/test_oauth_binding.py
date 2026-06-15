@@ -5,8 +5,13 @@ from uuid import UUID, uuid4
 
 import pytest
 
-
 TEST_PRINCIPAL_ID = UUID("00000000-0000-0000-0000-000000000010")
+
+_SEED_PRINCIPAL_SQL = (
+    "INSERT INTO principals (id, provider, subject, display_name, email, groups) "
+    "VALUES (:id, 'test', 'test-subject', 'Test User', 'test@pinky.dev', '[]') "
+    "ON CONFLICT DO NOTHING"
+)
 
 
 @pytest.mark.asyncio
@@ -20,6 +25,7 @@ async def test_binding_repo_create(authed_client):
 
     async for db in app.dependency_overrides[get_db]():
         from sqlalchemy import text
+        await db.execute(text(_SEED_PRINCIPAL_SQL), {"id": str(TEST_PRINCIPAL_ID)})
         await db.execute(text(
             "INSERT INTO cluster_registry (id, display_name, api_endpoint, onboarding_state) "
             "VALUES (:id, 'binding-test', 'https://api.test:6443', 'ready') ON CONFLICT DO NOTHING"
@@ -73,6 +79,7 @@ async def test_binding_refresh_token(authed_client):
 
     async for db in app.dependency_overrides[get_db]():
         from sqlalchemy import text
+        await db.execute(text(_SEED_PRINCIPAL_SQL), {"id": str(TEST_PRINCIPAL_ID)})
         await db.execute(text(
             "INSERT INTO cluster_registry (id, display_name, api_endpoint, onboarding_state) "
             "VALUES (:id, 'refresh-test', 'https://api.test:6443', 'ready') ON CONFLICT DO NOTHING"
@@ -111,6 +118,7 @@ async def test_binding_list_accessible(authed_client):
 
     async for db in app.dependency_overrides[get_db]():
         from sqlalchemy import text
+        await db.execute(text(_SEED_PRINCIPAL_SQL), {"id": str(TEST_PRINCIPAL_ID)})
         await db.execute(text(
             "INSERT INTO cluster_registry (id, display_name, api_endpoint, onboarding_state) "
             "VALUES (:id, 'access-test', 'https://api.test:6443', 'ready') ON CONFLICT DO NOTHING"
