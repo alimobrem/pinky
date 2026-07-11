@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: pinky-compliance-reassess
+  labels:
+    app.kubernetes.io/name: pinky
+spec:
+  schedule: 0 3 1 * *
+  timezone: UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  workflowSpec:
+    entrypoint: compliance-check
+    templates:
+    - name: compliance-check
+      container:
+        image: REPLACE_WITH_AGENTIT_IMAGE
+        command:
+        - agentit
+        args:
+        - assess
+        - --rescan
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi

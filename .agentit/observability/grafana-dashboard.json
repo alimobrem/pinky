@@ -1,0 +1,90 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Requests / sec",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{app=\"pinky\"}[5m]))",
+          "legendFormat": "req/s"
+        }
+      ]
+    },
+    {
+      "title": "Error Rate %",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{app=\"pinky\",code=~\"5..\"}[5m])) / sum(rate(http_requests_total{app=\"pinky\"}[5m])) * 100",
+          "legendFormat": "error %"
+        }
+      ]
+    },
+    {
+      "title": "P99 Latency",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{app=\"pinky\"}[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "title": "Pod Restarts",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "sum(kube_pod_container_status_restarts_total{pod=~\"pinky-.*\"}) by (pod)",
+          "legendFormat": "{{{{pod}}}}"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [
+    "generated",
+    "pinky"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "title": "pinky",
+  "uid": "pinky-dashboard"
+}

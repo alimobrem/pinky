@@ -1,0 +1,25 @@
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: pinky-cpu-stress
+  namespace: default
+  labels:
+    app.kubernetes.io/name: pinky
+spec:
+  appinfo:
+    appns: default
+    applabel: app=pinky
+    appkind: deployment
+  engineState: active
+  chaosServiceAccount: pinky-chaos-sa
+  experiments:
+  - name: pod-cpu-hog
+    spec:
+      components:
+        env:
+        - name: TOTAL_CHAOS_DURATION
+          value: '120'
+        - name: CPU_CORES
+          value: '1'
+        - name: CPU_LOAD
+          value: '80'

@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: pinky-chaos-schedule
+  labels:
+    app.kubernetes.io/name: pinky
+spec:
+  schedule: 0 2 * * 3
+  timezone: UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  workflowSpec:
+    entrypoint: chaos-run
+    serviceAccountName: pinky-chaos-sa
+    templates:
+    - name: chaos-run
+      container:
+        image: litmuschaos/litmus-checker:latest
+        args:
+        - --chaosengine
+        - pinky-pod-kill
+        - --namespace
+        - default
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
