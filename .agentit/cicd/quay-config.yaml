@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pinky-quay-config
+  labels:
+    app.kubernetes.io/name: pinky
+data:
+  repository: quay.io/org/pinky
+  description: Container image for pinky
+  visibility: private
+  image-scanning: enabled
+  vulnerability-notifications: enabled
+  tag-expiration: 4w
+  robot-account: pinky-ci
