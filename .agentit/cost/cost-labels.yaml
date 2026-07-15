@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pinky-cost-labels
+  namespace: default
+  labels:
+    app.kubernetes.io/name: pinky
+data:
+  cost-center: engineering
+  team: pinky
+  environment: production
+  app-tier: medium
