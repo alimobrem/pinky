@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
+from pinky_api.audit import audit_log
 from pinky_api.auth.middleware import get_current_principal
 from pinky_api.auth.routes import router as auth_router
 from pinky_api.config import get_settings
@@ -33,7 +34,6 @@ from pinky_api.routes.streams import router as streams_router
 from pinky_api.routes.webhooks import router as webhooks_router
 from pinky_api.routes.work_items import router as work_items_router
 from pinky_api.security.headers import SecurityHeadersMiddleware
-from .audit import audit_log
 
 configure_logging()
 logger = structlog.get_logger(__name__)
@@ -104,9 +104,8 @@ app.add_middleware(
 )
 
 
-
 @app.middleware("http")
-async def agentit_audit_middleware(request, call_next):
+async def agentit_audit_middleware(request: Request, call_next) -> Response:
     response = await call_next(request)
     if request.method in ("POST", "PUT", "PATCH", "DELETE"):
         actor = (
@@ -122,6 +121,8 @@ async def agentit_audit_middleware(request, call_next):
             outcome=outcome,
         )
     return response
+
+
 @app.middleware("http")
 async def logging_context_middleware(request: Request, call_next) -> Response:
     request_id = request.headers.get("x-request-id", str(uuid.uuid4()))

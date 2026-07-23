@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 _log = logging.getLogger("audit")
@@ -20,7 +20,7 @@ def audit_log(
 ) -> None:
     """Emit a structured audit event (stdout → platform log pipeline)."""
     record = {
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": datetime.now(UTC).isoformat(),
         "type": "audit",
         "action": action,
         "actor": actor,
