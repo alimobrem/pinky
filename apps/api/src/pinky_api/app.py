@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
+from pinky_api.audit import audit_log
 from pinky_api.auth.middleware import get_current_principal
 from pinky_api.auth.routes import router as auth_router
 from pinky_api.config import get_settings
@@ -101,6 +102,25 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
 )
+
+
+@app.middleware("http")
+async def agentit_audit_middleware(request: Request, call_next) -> Response:
+    response = await call_next(request)
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        actor = (
+            request.headers.get("x-forwarded-user")
+            or request.headers.get("x-user")
+            or "anonymous"
+        )
+        outcome = "success" if response.status_code < 400 else "failure"
+        audit_log(
+            action=f"{request.method} {request.url.path}",
+            actor=actor,
+            resource=request.url.path,
+            outcome=outcome,
+        )
+    return response
 
 
 @app.middleware("http")
