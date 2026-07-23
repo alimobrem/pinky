@@ -33,6 +33,7 @@ from pinky_api.routes.streams import router as streams_router
 from pinky_api.routes.webhooks import router as webhooks_router
 from pinky_api.routes.work_items import router as work_items_router
 from pinky_api.security.headers import SecurityHeadersMiddleware
+from .audit import audit_log
 
 configure_logging()
 logger = structlog.get_logger(__name__)
@@ -103,6 +104,24 @@ app.add_middleware(
 )
 
 
+
+@app.middleware("http")
+async def agentit_audit_middleware(request, call_next):
+    response = await call_next(request)
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        actor = (
+            request.headers.get("x-forwarded-user")
+            or request.headers.get("x-user")
+            or "anonymous"
+        )
+        outcome = "success" if response.status_code < 400 else "failure"
+        audit_log(
+            action=f"{request.method} {request.url.path}",
+            actor=actor,
+            resource=request.url.path,
+            outcome=outcome,
+        )
+    return response
 @app.middleware("http")
 async def logging_context_middleware(request: Request, call_next) -> Response:
     request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
